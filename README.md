@@ -48,12 +48,27 @@ The owner does not type basis points. In the console's Mandate editor they write
 | Contract unit + fuzz tests | 34 / 34 (fuzz: 2,000 runs each) | `forge test` |
 | Invariants (rogue-agent handler, 256 runs × 64 calls) | 7 / 7, 16,384 hostile calls (forge lists 7 `[PASS]` lines but counts one shared campaign as 1 test, so plain `forge test` reports 35) | `forge test --match-path test/Invariant.t.sol` |
 | Off-chain policy + mandate compiler tests | 17 / 17 | `npm test` |
-| Full local campaign (5 tasks + 13 attacks, fresh chain) | 18 / 18 | `scripts/local-campaign.ps1` |
+| Full local campaign (5 tasks + 13 attacks, fresh chain) | 18 / 18 | `powershell -ExecutionPolicy Bypass -File scripts/local-campaign.ps1` |
 | Same 13 attacks launched from the web console | 13 / 13 | `npm run server`, Red team panel |
 | Live LLM runs (gpt-6.1-sol via Codex CLI, no tools) | 2 routine plans + 3 mandate compilations, recorded and replayable | `evidence/model-runs/` |
 | Ethereum Sepolia campaign (run 4), vault [`0x8237…cE80`](https://sepolia.etherscan.io/address/0x8237d47a29e49d8f60fde0ca900df86ae2c7ce80) | 18 / 18, 29 transactions, 12 mined refusals, re-derived from the chain by `audit-chain.mjs`; Blockscout decodes 11 of the 12 refusals identically and has not indexed the 12th (A2); 4 contracts verified on Sourcify (exact match). Runs 1–3 were 17/18 (see Honesty notes) | [docs/evidence-sepolia.md](docs/evidence-sepolia.md) |
 
 Every attack is sent for real with a fixed gas limit, so the refusal is **mined as a reverted transaction**. Every refusal has a public hash. We call this *proof of refusal*.
+
+### Check it in a minute, with nothing to install
+
+These links point to the reference run on Ethereum Sepolia, in public block explorers:
+
+| Claim | Where to look |
+|---|---|
+| The agent pays a registered bill alone (tier 1) | [800 tUSD rent](https://sepolia.etherscan.io/tx/0x74edd399285c281abae3d8dc400fed359b22ba2aeed5723227a224a6c55a7fe2) on Etherscan |
+| A payment above the agent's limits goes through only with the owner's EIP-712 signature (tier 2) | [5,000 tUSD tuition](https://sepolia.etherscan.io/tx/0x119280a0ac4a7a1030dc16e66a4ae6db7cd94fd332b707ce47fa7a4f82899217) on Etherscan |
+| A stolen agent key cannot forge the owner's signature | [A7, 9,000 tUSD to the attacker](https://eth-sepolia.blockscout.com/tx/0x44dc52039c20162febb93c766ddec4414c277f13a5300cab8bef659e2c8d9236): Blockscout decodes `BadMandateSignature()` |
+| A pumped pool cannot make the agent overpay | [A9, forced buy](https://eth-sepolia.blockscout.com/tx/0xb1e06f38a5a1616e29068724f64e11c050c67bc966c07805273c1c91f54adb8b): the vault demands at least the oracle price minus 1 %, the pumped pool cannot pay it, and the swap reverts (`slippage`) |
+| The guardian's kill switch stops the agent | [A10](https://eth-sepolia.blockscout.com/tx/0x8adf991aceed69e4dd4fc15f33dee7ce1f1cf7e694b3182606d893380d05088e): `VaultPaused()` |
+| The source you read is the code deployed | [LeashVault source on Blockscout](https://eth-sepolia.blockscout.com/address/0x8237d47a29E49D8F60FDE0CA900dF86AE2C7cE80?tab=contract), [Sourcify: exact match](https://repo.sourcify.dev/11155111/0x8237d47a29E49D8F60FDE0CA900dF86AE2C7cE80) |
+
+All 29 transactions of this run, and the three earlier runs that failed, are in [docs/evidence-sepolia.md](docs/evidence-sepolia.md).
 
 ## Repository
 
@@ -102,7 +117,7 @@ node app/src/deploy.js local --fresh
 node app/src/scenes.js local
 ```
 
-The campaign prints 18 lines and writes `evidence/local-campaign-<run>.json`. On Windows, `scripts/local-campaign.ps1` does all of this on a fresh anvil. It finds Foundry on the PATH, or in `LEASH_FOUNDRY`. It listens on `LEASH_ANVIL_PORT` (default 8545) and only restarts an anvil that is already on that port.
+The campaign prints 18 lines and writes `evidence/local-campaign-<run>.json`. On Windows, `powershell -ExecutionPolicy Bypass -File scripts/local-campaign.ps1` does all of this on a fresh anvil (Windows's default execution policy refuses to run scripts without it). It finds Foundry on the PATH, or in `LEASH_FOUNDRY`. It listens on `LEASH_ANVIL_PORT` (default 8545) and only restarts an anvil that is already on that port.
 
 If port 8545 is taken, start anvil with `--port 8546` and set `LEASH_LOCAL_RPC=http://127.0.0.1:8546`. `LEASH_SEPOLIA_RPC` overrides the Sepolia node, which defaults to publicnode.
 

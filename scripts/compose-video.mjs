@@ -10,7 +10,7 @@
 import { createServer } from 'node:http';
 import { spawnSync } from 'node:child_process';
 import { readFileSync, writeFileSync, appendFileSync, mkdirSync, existsSync } from 'node:fs';
-import { join, extname, resolve } from 'node:path';
+import { join, extname, resolve, dirname } from 'node:path';
 import { launch, sleep } from './cdp.mjs';
 import { ROOT, SLOTS, script, lines, clipName, wavSeconds } from './video-script.mjs';
 
@@ -23,6 +23,7 @@ const VOICE = args.includes('--voice') || !!VOICE_DIR;
 const PREVIEW = args.includes('--preview');
 const REPO = opt('--repo');
 const OUT = resolve(opt('--out') ?? join(DIR, VOICE_DIR ? 'leash-demo-narrated' : VOICE ? 'leash-demo-voice' : 'leash-demo'));
+mkdirSync(dirname(OUT), { recursive: true });
 
 const tl = JSON.parse(readFileSync(join(DIR, 'timeline.json'), 'utf8'));
 const T0 = tl.frames[0].t;
@@ -258,6 +259,9 @@ await done;
 browser.close();
 server.close();
 console.log(`→ ${outFile} (${(readFileSync(outFile).length / 1e6).toFixed(1)} MB) and ${OUT}.srt`);
+// What this render is, for presubmit.mjs: whose voice, which repo URL is on the closing card, which capture.
+writeFileSync(`${OUT}.json`, `${JSON.stringify({ file: outFile, seconds: Math.round(total * 10) / 10, voice: VOICE_DIR ? 'person' : VOICE ? 'windows' : 'none',
+  repo: REPO ?? null, preview: PREVIEW, network: net, capture: DIR, renderedAt: new Date().toISOString() }, null, 1)}\n`);
 
 // Declared as a function so that the server, which starts above, can already serve it.
 function page() {

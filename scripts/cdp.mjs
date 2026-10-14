@@ -9,6 +9,11 @@ export const BROWSER = process.env.BROWSER ?? 'C:\\Program Files (x86)\\Microsof
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 export async function launch({ width = 1600, height = 1000, scale = 2, dark = true, port = 9333, args = [] } = {}) {
+  // A second script on the same port would silently drive the first one's browser: on 2026-10-15 two renders shared
+  // one, and the first froze in a background tab. Refuse instead.
+  if (await fetch(`http://127.0.0.1:${port}/json/version`).then(() => true, () => false)) {
+    throw new Error(`a browser already listens on port ${port}: is another capture or render running?`);
+  }
   const profile = mkdtempSync(join(tmpdir(), 'leash-cdp-'));
   let closed = null;
   const proc = spawn(BROWSER, ['--headless=new', `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, '--no-first-run', '--hide-scrollbars', ...args, 'about:blank'], { stdio: 'ignore' });

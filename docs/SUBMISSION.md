@@ -29,11 +29,17 @@ Steps 1 to 5 were done on 2026-10-14. Runs 1–3 were 17/18 because of three har
    - Checked on 2026-10-15. None of the 24 commits contains `secrets/`, a `.env` file or any of the 7 real keys. A fresh clone passes the whole README (forge, npm, campaign 18/18, console).
    - Two decisions before pushing:
      - **License.** The contracts already say `SPDX-License-Identifier: MIT`, but there is no LICENSE file, so the rest of the code has no license. If MIT is fine, add a root `LICENSE` file.
-     - **Commit email.** The commits carry the author's personal email. GitHub shows it publicly. To hide it, rewrite the author to the GitHub noreply address before the first push.
+     - **Commit email.** The commits carry the author's personal email. GitHub shows it publicly. To hide it, rewrite the author to the GitHub noreply address before the first push. A rewrite gives every commit a new hash, and boucle.md cites three of them (54d833b, 04948f3, 9c382c2); they would have to be replaced with the new hashes, or the citations would point nowhere.
    - Then create an empty repo on github.com (no README, no license; `gh` is not installed here), and push:
      - `git remote add origin https://github.com/<user>/leash.git`
      - `git push -u origin main`
-9. Export the deck (PDF or PPTX) from the Slides artifact. Submit.
+9. Export the deck (PDF or PPTX) from the Slides artifact.
+10. `node scripts/presubmit.mjs --forge` (it sends nothing). It checks what is easy to get wrong on the last day:
+    - nothing is left uncommitted or unpushed, the repo is public, and no secret file is tracked;
+    - the newest video renders with a voice, under 5 minutes, and with this repo's URL on its closing card;
+    - Blockscout still decodes as many refusals as the README claims, and the tests pass.
+
+    It ends with what no script can check. Then submit.
 
 ## To ask the organizers
 

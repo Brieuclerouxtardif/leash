@@ -255,3 +255,28 @@ Ce ne sont pas des promesses du prompt : c'est le contrat qui refuse. Chaque ref
     - Rien n'a été testé avec un vrai micro ni une vraie voix. Le faux micro ne prouve pas que le seuil garde une fin de phrase soufflée ou un « s » final. La marge de 0,2 s après le dernier passage fort devrait suffire ; à vérifier à la première réécoute (P).
     - Le clic de la barre d'espace est retiré en jetant 0,3 s au début et à la fin de chaque prise. Qui parle avant que le point passe au vert perd sa première syllabe. La page le dit, mais la contrainte reste.
     - Le micro d'un portable capte le ventilateur ; seule la suppression de bruit du navigateur est activée. Un casque vaut mieux.
+
+- 01:37 (réel, 15/10) — Le dernier jour, vu d'avance.
+  - **Un juge doit pouvoir vérifier sans rien installer.** Le README renvoyait vers un tableau de 29 hashes. Il a maintenant une section « Check it in a minute » : une ligne par affirmation, un lien chacune (loyer de 800 tUSD, frais de scolarité co-signés, A7, A9, A10, code source vérifié). Chaque lien a été vérifié par l'API de Blockscout : montant, destinataire, erreur décodée. Pour A9, j'écris ce qui se passe vraiment : le vault exige le prix de l'oracle moins 1 %, et c'est le pool qui échoue (`slippage`), pas une erreur du vault.
+  - **`local-campaign.ps1` ne se lançait pas chez un juge Windows.** La politique d'exécution par défaut refuse les scripts : je l'ai vérifié ici, en effaçant le contournement de ma propre session. Le README donne maintenant `powershell -ExecutionPolicy Bypass -File …`. Ma vérification sur un clone neuf ne l'avait pas vu, parce que mon outil tourne en Bypass. **Un test lancé depuis mon environnement n'est pas un test depuis celui d'un juge.**
+  - **Brieuc ne pouvait lancer aucune de mes commandes.** Ni `node`, ni `git`, ni `forge` ne sont dans son PATH : j'utilise des copies portables par leur chemin complet. Toutes mes instructions (« `node scripts/record-voice.mjs` », « `git push` ») auraient répondu « n'est pas reconnu » le 20. Correctif : quatre raccourcis à double-cliquer dans `work/`, hors du repo puisqu'ils contiennent les chemins de ce PC (narrer, rendre, vérifier, publier). Le push passe par le Git Credential Manager du Git embarqué : c'est Brieuc qui se connecte.
+  - **`scripts/presubmit.mjs`.** Il n'envoie rien et vérifie ce qu'on rate le dernier jour :
+    - tout est commité, poussé, le repo est public, aucun secret n'est suivi ;
+    - la vidéo la plus récente a une voix, dure moins de 5 min et porte l'URL de ce repo sur sa carte de fin ;
+    - Blockscout décode toujours autant de refus que le README l'affirme ;
+    - les tests passent.
+
+    `compose-video` laisse maintenant un `.json` à côté de chaque rendu, sinon rien ne permettait de savoir avec quelle voix et quelle URL une vidéo avait été faite. Premier passage : 11 de 12 confirmé, 17 + 35 tests, et trois ✗ attendus (pas de remote, pas de vidéo finale, travail non commité).
+  - **Mes erreurs de la nuit, dans l'ordre.**
+    1. J'ai testé `2-video.cmd` sans saisie avant d'y mettre une garde contre l'URL vide : il a lancé un vrai rendu de 3 min.
+    2. Le premier rendu (mon test) a gelé à 18 %. Le second Edge n'a pas pu prendre le port 9336 ; le second script s'est donc branché sur le navigateur du premier, et la page du premier est passée en onglet d'arrière-plan, sans rAF.
+    3. J'ai ensuite modifié `2-video.cmd` pendant qu'il tournait. cmd relit un batch au fil de l'exécution : il a exécuté des lignes décalées (« '--plan' n'est pas reconnu ») et relancé un troisième rendu.
+
+    Tout a été arrêté. Seuls les Edge des profils `leash-cdp-*` ont été tués (25 processus, 3 instances), pas le navigateur de Brieuc. Aucun fichier du repo n'a été touché ; il reste un rendu Zira sans URL dans `work/` (`leash-demo-voice.mp4`), que `presubmit` signale bien comme non final.
+  - **Ce que l'accident a corrigé.** `cdp.mjs` refuse désormais de démarrer si un navigateur écoute déjà sur son port (testé pendant un rendu : refus net, le rendu continue). `compose-video --out` crée son dossier au lieu de planter. Le LISEZ-MOI dit de ne jamais modifier un `.cmd` en cours.
+  - **Critique.** Deux règles que je connaissais et que j'ai enfreintes par hâte :
+    - ne pas lancer un test qui peut déclencher une action longue sans avoir posé la garde d'abord ;
+    - ne pas toucher un fichier qu'un processus est en train de lire.
+
+    Le coût réel est faible (10 min, rien de perdu), mais le même réflexe sur un `deploy.js sepolia` ou un `git push` aurait été irréversible.
+  - **Récidive.** `presubmit` affichait « 2:60 » pour 179,7 s : le bug d'arrondi corrigé le 14 dans `compose-video`, que j'ai réécrit dans le nouveau script au lieu de le réutiliser. Corrigé, avec un commentaire. Le test de la branche vidéo (une copie de rendu marquée finale, puis un remote factice retiré juste après) l'a attrapé. C'est aussi lui qui a confirmé le refus d'une carte de fin dont l'URL n'est pas celle du repo.
