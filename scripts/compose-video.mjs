@@ -1,41 +1,33 @@
-// Cuts the fallback demo video from a record-demo.mjs capture, inside a headless browser (no ffmpeg needed):
-// title and closing cards, the voice-over of docs/VIDEO.md as subtitles (and, with --voice, spoken by the Windows
-// voice), a ring on every click, and each block wait cut and labelled. Where a sentence is still being spoken when
-// its moment comes, the picture holds on the frame before that moment instead of running ahead of the words.
-// Usage: node scripts/compose-video.mjs <captureDir> [--voice] [--repo <url>] [--out <file without extension>] [--plan] [--preview]
+// Cuts the demo video from a record-demo.mjs capture, inside a headless browser (no ffmpeg needed): title and
+// closing cards, the voice-over of docs/VIDEO.md as subtitles and spoken (by a person with --voice-dir, by the Windows
+// voice with --voice), a ring on every click, and each block wait cut and labelled. Where a sentence is still being
+// spoken when its moment comes, the picture holds on the frame before that moment instead of running ahead of the words.
+// Usage: node scripts/compose-video.mjs <captureDir> [--voice | --voice-dir <dir>] [--repo <url>] [--out <file without extension>] [--plan] [--preview]
+// --voice-dir takes the sentences a person recorded with record-voice.mjs.
 // --plan prints the timing (length, cuts, holds) and stops before the real-time render.
 // --preview renders a 720p copy at a low bitrate (~25 MB for 3 min), small enough to send to a phone.
 // Writes <out>.mp4 (or .webm) and <out>.srt.
 import { createServer } from 'node:http';
 import { spawnSync } from 'node:child_process';
 import { readFileSync, writeFileSync, appendFileSync, mkdirSync, existsSync } from 'node:fs';
-import { join, extname, resolve, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join, extname, resolve } from 'node:path';
 import { launch, sleep } from './cdp.mjs';
+import { ROOT, SLOTS, script, lines, clipName, wavSeconds } from './video-script.mjs';
 
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
 const opt = (name) => { const i = args.indexOf(name); return i < 0 ? undefined : args[i + 1]; };
 const DIR = resolve(args[0] ?? '');
-if (!args[0] || !existsSync(join(DIR, 'timeline.json'))) { console.error('usage: node scripts/compose-video.mjs <captureDir> [--voice] [--repo <url>] [--out <file>]'); process.exit(2); }
-const VOICE = args.includes('--voice');
+if (!args[0] || !existsSync(join(DIR, 'timeline.json'))) { console.error('usage: node scripts/compose-video.mjs <captureDir> [--voice | --voice-dir <dir>] [--repo <url>] [--out <file>]'); process.exit(2); }
+const VOICE_DIR = opt('--voice-dir') && resolve(opt('--voice-dir'));
+const VOICE = args.includes('--voice') || !!VOICE_DIR;
 const PREVIEW = args.includes('--preview');
 const REPO = opt('--repo');
-const OUT = resolve(opt('--out') ?? join(DIR, VOICE ? 'leash-demo-voice' : 'leash-demo'));
+const OUT = resolve(opt('--out') ?? join(DIR, VOICE_DIR ? 'leash-demo-narrated' : VOICE ? 'leash-demo-voice' : 'leash-demo'));
 
 const tl = JSON.parse(readFileSync(join(DIR, 'timeline.json'), 'utf8'));
 const T0 = tl.frames[0].t;
 const src = (ms) => (ms - T0) / 1000;
 const marks = tl.marks.map((m) => ({ ...m, s: src(m.t) }));
-
-// ---- The script: one row of the VIDEO.md table per slot.
-const SLOTS = ['title', 'top', 'routine', 'tier1', 'tier2', 'editor', 'redteam', 'kill', 'closing'];
-const rows = readFileSync(join(ROOT, 'docs', 'VIDEO.md'), 'utf8').split('\n')
-  .map((l) => l.match(/^\| \d:\d\d–\d:\d\d \| (.*) \| "(.*)" \|\s*$/)).filter(Boolean)
-  .map(([, screen, voice]) => ({ screen, voice }));
-if (rows.length !== SLOTS.length) throw new Error(`VIDEO.md has ${rows.length} voice-over rows, expected ${SLOTS.length}`);
-const script = Object.fromEntries(SLOTS.map((id, i) => [id, rows[i]]));
-const sentences = (text) => text.split(/(?<=[.!?])\s+/).filter(Boolean);
 
 // The sentence waits for this mark of the recording (first match inside its scene, after the previous anchor),
 // and the box the mark recorded is spotlit while it is said.
@@ -68,16 +60,23 @@ const ANCHORS = {
 const used = new Set();
 const anchorOf = (text) => Object.keys(ANCHORS).find((k) => text.startsWith(k) && used.add(k));
 
-// ---- Speech: Windows SAPI renders each sentence to a WAV; without --voice, a reading time stands in for it.
-const lines = SLOTS.flatMap((id) => sentences(script[id].voice).map((text) => ({ id, text })));
+// ---- Speech: a person's recordings (--voice-dir, made with record-voice.mjs), or the Windows voice (--voice), one
+// WAV per sentence. Without either, a reading time stands in for it.
 const spoken = (s) => s
   .replace(/\bEIP-712\b/g, 'E I P 7 12')
   .replace(/\bLEASH\b/g, 'Leash')
   .replace(/\bETH\b/g, 'E T H')
   .replace(/\b[A-Z][a-z]+(?:[A-Z][a-z]+)+\b/g, (w) => w.replace(/([a-z])([A-Z])/g, '$1 $2'));
-if (VOICE) {
+if (VOICE_DIR) {
+  // The recordings must say today's script: a sentence edited in VIDEO.md since it was read has to be read again.
+  const manifest = join(VOICE_DIR, 'lines.json');
+  const said = existsSync(manifest) ? JSON.parse(readFileSync(manifest, 'utf8')) : [];
+  const todo = lines.map((l, i) => i).filter((i) => said[i]?.text !== lines[i].text || !existsSync(join(VOICE_DIR, clipName(i))));
+  if (todo.length) throw new Error(`${todo.length} sentences not recorded, or changed in VIDEO.md since: ${todo.map(clipName).join(', ')} (node scripts/record-voice.mjs ${opt('--voice-dir')})`);
+  lines.forEach((l, i) => { l.audio = `human/${clipName(i)}`; l.dur = wavSeconds(readFileSync(join(VOICE_DIR, clipName(i)))); });
+} else if (VOICE) {
   mkdirSync(join(DIR, 'voice'), { recursive: true });
-  lines.forEach((l, i) => { l.audio = `voice/s${String(i).padStart(2, '0')}.wav`; });
+  lines.forEach((l, i) => { l.audio = `voice/${clipName(i)}`; });
   const list = join(DIR, 'voice', 'list.json');
   writeFileSync(list, JSON.stringify(lines.map((l) => ({ file: join(DIR, l.audio), text: spoken(l.text) }))));
   const ps = `Add-Type -AssemblyName System.Speech
@@ -92,16 +91,6 @@ $s.SetOutputToNull(); $s.Dispose()`;
   for (const l of lines) l.dur = wavSeconds(readFileSync(join(DIR, l.audio)));
 } else {
   for (const l of lines) l.dur = Math.max(1.8, 0.4 + l.text.split(/\s+/).length / 2.6);
-}
-function wavSeconds(buf) {
-  let byteRate = 0;
-  for (let p = 12; p + 8 <= buf.length;) {
-    const id = buf.toString('ascii', p, p + 4); const size = buf.readUInt32LE(p + 4);
-    if (id === 'fmt ') byteRate = buf.readUInt32LE(p + 16);
-    if (id === 'data') return size / byteRate;
-    p += 8 + size + (size % 2);
-  }
-  throw new Error('no data chunk in WAV');
 }
 
 // ---- Edit decision list, in output seconds.
@@ -198,7 +187,7 @@ if (unused.length) console.warn(`warning: no VIDEO.md sentence starts with ${unu
 
 const net = tl.network;
 const footnote = [`Recorded from the live console on ${net}.`, cuts.length ? `${cuts.length} block waits cut and labelled.` : null,
-  VOICE ? 'Synthetic voice (Windows).' : null].filter(Boolean).join(' ');
+  VOICE && !VOICE_DIR ? 'Synthetic voice (Windows).' : null].filter(Boolean).join(' ');
 const title = script.title.screen.match(/"(.+)"/)[1];
 const stats = script.closing.screen.replace(/^Closing card:\s*/, '').replace(/\.$/, '').split(' · ').filter((x) => x !== 'repo URL');
 // The body was laid out from 0; the title card goes in front of it and the closing card after.
@@ -247,7 +236,7 @@ const server = createServer((req, res) => {
     return;
   }
   const file = path === '/' ? null : path === '/leash.svg' ? join(ROOT, 'app', 'public', 'leash.svg') : path === '/plan.json' ? join(DIR, 'plan.json')
-    : /^\/(frames|voice)\/[\w.-]+$/.test(path) ? join(DIR, path) : null;
+    : /^\/(frames|voice)\/[\w.-]+$/.test(path) ? join(DIR, path) : VOICE_DIR && /^\/human\/s\d\d\.wav$/.test(path) ? join(VOICE_DIR, path.slice(7)) : null;
   if (path === '/') { res.setHeader('content-type', 'text/html'); return res.end(page()); }
   if (!file || !existsSync(file)) { res.statusCode = 404; return res.end(); }
   res.setHeader('content-type', TYPES[extname(file)] ?? 'application/octet-stream');

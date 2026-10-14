@@ -56,9 +56,26 @@ node scripts/record-demo.mjs http://127.0.0.1:8791/ work/demo
 node scripts/compose-video.mjs work/demo --voice --repo <url>
 ```
 
-Keep the computer awake, with the lid open, during a take and during a render. On 2026-10-14, two runs died the moment the laptop went to sleep. It writes `work/demo/leash-demo-voice.mp4` (1080p, H.264 + AAC) and an `.srt`, rendering in real time (3 min); `--plan` prints the timing without rendering. `--preview` writes a 720p copy (23 MB for 3:00) to watch on a phone; submit the 1080p one. The title card says the video is recorded from the live console, on which network, how many waits were cut, and that the voice is synthetic. A person reading the script is still better: a synthetic voice sounds like one.
+Keep the computer awake, with the lid open, during a take and during a render. On 2026-10-14, two runs died the moment the laptop went to sleep. It writes `work/demo/leash-demo-voice.mp4` (1080p, H.264 + AAC) and an `.srt`, rendering in real time (3 min); `--plan` prints the timing without rendering. `--preview` writes a 720p copy (23 MB for 3:00) to watch on a phone; submit the 1080p one. The title card says the video is recorded from the live console, on which network, how many waits were cut, and that the voice is synthetic. A person reading the script is still better: a synthetic voice sounds like one, and the next section needs no new take.
 
 Recorded on Sepolia on 2026-10-14 (vault `0xe30d…dd82`): 3:37 of capture, of which 142 s of block waits were cut (8 cuts, 8 to 60 s each). The result is 3:00 long. During 80 s of it, the picture holds while the voice speaks. A2, A7, A9 and A10 were refused on-chain.
+
+## A person's voice on the recorded take
+
+Read the 30 sentences of the table into a microphone; `compose-video.mjs` then cuts the same Sepolia take with that voice instead of Zira's. No new take, no new vault.
+
+```
+node scripts/record-voice.mjs work/voice
+node scripts/compose-video.mjs work/demo-sepolia2 --voice-dir work/voice --plan
+node scripts/compose-video.mjs work/demo-sepolia2 --voice-dir work/voice --repo <url>
+```
+
+The first command opens a page at http://127.0.0.1:8793 with one sentence at a time and what is on screen when it is said. <kbd>Space</kbd> records, <kbd>Space</kbd> again stops, <kbd>P</kbd> plays back. Record a sentence again to replace it. The page trims the silence around the words and brings every clip to the same loudness. It says when a take is saturated or too quiet. About 15 minutes in all.
+- Pace is free: each sentence still starts on its moment, and the picture holds while the voice runs long. Calm beats fast.
+- A quiet room and a headset microphone matter more than anything else; a laptop microphone picks up the fan.
+- A sentence edited in this table after it was read shows up as to read again, and `compose-video.mjs` refuses to cut until it is.
+
+The last command writes `work/demo-sepolia2/leash-demo-narrated.mp4`; its title card no longer says "synthetic voice". Tested on 2026-10-15 with a fake microphone that played Zira's sentences: same timing as `--voice` to the tenth of a second.
 
 ## Do not say
 

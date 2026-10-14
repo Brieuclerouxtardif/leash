@@ -231,3 +231,27 @@ Ce ne sont pas des promesses du prompt : c'est le contrat qui refuse. Chaque ref
     - Les deux sont écrites dans SUBMISSION.md, étape 8.
   - **Premier écran du README.** Un juge voyait du texte puis un schéma ASCII ; la première capture n'arrivait qu'à la ligne 40. La capture de la console (vault, mandat, registre avec les hashes) passe maintenant juste sous le pitch, avec une légende qui précise « chaîne locale ».
   - **Critique.** J'avais annoncé « 7 / 7 » sans jamais regarder ce qu'affiche la ligne de résumé de forge. Un chiffre vrai mais présenté autrement que l'outil coûte de la crédibilité au moment précis où le juge vérifie. Règle : chaque chiffre du README doit se retrouver tel quel dans la sortie de la commande citée à côté, ou être accompagné de la conversion.
+
+- 00:33 (réel, 15/10) — Une vraie voix sur la prise Sepolia, sans nouvelle prise.
+  - **Pourquoi.** Le brief préfère une vidéo narrée, et Zira sonne synthétique. Refaire une prise avec Brieuc au micro coûterait un nouveau vault, 3 min 37 de prise sans faute, et il faudrait parler en cliquant. Or le montage place déjà chaque phrase sur son instant : il suffit de remplacer les WAV de Zira par les siens.
+  - **Fait.**
+    - `scripts/video-script.mjs` découpe VIDEO.md en 30 phrases. Le montage et l'enregistrement le partagent, donc numérotent pareil.
+    - `scripts/record-voice.mjs` : un serveur sur 127.0.0.1 et une page. Espace enregistre, Espace arrête, P réécoute. Le son brut passe par un AudioWorklet, sans compression Opus intermédiaire. La page :
+      - coupe le silence (RMS par 10 ms, seuil = max(10 % du pic, 3 × le bruit de fond)) ;
+      - égalise le volume sur les passages parlés ;
+      - signale une prise saturée ou trop faible.
+    - `lines.json` garde le texte de chaque clip au moment de la lecture. Une phrase modifiée ensuite dans VIDEO.md est marquée « à relire », et `compose-video --voice-dir` refuse de monter tant qu'elle ne l'est pas.
+  - **Testé.** Edge et Chrome headless (Chrome est le navigateur par défaut de Brieuc), avec un faux micro qui joue une phrase de Zira entourée de silence :
+    - 2,84 s de parole donnent un clip de 3,16 s (Edge) et 3,14 s (Chrome) ; 0,32 s de marges étaient prévues.
+    - Les gardes du serveur répondent : Host étranger 421, Origin étranger ou absent 403, index hors bornes 404, pas un WAV 400, 21 Mo refusés. Aucune requête refusée n'écrit de fichier.
+    - Les 30 clips de Zira passés par le serveur donnent exactement le plan de `--voice` : 3:00, 79,8 s de gel.
+    - Un rendu preview complet passe par la nouvelle route audio : 3:00, son présent du début à la fin, et plus de « synthetic voice » sur la carte titre.
+  - **Ce que les tests ont attrapé.**
+    - **Mon fichier de test était faux, pas Edge.** J'ai supposé un en-tête WAV de 44 octets, mais SAPI en écrit 46 (bloc `fmt ` de 18). Edge lisait donc un fichier corrompu et livrait du silence. J'ai d'abord accusé le bac à sable audio d'Edge, deux essais pour rien. C'est la même faute de méthode que la veille : vérifier mes propres entrées avant d'accuser l'outil. Le `wavSeconds` du repo parcourt bien les blocs ; c'est mon script jetable qui avait pris le raccourci.
+    - **Pas de retour au premier appui.** Il ouvre le micro, ce qui prend plus de 300 ms, plus la demande d'autorisation. Sans rien à l'écran, on croit que rien ne se passe. Ajout du message « opening the microphone… ».
+    - **Pas de retour aux phrases sautées.** Arrivée à la dernière phrase, la page restait bloquée. Elle y revient maintenant.
+    - **Firefox, trouvé en relisant.** Il refuse de brancher un micro sur un AudioContext forcé à 48 kHz quand le micro tourne à une autre fréquence. La page enregistre maintenant à la fréquence native de la carte son. Ce point n'est pas testé, Firefox n'est pas installé ici.
+  - **Limites.**
+    - Rien n'a été testé avec un vrai micro ni une vraie voix. Le faux micro ne prouve pas que le seuil garde une fin de phrase soufflée ou un « s » final. La marge de 0,2 s après le dernier passage fort devrait suffire ; à vérifier à la première réécoute (P).
+    - Le clic de la barre d'espace est retiré en jetant 0,3 s au début et à la fin de chaque prise. Qui parle avant que le point passe au vert perd sa première syllabe. La page le dit, mais la contrainte reste.
+    - Le micro d'un portable capte le ventilateur ; seule la suppression de bruit du navigateur est activée. Un casque vaut mieux.
