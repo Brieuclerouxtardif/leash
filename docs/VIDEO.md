@@ -6,20 +6,23 @@ One take of the real console, plus a title card at each end. English voice-over.
 
 **Network.** Record on Sepolia if it is deployed (the header pill reads "Ethereum Sepolia" and every hash opens Etherscan). Otherwise record on the local chain and leave the "Local chain (anvil)" pill visible. Never crop it out.
 
-**Block waits.** On Sepolia, each transaction waits about 12 s for a block. Transactions per action:
-- Execute: 1 each.
-- Sign as owner: 1.
-- A2: 1. A7: 1.
-- A9: 5 (approve, pump, forced buy, approve, unwind), about a minute.
-- A10: 2. Restart: 1.
+**Block waits.** On Sepolia each transaction waits for a block (12 s). Measured in the console over two rehearsals on 2026-10-14:
 
-Live, the red-team segment needs about 90 s. Cut the waits and caption each cut "block wait cut (~12 s per transaction)". Keep the click and the result on screen, and never cut inside a result. On the local chain there is nothing to cut: measured on 2026-10-14, every action returns in under 1.5 s (A9, five transactions: 1.3 s).
+| Action | Transactions | Wait |
+|---|---|---|
+| Execute (rent, electricity) | 1 each | 5–9 s each |
+| Sign as owner | 1 | 5–10 s |
+| A2, A7 | 1 each | 6–14 s each |
+| A9 | 5 (approve, pump, forced buy, approve, unwind) | 48–61 s |
+| A10 | 2 | 18–26 s |
+| Restart agent | 1 | 9–14 s |
 
+Live, the red-team segment alone needs 90 s to 2 min. Cut the waits and caption each cut "block wait cut (~12 s per transaction)". Keep the click and the result on screen, and never cut inside a result. While a transaction waits, its button reads "Sending…" (or "Signed · waiting for the block…"); clicking the next attack meanwhile is safe, it is queued behind the first. On the local chain there is nothing to cut: every action returns in under 1.5 s (A9, five transactions: 1.3 s).
 **Opening a refusal.** On Sepolia, open the **decoded** link next to a refusal's hash, not the hash itself. Etherscan shows our refusals only as "execution reverted", because our sources are verified on Sourcify. Blockscout names the vault's error (`PayeeNotAllowed`). Blockscout can need a minute to index a fresh transaction, so open a refusal from earlier in the take, or check that the page shows the error before recording.
 
 **Model.** The routine and the mandate editor run as **recorded replays** of live gpt-6.1-sol calls. The console prints "RECORDED REPLAY" above each result; say it aloud once. A live call takes 8–20 s, too long for the video.
 
-**Before recording.** `node app/src/deploy.js <net> --fresh` (local) or, on Sepolia, `node app/src/repeg.js sepolia` (the pool must sit at the live Chainlink price), then `npm run server -- --network <net> --port 8791`. Play the scenes in this order on that fresh state: A9 assumes the pool sits at the oracle price, and A10 pulls the kill switch itself (the header button is hidden while the vault is paused).
+**Before recording.** A vault pays each of the week's bills once (the opId is spent), so every take needs a fresh vault: `node app/src/deploy.js <net> --fresh`. On Sepolia that takes about 5 minutes and keeps the previous deployment file under `deployments/`. If more than an hour passes before the take, run `node app/src/repeg.js sepolia`: A9 needs the pool at the live Chainlink price. Then `npm run server -- --network <net> --port 8791`. Play the scenes in this order on that fresh state: A10 pulls the kill switch itself (the header button is hidden while the vault is paused).
 
 | Time | Screen | Voice-over |
 |---|---|---|

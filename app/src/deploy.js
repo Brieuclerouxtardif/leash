@@ -1,6 +1,6 @@
 // Deploys and configures a LEASH vault. Usage: node app/src/deploy.js <local|sepolia> [--fresh]
-import { writeFileSync, existsSync, mkdirSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { writeFileSync, readFileSync, readdirSync, copyFileSync, existsSync, mkdirSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { parseUnits, parseEther, toHex } from 'viem';
 import { connect, artifact, ABI, deploymentFile } from './chain.js';
 import { MANDATE } from './config.js';
@@ -91,13 +91,25 @@ await call('fund:eth', eth, ABI.token, 'mint', [vault, parseEther(String(MANDATE
 await call('mint:attacker', usd, ABI.token, 'mint', [addr.attacker, usd6(200000)]); // the pool manipulator's war chest
 
 if (net !== 'local') {
+  // The role keys are the same on every deploy: top them up rather than pay them again.
   for (const role of ['agent', 'guardian', 'attacker']) {
-    const hash = await owner.sendTransaction({ to: addr[role], value: perRole });
+    const has = await pub.getBalance({ address: addr[role] });
+    if (has >= perRole) { console.log(`gas:${role} already has ${Number(has) / 1e18} ETH`); continue; }
+    const hash = await owner.sendTransaction({ to: addr[role], value: perRole - has });
     await pub.waitForTransactionReceipt({ hash });
     out.txs[`gas:${role}`] = hash;
   }
 }
 
 mkdirSync(dirname(file), { recursive: true });
+// A testnet deployment may be the one evidence points to: keep it under its own date before replacing it.
+if (net !== 'local' && existsSync(file)) {
+  const old = JSON.parse(readFileSync(file, 'utf8'));
+  const dir = dirname(file);
+  const kept = readdirSync(dir).find((f) => f.startsWith(`${net}-`) && JSON.parse(readFileSync(join(dir, f), 'utf8')).vault === old.vault);
+  const keep = kept ?? `${net}-${old.deployedAt.replace(/[-:]/g, '').slice(0, 15)}.json`;
+  if (!kept) copyFileSync(file, join(dir, keep));
+  console.log(`previous deployment (vault ${old.vault}) kept in deployments/${keep}`);
+}
 writeFileSync(file, JSON.stringify(out, null, 2));
 console.log(`saved ${file}`);

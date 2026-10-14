@@ -1,7 +1,7 @@
 // Console screenshots for the docs and the deck, taken with a headless Chromium over CDP (no extra deps).
 // Usage: node scripts/screens.mjs [url] [outDir]   (BROWSER=path to msedge/chrome)
 // Drives the real console: runs the routine, executes tier 1, opens the tier-2 dialog and signs,
-// compiles a mandate text, launches attacks, pulls the kill switch. Run it on a fresh local deploy.
+// compiles a mandate text, launches attacks, pulls the kill switch. Run it on a fresh deploy (local or Sepolia).
 import { spawn } from 'node:child_process';
 import { mkdirSync, writeFileSync, mkdtempSync } from 'node:fs';
 import { join } from 'node:path';
@@ -55,7 +55,8 @@ async function js(expr) {
   if (r.exceptionDetails) throw new Error(r.exceptionDetails.exception?.description ?? r.exceptionDetails.text);
   return r.result.value;
 }
-async function until(cond, what, ms = 20000) {
+// Sepolia waits for blocks: an action takes 9–18 s there, A9 about 50 s.
+async function until(cond, what, ms = 60000) {
   for (let t = 0; t < ms; t += 250) {
     if (await js(`return !!(${cond})`)) return;
     await sleep(250);
@@ -113,7 +114,7 @@ await shot('mandate-editor-redirect', '#editor');
 // Red team: stolen-key attacks and the pumped pool, sent for real.
 for (const id of ['A1', 'A2', 'A3', 'A4', 'A7', 'A9']) {
   await js(`[...document.querySelectorAll('#attacks .atk')].find((c) => c.querySelector('b').textContent === ${JSON.stringify(id)}).querySelector('button').click();`);
-  await until(`[...document.querySelectorAll('#attacks .atk')].find((c) => c.querySelector('b').textContent === ${JSON.stringify(id)}).matches('.pass, .fail')`, `attack ${id}`, 60000);
+  await until(`[...document.querySelectorAll('#attacks .atk')].find((c) => c.querySelector('b').textContent === ${JSON.stringify(id)}).matches('.pass, .fail')`, `attack ${id}`, 120000);
 }
 await shot('redteam', '#attacks');
 await sleep(5500);

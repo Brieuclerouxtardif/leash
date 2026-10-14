@@ -38,9 +38,12 @@ function toast(msg) {
   toast.t = setTimeout(() => t.classList.remove('on'), 3500);
 }
 
-async function busy(btn, fn) {
+// `wait` replaces the label while a transaction waits for its block (~12 s on Sepolia).
+async function busy(btn, fn, wait) {
+  const label = btn.textContent;
   btn.disabled = true;
-  try { return await fn(); } catch (e) { toast(e.message); } finally { btn.disabled = false; }
+  if (wait) btn.textContent = wait;
+  try { return await fn(); } catch (e) { toast(e.message); } finally { btn.disabled = false; if (wait) btn.textContent = label; }
 }
 
 // ------------------------------------------------------------------ state
@@ -130,7 +133,7 @@ function renderPlan(p) {
   for (const f of p.modelFlags) (byDoc[f.doc] ??= []).push(f);
   renderInbox(byDoc);
   $('proposals').replaceChildren(...p.verdicts.map((v, idx) => {
-    const action = v.decision === 'execute' ? h('button', { class: 'primary', onclick: (e) => busy(e.target, () => doExecute(idx, e.target)) }, 'Execute')
+    const action = v.decision === 'execute' ? h('button', { class: 'primary', onclick: (e) => busy(e.target, () => doExecute(idx, e.target), 'Sending…') }, 'Execute')
       : v.decision === 'needs_owner' ? h('button', { onclick: (e) => busy(e.target, () => openMandate(idx, e.target)) }, 'Review & sign')
         : null;
     return h('li', { class: 'prop' },
@@ -169,13 +172,24 @@ async function openMandate(i, btn) {
   $('mandateDlg').showModal();
 }
 
-$('mandateDlg').addEventListener('close', async () => {
-  if ($('mandateDlg').returnValue !== 'sign' || pendingIdx === null) return;
+// Signing hangs off the button, not the dialog's `close` event: Chromium fires that event with the next
+// rendered frame, so in a hidden tab or pane the signature waited until the page was shown again.
+$('mSign').addEventListener('click', async (ev) => {
+  ev.preventDefault();
+  $('mandateDlg').close('sign');
+  if (pendingIdx === null) return;
+  // On Sepolia the payment waits ~12 s for a block: say so, and keep the button from opening a second mandate.
+  const btn = pendingBtn;
+  const label = btn?.textContent;
+  if (btn) { btn.disabled = true; btn.textContent = 'Signed · waiting for the block…'; }
   try {
     const e = await api('/api/mandate/sign', { i: pendingIdx });
     toast(e.status === 'success' ? 'Signed and executed: tier 2 payment done.' : `Refused on-chain: ${reasonOf(e) ?? e.status}`);
-    if (pendingBtn?.isConnected) settle(pendingBtn, e, 'signed by the owner, executed');
-  } catch (err) { toast(err.message); }
+    if (btn?.isConnected) settle(btn, e, 'signed by the owner, executed');
+  } catch (err) {
+    toast(err.message);
+    if (btn) { btn.disabled = false; btn.textContent = label; }
+  }
   pendingIdx = null;
   pendingBtn = null;
   refresh();
@@ -233,7 +247,7 @@ $('applyMandate').addEventListener('click', (e) => busy(e.target, async () => {
   toast(ok ? `Mandate updated on-chain (${out.length} tx).` : `Stopped: ${reasonOf(out.at(-1)) ?? out.at(-1).status}`);
   e.target.hidden = true;
   refresh();
-}));
+}, 'Sending…'));
 
 // ------------------------------------------------------------------ red team
 async function loadAttacks() {
@@ -243,7 +257,8 @@ async function loadAttacks() {
     const card = h('div', { class: 'atk' }, h('div', { class: 'row' }, h('b', { class: 'mono' }, a.id)), h('p', {}, a.title), res);
     const btn = h('button', { onclick: () => busy(btn, async () => {
       res.textContent = 'sending…';
-      const r = await api('/api/attack', { id: a.id });
+      let r;
+      try { r = await api('/api/attack', { id: a.id }); } catch (err) { res.textContent = `not sent: ${err.message}`; throw err; }
       card.classList.toggle('pass', r.pass);
       card.classList.toggle('fail', !r.pass);
       res.replaceChildren(`${r.pass ? '✓' : '✗'} ${r.outcome}`, r.hash ? h('br') : '', r.hash ? link(r.hash, r.outcome.startsWith('reverted')) : '', r.note ? h('div', {}, r.note) : '', r.error ? h('div', {}, r.error) : '');
@@ -288,18 +303,30 @@ async function loadEvidence() {
 }
 
 // ------------------------------------------------------------------ owner / guardian
-$('kill').addEventListener('click', (e) => busy(e.target, async () => { await api('/api/guardian/pause', {}); toast('Guardian paused the vault. The agent can do nothing.'); refresh(); }));
-$('unpause').addEventListener('click', (e) => busy(e.target, async () => { await api('/api/owner/unpause', {}); toast('Owner restarted the agent.'); refresh(); }));
+$('kill').addEventListener('click', (e) => busy(e.target, async () => { await api('/api/guardian/pause', {}); toast('Guardian paused the vault. The agent can do nothing.'); await refresh(); }, 'Pausing…'));
+$('unpause').addEventListener('click', (e) => busy(e.target, async () => { await api('/api/owner/unpause', {}); toast('Owner restarted the agent.'); await refresh(); }, 'Restarting…'));
 
-async function refresh() {
-  try {
-    renderState(await api('/api/state'));
-    renderLedger(await api('/api/ledger'));
-  } catch (e) { toast(e.message); }
+// On Sepolia /api/state makes several RPC calls; a slow one must not stack refreshes behind the owner's clicks.
+// One refresh at a time. A refresh asked for during one runs again after it, because the one in flight may
+// have read the chain before the action that asked for it was mined.
+let refreshing = null;
+let again = false;
+function refresh() {
+  if (refreshing) { again = true; return refreshing; }
+  refreshing = (async () => {
+    try {
+      do {
+        again = false;
+        renderState(await api('/api/state'));
+        renderLedger(await api('/api/ledger'));
+      } while (again);
+    } catch (e) { toast(e.message); } finally { refreshing = null; }
+  })();
+  return refreshing;
 }
 
 await refresh();
 $('instruction').textContent = `Owner: “${S.instruction}”`;
 await Promise.all([loadInbox(), loadAttacks(), loadEvidence(), loadSamples()]);
 if (!S.allowLive) for (const id of ['mode', 'cmode']) $(id).querySelector('[value="live"]').disabled = true;
-setInterval(refresh, 5000);
+setInterval(() => refreshing || refresh(), 5000);

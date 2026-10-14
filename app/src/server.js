@@ -157,6 +157,16 @@ const routes = {
   },
 };
 
+// Actions that send transactions run one at a time, in click order. Two at once from the same key read the
+// same pending nonce, and the node rejects the second (Sepolia, A2 and A7 clicked together: "invalid parameters").
+const SENDS = new Set(['POST /api/execute', 'POST /api/mandate/sign', 'POST /api/mandate/apply', 'POST /api/attack', 'POST /api/guardian/pause', 'POST /api/owner/unpause', 'POST /api/task']);
+let queue = Promise.resolve();
+function serial(fn) {
+  const p = queue.then(fn);
+  queue = p.catch(() => {});
+  return p;
+}
+
 function strip(e) {
   const { receipt, verdict, ...rest } = e ?? {};
   return rest;
@@ -171,6 +181,12 @@ const server = createServer(async (req, res) => {
   if (!/^(127\.0\.0\.1|localhost)(:\d+)?$/.test(host)) return json(res, 403, { error: 'local only' }); // DNS-rebinding guard
   const key = `${req.method} ${url.pathname}`;
   if (routes[key]) {
+    // One line per state-changing call, and per slow read, so a stuck or failed action is visible in the terminal.
+    const t0 = Date.now();
+    const clock = () => new Date().toISOString().slice(11, 19);
+    if (req.method === 'POST') console.log(`${clock()} → ${key}`);
+    res.on('finish', () => { if (req.method === 'POST' || Date.now() - t0 > 2000) console.log(`${clock()} ← ${key} ${res.statusCode} ${Date.now() - t0} ms`); });
+    res.on('close', () => { if (!res.writableFinished) console.log(`${clock()} ✕ ${key} closed by the client after ${Date.now() - t0} ms`); });
     if (req.method === 'POST') {
       const origin = req.headers.origin;
       if (req.headers['x-leash-token'] !== TOKEN || (origin && !/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(origin))) return json(res, 403, { error: 'bad token or origin' });
@@ -182,7 +198,7 @@ const server = createServer(async (req, res) => {
         for await (const chunk of req) { raw += chunk; if (raw.length > 16384) return json(res, 413, { error: 'body too large' }); }
         body = raw ? JSON.parse(raw) : {};
       }
-      return json(res, 200, await routes[key](body));
+      return json(res, 200, await (SENDS.has(key) ? serial(() => routes[key](body)) : routes[key](body)));
     } catch (e) {
       return json(res, 400, { error: e.shortMessage ?? e.message });
     }
