@@ -13,10 +13,11 @@ Deadline: **2026-10-20 23:59 Beijing = 15:59 UTC = 17:59 Paris**. Plan B: if the
 
 ## Order of operations once the owner is funded
 
-1. Fund `0x7d3FA41264BB82535Cb3F8296F1107EAe64A25c9` with 0.01 Sepolia ETH. `deploy.js` checks the balance first.
-2. `node app/src/deploy.js sepolia`
-3. `node app/src/scenes.js sepolia`: expect 18/18. Not within 15 min of 00:00 UTC.
-4. `node scripts/verify.mjs sepolia`: Sourcify.
+1. Fund `0x7d3FA41264BB82535Cb3F8296F1107EAe64A25c9` with 0.01 Sepolia ETH.
+2. `node scripts/sepolia-run.mjs` covers steps 2 to 4 in one command, and can be started before the funds arrive. It waits for the funds, stays clear of 00:00 UTC, and never redeploys over an existing deployment. It ends by writing `docs/evidence-sepolia.md` (`scripts/evidence-table.mjs`). By hand, steps 2 to 4 are:
+   - `node app/src/deploy.js sepolia`
+   - `node app/src/scenes.js sepolia`: expect 18/18.
+   - `node scripts/verify.mjs sepolia`: Sourcify.
 5. Fill in the hashes and the vault address in README, SECURITY §5 and the deck's evidence and close slides.
 6. Re-take the screenshots on Sepolia (`node scripts/screens.mjs` against a fresh Sepolia vault, or keep the local ones and say so).
 7. Record the video on Sepolia (`repeg.js` first, block waits cut and captioned).
