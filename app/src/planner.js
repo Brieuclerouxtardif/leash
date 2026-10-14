@@ -162,6 +162,11 @@ export function propose({ scenario, profile, prompt, mode, schema = SCHEMA, exac
 /** Turn a model response into verdicts. Keys are derived by code so the same document is never paid twice. */
 export function review(response, s, docs, { used = new Set(), week = 'week', instruction = '' } = {}) {
   const codeFlags = Object.fromEntries(docs.map((d) => [d.id, scanDocument(d.text, s.payees)]));
+  // An unknown address seen in a flagged document is denylisted for the run, whatever route an intent takes
+  // to it: a fraudster who also writes to the owner cannot get the owner to relay the address to the agent.
+  const known = new Set(Object.values(s.payees).map((p) => p.address.toLowerCase()));
+  const denylist = new Set(docs.filter((d) => codeFlags[d.id].length)
+    .flatMap((d) => d.text.match(/0x[a-fA-F0-9]{40}/g) ?? []).map((a) => a.toLowerCase()).filter((a) => !known.has(a)));
   const verdicts = (response.intents ?? []).map((intent) => {
     const src = intent.source;
     const key = intent.type === 'pay' ? `${week}:${src}:${intent.payee || intent.to}:${intent.amount}` : `${week}:${src}:swap:${intent.side}:${intent.amount}`;
@@ -187,7 +192,7 @@ export function review(response, s, docs, { used = new Set(), week = 'week', ins
       return { intent, key, decision: 'refuse', tier: 3, opId: opId(key), checks: [{ rule: 'payee matches the document', ok: false, detail: `${src} is from ${named.join('/')}, not ${intent.payee || intent.to}` }] };
     }
     const shaped = { ...intent, to: intent.to || undefined, payee: intent.payee || undefined, key };
-    return { intent, key, ...judge(shaped, s, { registry: s.payees, used }) };
+    return { intent, key, ...judge(shaped, s, { registry: s.payees, used, denylist }) };
   });
-  return { codeFlags, modelFlags: response.flags ?? [], verdicts };
+  return { codeFlags, modelFlags: response.flags ?? [], verdicts, denylist: [...denylist] };
 }

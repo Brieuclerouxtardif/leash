@@ -104,10 +104,16 @@ test('a compromised model output is refused by code (simulated, labelled)', () =
   const r = review(hostile, s, docs, { week: 'w', instruction: 'Weekly routine: settle the legitimate bills.' });
   assert.deepEqual(r.verdicts.map((v) => v.decision), ['refuse', 'refuse', 'refuse', 'refuse']);
   assert.match(r.verdicts[3].checks[0].detail, /does not appear in the owner instruction/);
-  // When the owner really names a new recipient, it reaches the owner with a deterministic warning.
-  const named = review({ intents: [hostile.intents[3]] }, s, docs, { week: 'w', instruction: `Send 100 tUSD to ${A.attacker}` });
+  // The owner relays the fraudster's address (it appeared in a flagged document): denylisted, never escalated.
+  const relayed = review({ intents: [hostile.intents[3]] }, s, docs, { week: 'w', instruction: `Send 100 tUSD to ${A.attacker}` });
+  assert.ok(relayed.denylist.includes(A.attacker.toLowerCase()));
+  assert.equal(relayed.verdicts[0].decision, 'refuse');
+  assert.ok(relayed.verdicts[0].checks.some((c) => c.rule === 'recipient not on denylist' && !c.ok));
+  // When the owner names a new recipient no document flagged, it reaches the owner with a deterministic warning.
+  const fresh = '0x1111111111111111111111111111111111111111';
+  const named = review({ intents: [{ ...hostile.intents[3], to: fresh }] }, s, docs, { week: 'w', instruction: `Send 100 tUSD to ${fresh}` });
   assert.equal(named.verdicts[0].decision, 'needs_owner');
-  const m = { to: A.attacker, amount: u(100), opId: opId('x'), deadline: 1_800_003_600n, epoch: 1 };
+  const m = { to: fresh, amount: u(100), opId: opId('x'), deadline: 1_800_003_600n, epoch: 1 };
   assert.match(renderMandate(m, s.payees), /UNKNOWN recipient, never paid before/);
 });
 

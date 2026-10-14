@@ -73,7 +73,7 @@ Checks run in this order, and the first failure decides:
 5. **Gate.** The agent is active, the vault is not paused, the op id is unused on-chain, and the amount is a finite positive number.
 6. **Payments.**
    - The registry address wins. If a document address differs from it, the intent is refused as invoice-redirection fraud and **never escalated**.
-   - The recipient must be a valid address and not on the denylist.
+   - The recipient must be a valid address and not on the run's denylist: every unknown address that appears in a document the scanner flagged. If the fraudster also writes to the owner and the owner relays the address ("send 100 tUSD to 0x5DF4…"), the intent is refused instead of reaching the signature dialog.
    - Tier 1 requires: payee cap > 0, amount ≤ cap, amount ≤ per-payment limit, and today + amount ≤ daily limit. Otherwise, if the vault can cover it, the intent goes to tier 2 (`needs_owner`).
 7. **Swaps.**
    - The oracle must be fresh. The notional must be within the per-swap and daily limits.
