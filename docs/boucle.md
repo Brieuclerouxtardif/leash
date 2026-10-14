@@ -225,4 +225,9 @@ Ce ne sont pas des promesses du prompt : c'est le contrat qui refuse. Chaque ref
       - Pire, `Get-Process anvil | Stop-Process` tuait tous les anvil de la machine, y compris ceux d'autres projets. Ici, il aurait tué celui de la console.
       - Correctif : Foundry vient du PATH (ou de `LEASH_FOUNDRY`), le port de `LEASH_ANVIL_PORT`. Seul un anvil déjà sur ce port est arrêté ; si un autre processus tient le port, le script s'arrête avec une erreur.
       - Testé dans le clone : 18/18 deux fois de suite (la relance remplace l'anvil précédent). Sur le port de la console, le script refuse sans rien tuer.
+  - **Avant le push, deux décisions qui reviennent à Brieuc, pas à moi.**
+    - Pas de fichier LICENSE, alors que les contrats déclarent MIT (et sont publics sur Sourcify).
+    - Les commits portent son e-mail personnel, qui deviendra public.
+    - Les deux sont écrites dans SUBMISSION.md, étape 8.
+  - **Premier écran du README.** Un juge voyait du texte puis un schéma ASCII ; la première capture n'arrivait qu'à la ligne 40. La capture de la console (vault, mandat, registre avec les hashes) passe maintenant juste sous le pitch, avec une légende qui précise « chaîne locale ».
   - **Critique.** J'avais annoncé « 7 / 7 » sans jamais regarder ce qu'affiche la ligne de résumé de forge. Un chiffre vrai mais présenté autrement que l'outil coûte de la crédibilité au moment précis où le juge vérifie. Règle : chaque chiffre du README doit se retrouver tel quel dans la sortie de la commande citée à côté, ou être accompagné de la conversion.
