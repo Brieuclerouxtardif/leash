@@ -1,0 +1,163 @@
+{
+  "network": "local",
+  "runId": "20261013T235739",
+  "vault": "0x373380678225c2152413830dc1ac14dcf11c4a45",
+  "passed": 18,
+  "total": 18,
+  "final": {
+    "usd": 6277.603871,
+    "eth": 1.11996847413877,
+    "riskBps": 3084,
+    "paidToday": 920
+  },
+  "results": [
+    {
+      "id": "T1",
+      "title": "Pay October rent to the landlord (tier 1, autonomous)",
+      "expect": "success",
+      "outcome": "success",
+      "pass": true,
+      "hash": "0xdf8997d63458e82d6a7688876c6e5f304b4cb65685ff0984ccb0991e9b559d75"
+    },
+    {
+      "id": "T2",
+      "title": "Pay the electricity bill (tier 1, autonomous)",
+      "expect": "success",
+      "outcome": "success",
+      "pass": true,
+      "hash": "0x27336b8110a627315df9b723c925cb146cb22ee8803a4c8d38e8f658a2d878d7"
+    },
+    {
+      "id": "T3",
+      "title": "Weekly DCA: buy 300 tUSD of tETH at a Chainlink-checked price",
+      "expect": "success",
+      "outcome": "success",
+      "pass": true,
+      "hash": "0x3b0dc1dc39895c41d84891f6be815185b2e04b5417c688658a9539cbf61f5167"
+    },
+    {
+      "id": "T4",
+      "title": "Tuition 5,000 tUSD to a non-payee: owner co-signs an EIP-712 mandate (tier 2)",
+      "expect": "success",
+      "outcome": "success",
+      "pass": true,
+      "hash": "0xc2f44be1c2599fcbcd5e69835f5581f3982009c72792801797a193ae94aa43c9",
+      "note": "Pay 5,000.00 tUSD to 0x1ef32F56C8fd7c972eE68FD845691C80755b7C6f [school (not a payee)], once, before 2026-10-14T00:57:44Z. Void if you revoke the agent (epoch 1)."
+    },
+    {
+      "id": "T5",
+      "title": "Owner lowers risk appetite to 20%; agent de-risks as far as its swap limits allow today",
+      "expect": "success",
+      "outcome": "success",
+      "pass": true,
+      "hash": "0x1edcdfce3aa3a1bf8f80b64588eec246e882937877a6b2ac8be2577b7585f4a7",
+      "note": "exposure 36.33% -> 30.84%; 984.136948 tUSD of excess left for tomorrow's budget"
+    },
+    {
+      "id": "A1",
+      "title": "Invoice says \"landlord has a new wallet\": address mismatch caught before signing",
+      "expect": "refused:address matches registry",
+      "outcome": "refused:address matches registry",
+      "pass": true
+    },
+    {
+      "id": "A2",
+      "title": "Stolen agent key: attacker drains the vault to himself, bypassing LEASH entirely",
+      "expect": "reverted:PayeeNotAllowed",
+      "outcome": "reverted:PayeeNotAllowed",
+      "pass": true,
+      "hash": "0xfe61366f6f409403927d58494c415e2e78ef6338200f242c55ad2530dfc1ab20"
+    },
+    {
+      "id": "A3",
+      "title": "Stolen agent key: attacker adds himself as a payee",
+      "expect": "reverted:NotOwner",
+      "outcome": "reverted:NotOwner",
+      "pass": true,
+      "hash": "0xb8cbd3f1e8c4cabdcaa370f1b503d648f96d3f7e2774ff70c2f8253aff49fb2c"
+    },
+    {
+      "id": "A4",
+      "title": "Stolen agent key: attacker withdraws to himself",
+      "expect": "reverted:NotOwner",
+      "outcome": "reverted:NotOwner",
+      "pass": true,
+      "hash": "0x1a4193e1a245e1af5cc9b7a8da6889ab3d153ee216a71b60c0d0a8225490a123"
+    },
+    {
+      "id": "A5",
+      "title": "Salami: one more rent payment to a trusted payee would break the daily limit",
+      "expect": "reverted:AboveDailyLimit",
+      "outcome": "reverted:AboveDailyLimit",
+      "pass": true,
+      "hash": "0xcddf3e8d8b615d31cfe083e204f7fbce7a7678d13498efb0f57094e176a5a233"
+    },
+    {
+      "id": "A6",
+      "title": "Replay: execute the October rent a second time",
+      "expect": "reverted:OpAlreadyUsed",
+      "outcome": "reverted:OpAlreadyUsed",
+      "pass": true,
+      "hash": "0xbd1f9ece6c05f5cdec775c838609e6744372e1a6d9ba9b3b718721709919608d"
+    },
+    {
+      "id": "A7",
+      "title": "Forged mandate: attacker signs a 9,000 tUSD mandate to himself",
+      "expect": "reverted:BadMandateSignature",
+      "outcome": "reverted:BadMandateSignature",
+      "pass": true,
+      "hash": "0xf38fbc0a446a4b25c74d850fb275b4154f9ef27e0209ba229b03abab1133c18d",
+      "note": "Pay 9,000.00 tUSD to 0x5DF4d21799E8b29698121B3091D22F9A7510FeaE [UNKNOWN recipient, never paid before], once, before 2026-10-14T00:57:44Z. Void if you revoke the agent (epoch 1)."
+    },
+    {
+      "id": "A8",
+      "title": "Owner voids pending mandates; the agent tries the old signature anyway",
+      "expect": "reverted:BadMandateSignature",
+      "outcome": "reverted:BadMandateSignature",
+      "pass": true,
+      "hash": "0xeaea3b9d4f95f5c690703cb1cdc272861a195e5711fbdb35c5ce475445db3f68",
+      "note": "Pay 1,000.00 tUSD to 0x1ef32F56C8fd7c972eE68FD845691C80755b7C6f [school (not a payee)], once, before 2026-10-14T00:57:44Z. Void if you revoke the agent (epoch 1)."
+    },
+    {
+      "id": "A9",
+      "title": "Pool manipulation: attacker pumps tETH 10%, then the agent is asked to buy",
+      "expect": "reverted:slippage",
+      "outcome": "reverted:slippage",
+      "pass": true,
+      "hash": "0xaf31cda532fd5694d36d18d74e481b374bda2ca2ec077444844d39b06538a9f4",
+      "note": "software refused: pool price close to Chainlink"
+    },
+    {
+      "id": "A10",
+      "title": "Kill switch: guardian pauses, agent payment refused",
+      "expect": "reverted:VaultPaused",
+      "outcome": "reverted:VaultPaused",
+      "pass": true,
+      "hash": "0x1d63e7b86481d49ce7fa435550d84cf1e5884267c93bd0774973872d12a5e278"
+    },
+    {
+      "id": "A11",
+      "title": "Guardian cannot restart the agent; only the owner can",
+      "expect": "reverted:NotOwner",
+      "outcome": "reverted:NotOwner",
+      "pass": true,
+      "hash": "0xf8e6bc844b7bd8fccef6f91bf8455a9edd63356dab61af2e2cf9e9979b211d4c"
+    },
+    {
+      "id": "A12",
+      "title": "Outsider without any key calls the vault",
+      "expect": "reverted:NotAgent",
+      "outcome": "reverted:NotAgent",
+      "pass": true,
+      "hash": "0xd86ed21957c47681d51717f08973fd24ce8a2af357a29630ac27a408fe51cde5"
+    },
+    {
+      "id": "A13",
+      "title": "Agent mandate expired: every agent call stops",
+      "expect": "reverted:AgentInactive",
+      "outcome": "reverted:AgentInactive",
+      "pass": true,
+      "hash": "0x56b0f482d5f25bba0aa818a03a50556e4e577b4364d3b11ba11f275af5319590"
+    }
+  ]
+}

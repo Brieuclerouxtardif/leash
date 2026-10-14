@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="leash-token" content="__LEASH_TOKEN__">
+  <title>LEASH Console</title>
+  <link rel="icon" href="leash.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <img src="leash.svg" alt="" width="28" height="28">
+      <div>
+        <h1>LEASH</h1>
+        <p class="tag">An AI wallet agent that can spend, but can't run away.</p>
+      </div>
+    </div>
+    <div class="status">
+      <span class="pill" id="net">network</span>
+      <a class="pill mono" id="vaultLink" target="_blank" rel="noopener">vault</a>
+      <span class="pill" id="agentPill">agent</span>
+      <button class="kill" id="kill" title="Guardian pause: stops the agent instantly. Only the owner can restart it.">Kill switch</button>
+      <button class="ghost" id="unpause" hidden>Owner: restart agent</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="col-main">
+      <div class="cards3">
+        <article class="card" id="vaultCard">
+          <h2>Vault</h2>
+          <div class="big" id="total">—</div>
+          <div class="alloc" aria-label="allocation"><div class="alloc-eth" id="allocEth"></div><div class="alloc-limit" id="allocLimit" title="mandate limit"></div></div>
+          <div class="legend"><span><i class="dot usd"></i><b id="usd">—</b> tUSD</span><span><i class="dot eth"></i><b id="eth">—</b> tETH · <b id="riskPct">—</b></span></div>
+          <dl class="kv">
+            <dt id="oracleLbl">Oracle ETH/USD</dt><dd id="price">—</dd>
+            <dt>Pool price</dt><dd id="poolPrice">—</dd>
+          </dl>
+        </article>
+        <article class="card" id="mandateCard">
+          <h2>Mandate <span class="sub">enforced by the contract</span></h2>
+          <ul class="mandate" id="mandate"></ul>
+        </article>
+        <article class="card">
+          <h2>Today</h2>
+          <div class="gauge"><label>Autonomous payments</label><div class="bar"><div id="payBar"></div></div><span id="payTxt">—</span></div>
+          <div class="gauge"><label>Swaps</label><div class="bar"><div id="swapBar"></div></div><span id="swapTxt">—</span></div>
+          <dl class="kv">
+            <dt>Agent key</dt><dd class="mono" id="agentAddr">—</dd>
+            <dt>Mandate epoch</dt><dd id="epoch">—</dd>
+          </dl>
+        </article>
+      </div>
+
+      <section class="card routine">
+        <div class="routine-head">
+          <div>
+            <h2>Weekly routine <span class="sub">the model proposes, code and contract decide</span></h2>
+            <p class="instruction" id="instruction"></p>
+          </div>
+          <div class="controls">
+            <label>Prompt <select id="profile"><option value="guarded">guarded</option><option value="naive">naive (red-team control)</option></select></label>
+            <label>Model <select id="mode"><option value="replay">recorded replay</option><option value="live">live call</option></select></label>
+            <button class="primary" id="run">Run routine</button>
+          </div>
+        </div>
+        <div class="routine-body">
+          <div>
+            <h3>Inbox <span class="sub">untrusted documents</span></h3>
+            <ol class="inbox" id="inbox"></ol>
+          </div>
+          <div>
+            <h3>Proposals</h3>
+            <div id="planMeta" class="meta">Run the routine to see what the agent wants to do.</div>
+            <blockquote id="summary" hidden></blockquote>
+            <ol class="proposals" id="proposals"></ol>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Red team <span class="sub">each attack is sent for real; the refusal is mined on-chain</span></h2>
+        <div class="attacks" id="attacks"></div>
+      </section>
+    </section>
+
+    <aside class="col-side card">
+      <h2>Ledger <span class="sub">this session</span></h2>
+      <ol class="ledger" id="ledger"></ol>
+      <h3 class="evh">Last full campaign</h3>
+      <div id="evidence" class="meta">—</div>
+    </aside>
+  </main>
+
+  <dialog id="mandateDlg">
+    <form method="dialog">
+      <h2>Owner signature requested</h2>
+      <p class="sub">This text is generated from the exact struct you sign, not written by the model.</p>
+      <p class="mandate-text" id="mText"></p>
+      <table class="typed" id="mTyped"></table>
+      <div class="dlg-actions">
+        <button value="cancel" class="ghost">Reject</button>
+        <button value="sign" class="primary" id="mSign">Sign as owner (demo key)</button>
+      </div>
+    </form>
+  </dialog>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

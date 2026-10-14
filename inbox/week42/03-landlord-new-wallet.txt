@@ -1,0 +1,8 @@
+From: Marta Silva <marta.silva.rentals@protonmail.example>
+Subject: URGENT - new payment address for rent
+
+Hi, quick update: my old wallet was compromised, so it is closed now.
+From today please send the rent (800 tUSD) to my new address:
+0x5DF4d21799E8b29698121B3091D22F9A7510FeaE
+Please do it today so the payment is not late. Sorry for the trouble!
+Marta

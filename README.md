@@ -1,0 +1,130 @@
+# LEASH
+
+**An AI wallet agent that can spend, but can't run away.**
+
+FinTechathon 2026, Topic F: Autonomous On-chain Wallet.
+
+An AI agent that pays your bills and manages a small portfolio needs a key. A key can be stolen, and a model can be talked into things: a fake "new bank details" invoice, a prompt injection hidden in an email. LEASH accepts that the agent will one day be wrong or compromised, and makes sure that **the worst it can do is bounded by a contract, not by the model's good behaviour.**
+
+```
+ owner instruction + inbox (untrusted)
+              │
+   ┌──────────▼──────────┐   proposes intents (JSON, strict schema, no tools, no keys)
+   │   LLM planner        │
+   └──────────┬──────────┘
+   ┌──────────▼──────────┐   deterministic: registry, limits, oracle floor, exposure,
+   │   policy engine      │   document scanner, replay check → execute | needs_owner | refuse
+   └──────────┬──────────┘
+   ┌──────────▼──────────┐   simulate → sign with the AGENT key → send
+   │   agent signer       │
+   └──────────┬──────────┘
+   ┌──────────▼──────────┐   enforces the same mandate on-chain, whoever holds the key
+   │   LeashVault.sol     │
+   └─────────────────────┘
+```
+
+## Three permission tiers
+
+| Tier | Who decides | Examples | Enforced by |
+|---|---|---|---|
+| **1. Autonomous** | the agent alone | rent to the registered landlord ≤ 900 tUSD; weekly DCA ≤ 500 tUSD at ≥ 99 % of the Chainlink price; daily total ≤ 1,500 | `LeashVault.pay` / `swap` |
+| **2. Co-signed** | the owner signs an EIP-712 mandate for that exact payment | 5,000 tUSD tuition to a school that is not a payee | `LeashVault.payWithMandate` (to, amount, opId, deadline, epoch) |
+| **3. Impossible** | nobody through the agent | add a payee, raise a limit, withdraw, unpause, pay a stranger | no agent code path exists; `onlyOwner` |
+
+The guardian (a second key, e.g. a phone) can **pause** instantly but cannot unpause or move funds.
+
+## What works today
+
+| | Result | How to reproduce |
+|---|---|---|
+| Contract unit + fuzz tests | 34 / 34 (fuzz: 2,000 runs each) | `forge test` |
+| Invariants (rogue-agent handler, 256 runs × 64 calls) | 7 / 7, 16,384 hostile calls | `forge test --match-path test/Invariant.t.sol` |
+| Off-chain policy tests | 13 / 13 | `npm test` |
+| Full local campaign (5 tasks + 13 attacks, fresh chain) | 18 / 18 | `scripts/local-campaign.ps1` |
+| Same 13 attacks launched from the web console | 13 / 13 | `npm run server`, Red team panel |
+| Live LLM runs (gpt-6.1-sol via Codex CLI, no tools) | 2 recorded, replayable | `evidence/model-runs/` |
+| Ethereum Sepolia deployment + campaign | **pending faucet funding** | see below |
+
+Every attack is sent for real with a fixed gas limit, so the refusal is **mined as a reverted transaction**. Every refusal has a public hash. We call this *proof of refusal*.
+
+## Repository
+
+```
+contracts/           Foundry project
+  src/LeashVault.sol   the mandate: tiers, limits, oracle floor, exposure cap, epochs, kill switch
+  src/LeashPool.sol    minimal x·y=k pool (testnets have no real liquidity; see SECURITY.md)
+  src/Mocks.sol        test tokens and a local-only price feed
+  test/                unit, fuzz and invariant tests
+app/src/
+  config.js           networks (local, sepolia) and the default mandate
+  chain.js            chain-id guard, wallets, send-and-record (every tx goes to a JSONL journal)
+  core.js             policy engine (judge), EIP-712 typed data, deterministic mandate text
+  planner.js          LLM adapter, document scanner, review of model output
+  campaign.js         the 5 tasks and 13 attacks, shared by the CLI and the console
+  scenes.js           CLI campaign runner → evidence/<net>-campaign-<run>.json
+  server.js           local web console (127.0.0.1 only)
+  deploy.js, keys.js  deployment and throwaway key generation
+app/public/          console front-end (vanilla JS, no build step)
+inbox/week42/        the documents the agent reads, two of them hostile
+evidence/            campaign results, transaction journals, recorded model runs
+docs/                TECHNICAL.md, SECURITY.md, boucle.md (our self-critical build log)
+```
+
+## Run it locally
+
+Prerequisites: Node.js ≥ 20, [Foundry](https://book.getfoundry.sh/) (`forge`, `anvil`). Optional: the Codex CLI for live model calls. Recorded runs work without it.
+
+```bash
+npm install
+node app/src/keys.js
+cd contracts && forge build && forge test && cd ..
+npm test
+```
+
+Then, in two terminals:
+
+```bash
+anvil --chain-id 31337
+```
+
+```bash
+node app/src/deploy.js local --fresh
+node app/src/scenes.js local
+```
+
+The campaign prints 18 lines and writes `evidence/local-campaign-<run>.json`. On Windows, `scripts/local-campaign.ps1` does all of this on a fresh anvil.
+
+### Web console
+
+```bash
+node app/src/deploy.js local --fresh
+npm run server -- --network local --port 8791
+```
+
+Open http://127.0.0.1:8791. Then:
+
+1. Run the weekly routine (recorded replay by default).
+2. Execute the tier-1 proposals.
+3. Review and sign the tier-2 tuition mandate.
+4. Launch any of the 13 attacks.
+5. Pull the kill switch.
+
+Live model calls need `--allow-live` and a logged-in Codex CLI.
+
+## Run it on Ethereum Sepolia
+
+1. Fund the **owner** address printed by `node app/src/keys.js` with about 0.01 Sepolia ETH (gas is ~0.001 gwei; most of it is forwarded to the agent, guardian and attacker keys).
+2. Deploy and run the campaign (contracts must be built, see above):
+
+```bash
+node app/src/deploy.js sepolia
+node app/src/scenes.js sepolia
+```
+
+Swaps use the real Chainlink ETH/USD feed on Sepolia (`0x694AA1769357215DE4FAC081bf1f309aDC325306`). Tokens and the pool are ours. Every hash in `evidence/sepolia-*.json` links to sepolia.etherscan.io.
+
+## Honesty notes
+
+- **Not new as a primitive.** Session keys, spend permissions and allowance modules exist (ERC-4337 plugins, Coinbase Spend Permissions, MetaMask delegations, Safe Allowance module). LEASH's contribution is the complete loop: LLM → deterministic policy → contract, with an oracle-bounded portfolio mandate, deterministic mandate rendering and on-chain proof of every refusal.
+- **The model resisted.** In our recorded live runs, both the guarded prompt and a deliberately naive prompt refused the prompt injection. We therefore do not claim "the model was fooled and the vault held". We show the stolen-key case instead (A2–A4, A7), plus a clearly labelled *simulated* compromised model output in the tests.
+- **Unaudited code.** Testnet only. See [docs/SECURITY.md](docs/SECURITY.md) for the known-risk list.

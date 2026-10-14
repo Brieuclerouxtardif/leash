@@ -1,0 +1,16 @@
+{
+  "name": "leash",
+  "version": "0.1.0",
+  "private": true,
+  "description": "An AI wallet agent that can spend, but can't run away.",
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "test": "node --test \"app/test/*.test.js\"",
+    "server": "node app/src/server.js"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "5.6.1",
+    "viem": "2.57.5"
+  }
+}

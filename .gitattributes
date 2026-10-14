@@ -1,0 +1,4 @@
+# LF everywhere: the inbox text is hashed into recorded model prompts.
+* text=auto eol=lf
+*.jpg binary
+*.png binary

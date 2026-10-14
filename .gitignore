@@ -1,0 +1,9 @@
+node_modules/
+secrets/
+.env*
+contracts/out/
+contracts/cache/
+contracts/broadcast/*/31337/
+work/
+*.log
+.claude/
