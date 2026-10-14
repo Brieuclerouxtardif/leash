@@ -18,11 +18,18 @@ One take of the real console, plus a title card at each end. English voice-over.
 | Restart agent | 1 | 9–14 s |
 
 Live, the red-team segment alone needs 90 s to 2 min. Cut the waits and caption each cut "block wait cut (~12 s per transaction)". Keep the click and the result on screen, and never cut inside a result. While a transaction waits, its button reads "Sending…" (or "Signed · waiting for the block…"); clicking the next attack meanwhile is safe, it is queued behind the first. On the local chain there is nothing to cut: every action returns in under 1.5 s (A9, five transactions: 1.3 s).
-**Opening a refusal.** On Sepolia, open the **decoded** link next to a refusal's hash, not the hash itself. Etherscan shows our refusals only as "execution reverted", because our sources are verified on Sourcify. Blockscout names the vault's error (`PayeeNotAllowed`). Blockscout can need a minute to index a fresh transaction, so open a refusal from earlier in the take, or check that the page shows the error before recording.
+**Opening a refusal.** On Sepolia, open the **decoded** link next to a refusal's hash, not the hash itself. Etherscan shows our refusals only as "execution reverted", because our sources are verified on Sourcify. Blockscout names the vault's error (`PayeeNotAllowed`). Blockscout usually decodes a refusal within a minute (all four in the second rehearsal). It occasionally leaves one unindexed for over an hour (run 4's A2), so check that the page shows the error before you open it on camera, and open another refusal if it does not.
 
 **Model.** The routine and the mandate editor run as **recorded replays** of live gpt-6.1-sol calls. The console prints "RECORDED REPLAY" above each result; say it aloud once. A live call takes 8–20 s, too long for the video.
 
-**Before recording.** A vault pays each of the week's bills once (the opId is spent), so every take needs a fresh vault: `node app/src/deploy.js <net> --fresh`. On Sepolia that takes about 5 minutes and keeps the previous deployment file under `deployments/`. If more than an hour passes before the take, run `node app/src/repeg.js sepolia`: A9 needs the pool at the live Chainlink price. Then `npm run server -- --network <net> --port 8791`. Play the scenes in this order on that fresh state: A10 pulls the kill switch itself (the header button is hidden while the vault is paused).
+**Before recording.** A vault pays each of the week's bills once (the opId is spent), so every take needs a fresh vault: `node app/src/deploy.js <net> --fresh`. On Sepolia that takes about 5 minutes and keeps the previous deployment file under `deployments/`. Then `node scripts/preflight.mjs <net>` must print "Ready to record". It sends nothing and checks:
+- the vault is not paused, and the week's bills are unpaid;
+- today's limit has room;
+- the pool sits at the oracle price (otherwise it says to run `node app/src/repeg.js <net>`);
+- the oracle stays fresh for 30 minutes;
+- every key has gas, and Blockscout answers.
+
+Then `npm run server -- --network <net> --port 8791`. Play the scenes in this order on that fresh state: A10 pulls the kill switch itself (the header button is hidden while the vault is paused).
 
 | Time | Screen | Voice-over |
 |---|---|---|

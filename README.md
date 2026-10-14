@@ -49,7 +49,7 @@ The owner does not type basis points. In the console's Mandate editor they write
 | Full local campaign (5 tasks + 13 attacks, fresh chain) | 18 / 18 | `scripts/local-campaign.ps1` |
 | Same 13 attacks launched from the web console | 13 / 13 | `npm run server`, Red team panel |
 | Live LLM runs (gpt-6.1-sol via Codex CLI, no tools) | 2 routine plans + 3 mandate compilations, recorded and replayable | `evidence/model-runs/` |
-| Ethereum Sepolia campaign (run 4), vault [`0x8237…cE80`](https://sepolia.etherscan.io/address/0x8237d47a29e49d8f60fde0ca900df86ae2c7ce80) | 18 / 18, 29 transactions, 12 mined refusals, re-derived from the chain by `audit-chain.mjs` and matched against Blockscout's decoding; 4 contracts verified on Sourcify (exact match). Runs 1–3 were 17/18 (see Honesty notes) | [docs/evidence-sepolia.md](docs/evidence-sepolia.md) |
+| Ethereum Sepolia campaign (run 4), vault [`0x8237…cE80`](https://sepolia.etherscan.io/address/0x8237d47a29e49d8f60fde0ca900df86ae2c7ce80) | 18 / 18, 29 transactions, 12 mined refusals, re-derived from the chain by `audit-chain.mjs`; Blockscout decodes 11 of the 12 refusals identically and has not indexed the 12th (A2); 4 contracts verified on Sourcify (exact match). Runs 1–3 were 17/18 (see Honesty notes) | [docs/evidence-sepolia.md](docs/evidence-sepolia.md) |
 
 Every attack is sent for real with a fixed gas limit, so the refusal is **mined as a reverted transaction**. Every refusal has a public hash. We call this *proof of refusal*.
 
@@ -120,9 +120,11 @@ Open http://127.0.0.1:8791. Then:
 
 Live model calls need `--allow-live` and a logged-in Codex CLI.
 
-![The weekly routine: two hostile documents flagged, rent and electricity executed by the agent, tuition signed by the owner](docs/screens/routine.png)
+![The weekly routine: two hostile documents flagged by code and by the model; rent and electricity within the agent's limits, tuition waiting for the owner's signature](docs/screens/routine.png)
 
-`node scripts/screens.mjs` re-takes every screenshot in `docs/screens/` by driving the console in a headless Edge or Chrome (`BROWSER=` path). Run it on a fresh deployment.
+`node scripts/screens.mjs` re-takes every screenshot in `docs/screens/` by driving the console in a headless Edge or Chrome (`BROWSER=` path). Run it on a fresh deployment. The screenshots in `docs/screens/` were taken on the local chain.
+
+`node scripts/preflight.mjs <local|sepolia>` says whether a deployment can still play the whole demo. It sends nothing. It checks that the week's bills are unpaid and the vault is not paused, that the pool is at the oracle price, and that every key has gas.
 
 ## Run it on Ethereum Sepolia
 

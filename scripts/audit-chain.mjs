@@ -22,10 +22,11 @@ const pub = createPublicClient({ chain, transport: http(rpc, { retryCount: 6, re
 
 // Blockscout's own reading of a failed transaction: "Out of gas", or the error it decoded. A string
 // revert ("slippage") may come back as Error(string) or as raw bytes; both are reduced to the string.
-// While Blockscout is still indexing a transaction it answers "pending" or "awaiting_internal_transactions":
-// that is no opinion, so it is retried and, failing that, reported as null rather than as a disagreement.
+// Until Blockscout has indexed a transaction it answers "pending" or "awaiting_internal_transactions": that is
+// no opinion, so it is retried and, failing that, reported as not decoded rather than as a disagreement. Some
+// transactions stay in that state for a long time (run 4's A2 still was, 1.2 h after its block).
 const INDEXING = new Set(['pending', 'awaiting_internal_transactions']);
-async function blockscoutSays(hash) {
+async function blockscoutTx(hash) {
   let t;
   // Its backends disagree: the same hash can come back decoded, then "awaiting_internal_transactions".
   for (let i = 0; i < 12; i++) {
@@ -33,7 +34,9 @@ async function blockscoutSays(hash) {
     if (!INDEXING.has(t.result)) break;
     await new Promise((res) => setTimeout(res, 2500));
   }
-  if (INDEXING.has(t.result)) return null;
+  return t;
+}
+function blockscoutSays(t) {
   if (t.result !== 'Reverted') return t.result;
   const rr = t.revert_reason ?? {};
   if (rr.method_call) return rr.method_call.startsWith('Error(') ? rr.parameters?.[0]?.value : rr.method_call.split('(')[0];
@@ -68,10 +71,16 @@ for (const r of c.results) {
   let third = '';
   let thirdOk = true;
   if (blockscout && rc.status === 'reverted') {
-    const says = await blockscoutSays(r.hash);
-    if (says === null) undecoded++;
-    else thirdOk = says === chainOutcome.split(':')[1];
-    third = `  blockscout: ${says ?? 'still indexing, no opinion yet'}`;
+    const t = await blockscoutTx(r.hash);
+    if (INDEXING.has(t.result)) {
+      undecoded++;
+      const hours = ((Date.now() - Date.parse(t.timestamp)) / 3.6e6).toFixed(1);
+      third = `  blockscout: not decoded ("${t.result}" ${hours} h after the block)`;
+    } else {
+      const says = blockscoutSays(t);
+      thirdOk = says === chainOutcome.split(':')[1];
+      third = `  blockscout: ${says}`;
+    }
   }
   const ok = chainOutcome === r.expect && toVault && thirdOk;
   if (ok) confirmed++; else bad.push(r.id);
@@ -79,5 +88,5 @@ for (const r of c.results) {
   console.log(`${r.id.padEnd(4)} ${ok ? 'confirmed ' : 'MISMATCH  '}  block ${rc.blockNumber}  gas ${rc.gasUsed}/${tx.gas}  ${chainOutcome}${toVault ? '' : ' NOT SENT TO THE VAULT'}${diff}${third}`);
 }
 console.log(`\n${confirmed} confirmed on-chain + ${offChain} refused before signing = ${confirmed + offChain}/${c.results.length} as expected${bad.length ? `; mismatches: ${bad.join(', ')}` : ''}.`);
-if (undecoded) console.log(`Blockscout had not decoded ${undecoded} refusal(s) yet; those rest on the chain replay alone.`);
+if (undecoded) console.log(`Blockscout has not decoded ${undecoded} refusal(s); those rest on the chain replay alone.`);
 process.exit(bad.length ? 1 : 0);

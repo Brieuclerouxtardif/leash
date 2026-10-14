@@ -145,3 +145,25 @@ Ce ne sont pas des promesses du prompt : c'est le contrat qui refuse. Chaque ref
   - **Deck v12.** Run 4, vault 0x8237…, 17 tests. Les notes racontent les trois runs ratés en deux phrases. Rendu vérifié en Edge headless.
   - **Coût.** ~0,006 ETH par run ; il reste ~0,167 SepETH.
   - **Reste (Brieuc).** Nom d'équipe, OK pour le repo GitHub, questions aux organisateurs, vidéo (`repeg.js sepolia` d'abord), export du deck, soumission.
+
+- 16:08 (réel) — Répétition générale de VIDEO.md sur Sepolia, deux vaults neufs (`0x52fb…`, puis `0xd258…`), avec de vrais clics.
+  - **Bug n° 1, celui qui aurait cassé la vidéo : la signature tier 2 ne partait pas.** Le dialogue se fermait, et rien ne partait. J'ai d'abord soupçonné les refresh empilés (6 connexions max par hôte), puis le serveur. Les deux pistes étaient fausses, et je les ai écartées par mesure, pas par intuition :
+    - les logs serveur montraient qu'aucun POST n'arrivait ;
+    - la page instrumentée montrait un `submit` sans `close`.
+  - **La vraie cause.** Chromium déclenche l'événement `close` d'un `<dialog>` à la frame suivante. Le panneau était caché, donc il n'y avait pas de frame. Une capture d'écran a forcé une frame : les deux `close` en attente sont partis, 105 s après le clic. C'est exactement les deux 403 de 13:47:44, que je n'avais pas su expliquer. La signature est maintenant branchée sur le clic du bouton. Testé de trois façons :
+    - avec de vrais clics sur Sepolia : 5,3 s, tx minée ;
+    - en Edge headless en local : `screens.mjs` complet ;
+    - Blockscout décode les 4 refus de la répétition.
+  - **Bug n° 2 : deux attaques cliquées ensemble.** A2 et A7 partent de la même clé : même nonce, et le nœud refuse la seconde (« invalid parameters »). Sur scène, c'est exactement ce que ferait un présentateur pressé. Les routes qui envoient une tx passent maintenant une à la fois, dans l'ordre des clics. Rejoué A7 + A9 ensemble : les deux passent (5,5 s, puis 61 s).
+  - **UX.** Pendant les ~12 s d'attente, les boutons disent « Sending… » ou « Signed · waiting for the block… ». Avant, rien ne bougeait, et c'est ce qui m'avait poussé à recliquer.
+  - **Critique de ma méthode.** J'ai perdu du temps à théoriser (pool de connexions) au lieu d'instrumenter d'abord. Les logs `→`/`←` par POST auraient tranché en une minute. Ils restent en place.
+  - **Coût.** Gas à 0,001 gwei : un deploy coûte presque rien. `deploy.js` ne renvoie plus 0,002 ETH par rôle s'ils en ont déjà. Owner : ~0,16 SepETH.
+  - **Pour Brieuc.** Une prise vidéo = un vault neuf (`deploy.js sepolia --fresh`, ~5 min), car les opIds de la semaine se dépensent. VIDEO.md a les temps mesurés.
+
+- 16:13 (réel) — Relecture des affirmations après la régénération de `evidence-sepolia.md`.
+  - **Affirmation fausse retirée partout.** Le README, SECURITY, SUBMISSION et le deck disaient « Blockscout est d'accord » ou « each decoded on Blockscout ». Faux pour un refus sur douze : la tx A2 du run 4 est bloquée chez Blockscout en `awaiting_internal_transactions` 1,2 h après son bloc, sans aucune raison décodée. (J'avais d'abord écrit « plus de 3 h » : j'avais confondu l'heure de Paris et l'UTC. C'est l'audit qui m'a corrigé.) L'audit écrivait « still indexing, no opinion yet », ce qui laissait croire que ça allait se régler. Il écrit maintenant « not decoded ("awaiting_internal_transactions" N h after the block) ». Les docs disent 11 sur 12, et le deck passe en v13.
+  - **Légende fausse dans le README.** `routine.png` était décrite comme « rent and electricity executed, tuition signed ». L'image montre les propositions **avant** exécution. Légende corrigée. Le README dit aussi désormais que les captures viennent de la chaîne locale.
+  - **`scripts/preflight.mjs`.** Une commande avant chaque prise, qui n'envoie rien : pas de pause, factures de la semaine non payées, place dans la limite du jour, pool au prix de l'oracle, oracle frais pour 30 min, gas sur chaque clé, Blockscout joignable.
+    - Sur les deux vaults usés, il attrape 3 problèmes chacun, dont le pool Sepolia à 106 bps de l'oracle après A9.
+    - Sur un vault neuf : « Ready to record ».
+    - Sans lui, une prise aurait pu être perdue en plein milieu sur un opId déjà dépensé.

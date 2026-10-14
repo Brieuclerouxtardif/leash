@@ -40,13 +40,13 @@ T3   confirmed   block 11913408  gas 384184/508487  success
 T4   confirmed   block 11913409  gas 271384/1500000  success
 T5   confirmed   block 11913411  gas 283969/412254  success
 A1   off-chain   refused before signing (refused:address matches registry); nothing was sent, nothing to audit
-A2   confirmed   block 11913413  gas 48260/1500000  reverted:PayeeNotAllowed  blockscout: PayeeNotAllowed
+A2   confirmed   block 11913413  gas 48260/1500000  reverted:PayeeNotAllowed  blockscout: not decoded ("awaiting_internal_transactions" 1.2 h after the block)
 A3   confirmed   block 11913414  gas 19352/1500000  reverted:NotOwner  blockscout: NotOwner
-A4   confirmed   block 11913415  gas 28892/1500000  reverted:NotOwner  blockscout: still indexing, no opinion yet
+A4   confirmed   block 11913415  gas 28892/1500000  reverted:NotOwner  blockscout: NotOwner
 A5   confirmed   block 11913417  gas 53045/1500000  reverted:AboveDailyLimit  blockscout: AboveDailyLimit
 A6   confirmed   block 11913418  gas 35706/1500000  reverted:OpAlreadyUsed  blockscout: OpAlreadyUsed
 A7   confirmed   block 11913419  gas 52766/1500000  reverted:BadMandateSignature  blockscout: BadMandateSignature
-A8   confirmed   block 11913421  gas 52754/1500000  reverted:BadMandateSignature  blockscout: still indexing, no opinion yet
+A8   confirmed   block 11913421  gas 52754/1500000  reverted:BadMandateSignature  blockscout: BadMandateSignature
 A9   confirmed   block 11913424  gas 131331/1500000  reverted:slippage  blockscout: slippage
 A10  confirmed   block 11913428  gas 33482/1500000  reverted:VaultPaused  blockscout: VaultPaused
 A11  confirmed   block 11913429  gas 15400/1500000  reverted:NotOwner  blockscout: NotOwner
@@ -54,7 +54,7 @@ A12  confirmed   block 11913431  gas 31053/1500000  reverted:NotAgent  blockscou
 A13  confirmed   block 11913433  gas 31327/1500000  reverted:AgentInactive  blockscout: AgentInactive
 
 17 confirmed on-chain + 1 refused before signing = 18/18 as expected.
-Blockscout had not decoded 2 refusal(s) yet; those rest on the chain replay alone.
+Blockscout has not decoded 1 refusal(s); those rest on the chain replay alone.
 ```
 
 ## Run 3 (kept as recorded): 17/18 after audit
@@ -212,10 +212,10 @@ A7   confirmed   block 11913137  gas 52766/300000  reverted:BadMandateSignature 
 A8   confirmed   block 11913139  gas 52754/300000  reverted:BadMandateSignature (campaign file said reverted:undefined)  blockscout: BadMandateSignature
 A9   MISMATCH    block 11913142  gas 300000/300000  reverted:OutOfGas (campaign file said reverted:slippage)  blockscout: Out of gas
 A10  confirmed   block 11913145  gas 33482/300000  reverted:VaultPaused  blockscout: VaultPaused
-A11  confirmed   block 11913146  gas 15400/300000  reverted:NotOwner  blockscout: still indexing, no opinion yet
+A11  confirmed   block 11913146  gas 15400/300000  reverted:NotOwner  blockscout: not decoded ("awaiting_internal_transactions" 2.1 h after the block)
 A12  confirmed   block 11913148  gas 31053/300000  reverted:NotAgent  blockscout: NotAgent
 A13  confirmed   block 11913150  gas 31327/300000  reverted:AgentInactive  blockscout: AgentInactive
 
 16 confirmed on-chain + 1 refused before signing = 17/18 as expected; mismatches: A9.
-Blockscout had not decoded 1 refusal(s) yet; those rest on the chain replay alone.
+Blockscout has not decoded 1 refusal(s); those rest on the chain replay alone.
 ```
