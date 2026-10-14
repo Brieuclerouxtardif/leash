@@ -132,7 +132,10 @@ Live model calls need `--allow-live` and a logged-in Codex CLI.
 ```bash
 node app/src/deploy.js sepolia
 node app/src/scenes.js sepolia
+node scripts/verify.mjs sepolia
 ```
+
+`verify.mjs` verifies the four contracts on Sourcify with `forge verify-contract`; no API key is needed. Its constructor arguments were checked byte for byte against the local deployment transactions.
 
 `deploy.js` checks the owner balance against the current gas price before sending anything: about 0.006 ETH at 0.001 gwei. Like the local one, the campaign expects a fresh vault and a single UTC day. Do not start it within 15 minutes of 00:00 UTC. If a run fails halfway, redeploy with `--fresh` rather than re-running it.
 

@@ -17,7 +17,7 @@ const ctx = await connect(net);
 const { pub, wallets, addr } = ctx;
 const owner = wallets.owner;
 const usd6 = (n) => parseUnits(String(n), 6);
-const out = { network: net, chainId: ctx.net.chain.id, deployedAt: new Date().toISOString(), txs: {} };
+const out = { network: net, chainId: ctx.net.chain.id, deployedAt: new Date().toISOString(), owner: addr.owner, txs: {} };
 
 if (net === 'local') {
   for (const a of Object.values(addr)) await pub.request({ method: 'anvil_setBalance', params: [a, toHex(parseEther('100'))] });
