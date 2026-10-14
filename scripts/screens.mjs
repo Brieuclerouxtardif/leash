@@ -2,67 +2,17 @@
 // Usage: node scripts/screens.mjs [url] [outDir]   (BROWSER=path to msedge/chrome)
 // Drives the real console: runs the routine, executes tier 1, opens the tier-2 dialog and signs,
 // compiles a mandate text, launches attacks, pulls the kill switch. Run it on a fresh deploy (local or Sepolia).
-import { spawn } from 'node:child_process';
-import { mkdirSync, writeFileSync, mkdtempSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { tmpdir } from 'node:os';
+import { launch, sleep } from './cdp.mjs';
 
 const URL_ = process.argv[2] ?? 'http://127.0.0.1:8791/';
 const OUT = process.argv[3] ?? 'docs/screens';
-const BROWSER = process.env.BROWSER ?? 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
-const PORT = 9333;
 mkdirSync(OUT, { recursive: true });
 
-const profile = mkdtempSync(join(tmpdir(), 'leash-shot-'));
-const proc = spawn(BROWSER, ['--headless=new', `--remote-debugging-port=${PORT}`, `--user-data-dir=${profile}`, '--no-first-run', '--hide-scrollbars', 'about:blank'], { stdio: 'ignore' });
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const browser = await launch({ width: 1600, height: 1000, scale: 2 });
+const { S, js, until } = browser;
 
-let info;
-for (let i = 0; i < 50 && !info; i++) {
-  try { info = await (await fetch(`http://127.0.0.1:${PORT}/json/version`)).json(); } catch { await sleep(200); }
-}
-if (!info) throw new Error('browser did not start');
-
-const ws = new WebSocket(info.webSocketDebuggerUrl);
-await new Promise((r) => ws.addEventListener('open', r, { once: true }));
-let seq = 0;
-const pending = new Map();
-ws.addEventListener('message', (ev) => {
-  const m = JSON.parse(ev.data);
-  if (m.id && pending.has(m.id)) {
-    const { resolve, reject } = pending.get(m.id);
-    pending.delete(m.id);
-    if (m.error) reject(new Error(`${m.error.message}`)); else resolve(m.result);
-  }
-});
-const cdp = (method, params = {}, sessionId) => new Promise((resolve, reject) => {
-  const id = ++seq;
-  pending.set(id, { resolve, reject });
-  ws.send(JSON.stringify({ id, method, params, sessionId }));
-});
-
-const { targetId } = await cdp('Target.createTarget', { url: 'about:blank' });
-const { sessionId } = await cdp('Target.attachToTarget', { targetId, flatten: true });
-const S = (method, params) => cdp(method, params, sessionId);
-const W = 1600;
-const H = 1000;
-await S('Emulation.setDeviceMetricsOverride', { width: W, height: H, deviceScaleFactor: 2, mobile: false });
-await S('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'dark' }] });
-await S('Page.enable');
-
-async function js(expr) {
-  const r = await S('Runtime.evaluate', { expression: `(async () => { ${expr} })()`, awaitPromise: true, returnByValue: true });
-  if (r.exceptionDetails) throw new Error(r.exceptionDetails.exception?.description ?? r.exceptionDetails.text);
-  return r.result.value;
-}
-// Sepolia waits for blocks: an action takes 9–18 s there, A9 about 50 s.
-async function until(cond, what, ms = 60000) {
-  for (let t = 0; t < ms; t += 250) {
-    if (await js(`return !!(${cond})`)) return;
-    await sleep(250);
-  }
-  throw new Error(`timeout: ${what}`);
-}
 async function shot(name, selector) {
   let clip;
   if (selector) {
@@ -133,5 +83,4 @@ await until(`document.querySelectorAll('#attacks .atk').length`, 'mobile load');
 await sleep(500);
 await shot('mobile');
 
-ws.close();
-proc.kill();
+browser.close();
