@@ -6,6 +6,8 @@ FinTechathon 2026, Topic F: Autonomous On-chain Wallet.
 
 An AI agent that pays your bills and manages a small portfolio needs a key. A key can be stolen, and a model can be talked into things: a fake "new bank details" invoice, a prompt injection hidden in an email. LEASH accepts that the agent will one day be wrong or compromised, and makes sure that **the worst it can do is bounded by a contract, not by the model's good behaviour.**
 
+![The LEASH console on the local chain: the vault, the mandate the contract enforces, today's limits, and the last full campaign with a hash for every payment and every refusal](docs/screens/console-top.png)
+
 ```
  owner instruction + inbox (untrusted)
               │
