@@ -61,9 +61,11 @@ const walk = (dir, depth) => {
 };
 walk(join(ROOT, 'work'), 2);
 const video = renders.filter((r) => !r.preview && existsSync(r.file)).sort((a, b) => b.renderedAt.localeCompare(a.renderedAt))[0];
+const size = video && statSync(video.file).size;
 if (!video) fail('no final video under work/ with its render record (.json): render it with compose-video.mjs --repo <url> (docs/VIDEO.md); a --preview does not count');
+else if (size !== video.bytes) fail(`${video.file} is ${size} bytes, not the ${video.bytes ?? '?'} its render wrote: an interrupted render or another file; render it again`);
 else {
-  const mb = (statSync(video.file).size / 1e6).toFixed(0);
+  const mb = (size / 1e6).toFixed(0);
   const s = Math.round(video.seconds); // round first, or 179.7 s prints as 2:60
   ok(`video: ${video.file} (${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}, ${mb} MB, ${video.network}, rendered ${video.renderedAt.slice(0, 16)} UTC)`);
   if (video.seconds > 300) fail('the video is longer than the 5-minute limit');

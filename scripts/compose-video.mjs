@@ -9,7 +9,7 @@
 // Writes <out>.mp4 (or .webm) and <out>.srt.
 import { createServer } from 'node:http';
 import { spawnSync } from 'node:child_process';
-import { readFileSync, writeFileSync, appendFileSync, mkdirSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, appendFileSync, mkdirSync, existsSync, rmSync, statSync } from 'node:fs';
 import { join, extname, resolve, dirname } from 'node:path';
 import { launch, sleep } from './cdp.mjs';
 import { ROOT, SLOTS, script, lines, clipName, wavSeconds } from './video-script.mjs';
@@ -229,7 +229,7 @@ const server = createServer((req, res) => {
     req.on('data', (c) => parts.push(c));
     req.on('end', () => {
       const data = Buffer.concat(parts);
-      if (path === '/start') { outFile = `${OUT}${data.toString().startsWith('video/mp4') ? '.mp4' : '.webm'}`; writeFileSync(outFile, ''); }
+      if (path === '/start') { outFile = `${OUT}${data.toString().startsWith('video/mp4') ? '.mp4' : '.webm'}`; writeFileSync(outFile, ''); rmSync(`${OUT}.json`, { force: true }); }
       else if (path === '/chunk') appendFileSync(outFile, data);
       else if (path === '/done') finished();
       res.end('ok');
@@ -259,8 +259,9 @@ await done;
 browser.close();
 server.close();
 console.log(`→ ${outFile} (${(readFileSync(outFile).length / 1e6).toFixed(1)} MB) and ${OUT}.srt`);
-// What this render is, for presubmit.mjs: whose voice, which repo URL is on the closing card, which capture.
-writeFileSync(`${OUT}.json`, `${JSON.stringify({ file: outFile, seconds: Math.round(total * 10) / 10, voice: VOICE_DIR ? 'person' : VOICE ? 'windows' : 'none',
+// What this render is, for presubmit.mjs: whose voice, which repo URL is on the closing card, which capture. Removed
+// when a render starts and written when it ends, with the size, so that an interrupted render does not pass for a whole one.
+writeFileSync(`${OUT}.json`, `${JSON.stringify({ file: outFile, bytes: statSync(outFile).size, seconds: Math.round(total * 10) / 10, voice: VOICE_DIR ? 'person' : VOICE ? 'windows' : 'none',
   repo: REPO ?? null, preview: PREVIEW, network: net, capture: DIR, renderedAt: new Date().toISOString() }, null, 1)}\n`);
 
 // Declared as a function so that the server, which starts above, can already serve it.
