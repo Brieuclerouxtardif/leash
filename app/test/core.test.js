@@ -145,6 +145,13 @@ test('mandate compiler: nulls keep the chain value, loosening is flagged, incons
 
   const bad = diffMandate(s, { payees: [{ name: 'attacker', cap: 1 }], limits: { ...none, payPerTx: 2000 }, risk: { maxSlippagePct: 50, maxRiskPct: null }, agentDays: 365, unmapped: [] }, addr);
   assert.equal(bad.errors.length, 4); // unknown payee, per-payment above daily, slippage above 5%, agent > 90 days
+
+  // No row on screen, no transaction: a renewal seconds off the current expiry sends nothing.
+  const blank = { payees: [], limits: none, risk: { maxSlippagePct: null, maxRiskPct: null }, unmapped: [] };
+  const renew = diffMandate({ ...s, agentExpiry: s.now + 7n * 86400n + 5n }, { ...blank, agentDays: 7 }, addr);
+  assert.deepEqual([renew.rows.length, renew.calls.length], [0, 0]);
+  const renew2 = diffMandate({ ...s, agentExpiry: s.now + 86400n }, { ...blank, agentDays: 7 }, addr);
+  assert.deepEqual([renew2.rows.map((r) => r.field), renew2.calls.map((c) => c.functionName)], [['agent.expiry'], ['setAgent']]);
 });
 
 test('mandate compiler, recorded live runs: an address in the owner text never reaches a transaction', () => {

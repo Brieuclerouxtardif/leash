@@ -6,7 +6,7 @@ One take of the real console, plus a title card at each end. English voice-over.
 
 **Model.** The routine and the mandate editor run as **recorded replays** of live gpt-6.1-sol calls. The console prints "RECORDED REPLAY" above each result; say it aloud once. A live call takes 8–20 s, too long for the video.
 
-**Before recording.** `node app/src/deploy.js <net> --fresh` (local) or a fresh Sepolia campaign state, then `npm run server -- --network <net> --port 8791`. Play the scenes in this order on that fresh state: A9 assumes the pool sits at the oracle price, and A10 pulls the kill switch itself (the header button is hidden while the vault is paused).
+**Before recording.** `node app/src/deploy.js <net> --fresh` (local) or, on Sepolia, `node app/src/repeg.js sepolia` (the pool must sit at the live Chainlink price), then `npm run server -- --network <net> --port 8791`. Play the scenes in this order on that fresh state: A9 assumes the pool sits at the oracle price, and A10 pulls the kill switch itself (the header button is hidden while the vault is paused).
 
 | Time | Screen | Voice-over |
 |---|---|---|

@@ -119,7 +119,8 @@ export function diffMandate(s, m, addr) {
   if (rows.some((r) => r.field.startsWith('risk.'))) {
     calls.push({ functionName: 'setRisk', args: [{ ...R, maxOracleAge: s.risk.maxOracleAge }], label: 'setRisk' });
   }
-  if (agentUntil !== null && agentUntil !== s.agentExpiry) calls.push({ functionName: 'setAgent', args: [s.agent, agentUntil], label: 'setAgent (renew)' });
+  // No row on screen, no transaction: a renewal a few seconds off the current expiry shows no row, so it is not sent.
+  if (agentUntil !== null && rows.some((r) => r.field === 'agent.expiry')) calls.push({ functionName: 'setAgent', args: [s.agent, agentUntil], label: 'setAgent (renew)' });
 
   return { rows, errors, unmapped: m.unmapped ?? [], calls, looser: rows.filter((r) => r.direction === 'looser').length };
 }

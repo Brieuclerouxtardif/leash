@@ -71,6 +71,7 @@ app/src/
   scenes.js           CLI campaign runner → evidence/<net>-campaign-<run>.json
   server.js           local web console (127.0.0.1 only)
   deploy.js, keys.js  deployment and throwaway key generation
+  repeg.js            keeps our testnet pool at the oracle price (the arbitrageur's job)
 app/public/          console front-end (vanilla JS, no build step)
 inbox/week42/        the documents the agent reads, two of them hostile
 evidence/            campaign results, transaction journals, recorded model runs
@@ -79,7 +80,7 @@ docs/                TECHNICAL.md, SECURITY.md, boucle.md (our self-critical bui
 
 ## Run it locally
 
-Prerequisites: Node.js ≥ 20, [Foundry](https://book.getfoundry.sh/) (`forge`, `anvil`). Optional: the Codex CLI for live model calls. Recorded runs work without it.
+Prerequisites: Node.js ≥ 22 (the test glob and the screenshot script's built-in WebSocket need it), [Foundry](https://book.getfoundry.sh/) (`forge`, `anvil`). Optional: the Codex CLI for live model calls. Recorded runs work without it.
 
 ```bash
 npm install
@@ -134,6 +135,8 @@ node app/src/scenes.js sepolia
 ```
 
 Swaps use the real Chainlink ETH/USD feed on Sepolia (`0x694AA1769357215DE4FAC081bf1f309aDC325306`). Tokens and the pool are ours. Every hash in `evidence/sepolia-*.json` links to sepolia.etherscan.io.
+
+Nobody arbitrages our pool, so it keeps the deploy-day price while the real feed moves. Once the gap exceeds the 1 % slippage mandate, the vault refuses every swap, as it should. `scenes.js` therefore re-pegs first: the owner donates the missing side until the pool sits at the oracle price. Run `node app/src/repeg.js sepolia` before using the console on a deployment more than a few hours old. `node scripts/oracle-age.mjs` prints the feed's update gaps: about 3,630 s when we measured, against a 7,200 s `maxOracleAge`.
 
 ## Honesty notes
 

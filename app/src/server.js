@@ -116,16 +116,21 @@ const routes = {
   'POST /api/mandate/compile': async ({ text, mode = 'replay' }) => {
     if (!['replay', 'live'].includes(mode)) throw new Error('bad mode');
     if (mode === 'live' && !ALLOW_LIVE) throw new Error('live model calls are disabled; start the server with --allow-live');
-    const r = compileMandate(text, await readState(ctx, d), ctx.addr, { mode });
-    draft = { struct: r.struct };
+    const s = await readState(ctx, d);
+    const r = compileMandate(text, s, ctx.addr, { mode });
+    draft = { struct: r.struct, now: s.now, shown: JSON.stringify([r.rows, r.calls], big) };
     log({ kind: 'plan', label: `mandate compiled (${r.meta.mode}): ${r.rows.length} changes, ${r.looser} looser`, status: 'info' });
     return { ...r, calls: r.calls.map((c) => c.label) };
   },
   'POST /api/mandate/apply': async () => {
     if (!draft) throw new Error('compile a mandate first');
-    const r = diffMandate(await readState(ctx, d), draft.struct, ctx.addr); // re-diff against the chain as it is now
+    // Re-diff against the chain as it is now; the clock stays at compile time so "valid for N days" keeps the expiry shown.
+    const r = diffMandate({ ...(await readState(ctx, d)), now: draft.now }, draft.struct, ctx.addr);
     if (r.errors.length) throw new Error(`not applied: ${r.errors.join('; ')}`);
     if (!r.calls.length) throw new Error('nothing to change');
+    // The owner approves the diff on screen, never one computed later against a different chain state:
+    // the same call can turn from tighter to looser if the chain moved in between.
+    if (JSON.stringify([r.rows, r.calls], big) !== draft.shown) { draft = null; throw new Error('the on-chain mandate changed since this diff was shown; compile again'); }
     const out = [];
     for (const c of r.calls) {
       const e = await ctx.send('owner', { address: d.vault, abi: ABI.vault, functionName: c.functionName, args: c.args, scene: 'console', label: `owner: ${c.label}` });

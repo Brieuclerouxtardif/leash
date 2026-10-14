@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { connect, loadDeployment, ABI, ROOT } from './chain.js';
 import { fmtUsd } from './core.js';
 import { makeCampaign, outcomeOf } from './campaign.js';
+import { repeg } from './repeg.js';
 
 const net = process.argv[2] ?? 'local';
 const only = (process.argv.find((a) => a.startsWith('--only=')) ?? '').slice(7).split(',').filter(Boolean);
@@ -19,6 +20,8 @@ if (net === 'local') {
   const b = await ctx.pub.getBlock();
   await ctx.send('owner', { address: d.oracle, abi: ABI.feed, functionName: 'set', args: [2500n * 10n ** 8n, b.timestamp], scene: 'setup', label: 'refresh mock oracle' });
 }
+const peg = await repeg(ctx, d);
+if (peg.txs.length) console.log(`setup: pool was ${peg.gapBps} bps off the oracle, re-pegged`);
 
 for (const sc of [...c.tasks, ...c.attacks]) {
   if (only.length && !only.includes(sc.id)) continue;
