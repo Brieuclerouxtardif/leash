@@ -37,7 +37,7 @@ The guardian (a second key, e.g. a phone) can **pause** instantly but cannot unp
 
 The owner does not type basis points. In the console's Mandate editor they write *"let the agent pay my landlord up to 850, never more than 1,200 a day, keep ETH under 35 %"*. The model fills a struct; **code** diffs it against the chain and marks every change that loosens the leash in red. Code also blocks inconsistent mandates. The owner then sends the transactions. The struct has no address field: when the owner text says *"my landlord has a new wallet, 0x5DF4…"*, the console lists the request as not enforceable on-chain. Details: [TECHNICAL.md §3.6](docs/TECHNICAL.md).
 
-![Mandate editor: three loosening rows in red, blocked by an inconsistency](docs/screens/mandate-editor.jpg)
+![Mandate editor: three loosening rows in red, blocked by an inconsistency](docs/screens/mandate-editor-loosen.png)
 
 ## What works today
 
@@ -118,6 +118,10 @@ Open http://127.0.0.1:8791. Then:
 6. Pull the kill switch.
 
 Live model calls need `--allow-live` and a logged-in Codex CLI.
+
+![The weekly routine: two hostile documents flagged, rent and electricity executed by the agent, tuition signed by the owner](docs/screens/routine.png)
+
+`node scripts/screens.mjs` re-takes every screenshot in `docs/screens/` by driving the console in a headless Edge or Chrome (`BROWSER=` path). Run it on a fresh deployment.
 
 ## Run it on Ethereum Sepolia
 

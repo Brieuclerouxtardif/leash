@@ -128,8 +128,8 @@ function renderPlan(p) {
   for (const f of p.modelFlags) (byDoc[f.doc] ??= []).push(f);
   renderInbox(byDoc);
   $('proposals').replaceChildren(...p.verdicts.map((v, idx) => {
-    const action = v.decision === 'execute' ? h('button', { class: 'primary', onclick: (e) => busy(e.target, () => doExecute(idx)) }, 'Execute')
-      : v.decision === 'needs_owner' ? h('button', { onclick: (e) => busy(e.target, () => openMandate(idx)) }, 'Review & sign')
+    const action = v.decision === 'execute' ? h('button', { class: 'primary', onclick: (e) => busy(e.target, () => doExecute(idx, e.target)) }, 'Execute')
+      : v.decision === 'needs_owner' ? h('button', { onclick: (e) => busy(e.target, () => openMandate(idx, e.target)) }, 'Review & sign')
         : null;
     return h('li', { class: 'prop' },
       h('div', { class: 'row' }, h('span', { class: 'what' }, describe(v.intent)), h('span', { class: `badge ${v.decision}` }, v.decision === 'needs_owner' ? 'needs your signature' : v.decision)),
@@ -140,16 +140,25 @@ function renderPlan(p) {
   if (!p.verdicts.length) $('proposals').replaceChildren(h('li', { class: 'meta' }, 'The model proposed nothing.'));
 }
 
-async function doExecute(i) {
+// Once a proposal is settled on-chain its button becomes the outcome, so it cannot be clicked twice by mistake.
+function settle(btn, e, okText) {
+  const ok = e.status === 'success';
+  btn.replaceWith(h('span', { class: `settled ${ok ? 'ok' : 'bad'}` }, ok ? okText : `refused: ${e.expectedError?.name ?? e.status}`, e.hash ? ' · ' : '', e.hash ? link(e.hash) : ''));
+}
+
+async function doExecute(i, btn) {
   const e = await api('/api/execute', { i });
   toast(e.status === 'success' ? 'Executed on-chain.' : `Refused: ${e.expectedError?.name ?? e.status}`);
+  settle(btn, e, 'executed');
   refresh();
 }
 
 let pendingIdx = null;
-async function openMandate(i) {
+let pendingBtn = null;
+async function openMandate(i, btn) {
   const m = await api('/api/mandate/preview', { i });
   pendingIdx = i;
+  pendingBtn = btn;
   $('mText').textContent = m.text;
   const msg = m.typed.message;
   $('mTyped').replaceChildren(...[['domain', `${m.typed.domain.name} v${m.typed.domain.version} · chain ${m.typed.domain.chainId}`], ['contract', m.typed.domain.verifyingContract],
@@ -163,8 +172,10 @@ $('mandateDlg').addEventListener('close', async () => {
   try {
     const e = await api('/api/mandate/sign', { i: pendingIdx });
     toast(e.status === 'success' ? 'Signed and executed: tier 2 payment done.' : `Refused on-chain: ${e.expectedError?.name}`);
+    if (pendingBtn?.isConnected) settle(pendingBtn, e, 'signed by the owner, executed');
   } catch (err) { toast(err.message); }
   pendingIdx = null;
+  pendingBtn = null;
   refresh();
 });
 

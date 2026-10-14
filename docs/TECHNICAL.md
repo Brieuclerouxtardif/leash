@@ -113,7 +113,9 @@ Mandate(address to, uint256 amount, bytes32 opId, uint64 deadline, uint32 epoch)
 
 What the owner reads before signing is rendered **by code from the struct**, for example:
 
-> Pay 5,000.00 tUSD to 0x1ef3…7C6f [school (not a payee)], once, before 2026-10-14T01:12:46Z. Void if you revoke the agent (epoch 1).
+> Pay 5,000.00 tUSD to 0x1ef32F56C8fd7c972eE68FD845691C80755b7C6f [school (not a payee)], once, before 2026-10-14T01:42:59Z. Void if you revoke the agent (epoch 1).
+
+The address is printed in full: a shortened one is what address-poisoning attacks imitate.
 
 An address outside the registry is labelled "UNKNOWN recipient, never paid before". The model never writes this text.
 
