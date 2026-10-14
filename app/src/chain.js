@@ -63,6 +63,23 @@ export async function connect(netName, { journal } = {}) {
 
   /** Send a contract call as `role`. With force=true the gas is fixed so a doomed call is still
    *  mined: the reverted transaction becomes public proof that the vault refused it. */
+  /** A forced call is sent with every field filled. Otherwise viem asks the node to fill the transaction
+   *  (`eth_fillTransaction`); behind a load balancer some nodes simulate it there and viem throws on the
+   *  very revert we want mined (Sepolia run 3, A9). A stale nonce from a lagging node is retried. */
+  async function sendFilled(wallet, tx) {
+    for (let i = 0; ; i++) {
+      try {
+        const [nonce, fees] = await Promise.all([
+          pub.getTransactionCount({ address: wallet.account.address, blockTag: 'pending' }), pub.estimateFeesPerGas(),
+        ]);
+        return await wallet.sendTransaction({ ...tx, nonce, ...fees, chainId: net.chain.id, type: 'eip1559' });
+      } catch (e) {
+        if (i >= 3 || !/nonce/i.test(e.shortMessage ?? e.message ?? '')) throw e;
+        await sleep(3000);
+      }
+    }
+  }
+
   ctx.send = async (role, { address, abi, functionName, args = [], label, scene, force = false, gas }) => {
     const wallet = wallets[role];
     const entry = { at: new Date().toISOString(), network: netName, scene, label, role, from: wallet.account.address, to: address, fn: functionName };
@@ -79,12 +96,12 @@ export async function connect(netName, { journal } = {}) {
         return entry;
       }
     }
-    const hash = await wallet.sendTransaction({ to: address, data, gas: force || gas ? (gas ?? 300000n) : undefined });
+    const hash = force || gas ? await sendFilled(wallet, { to: address, data, gas: gas ?? FORCED_GAS }) : await wallet.sendTransaction({ to: address, data });
     const r = await pub.waitForTransactionReceipt({ hash });
     Object.assign(entry, { hash, status: r.status, block: Number(r.blockNumber), gasUsed: Number(r.gasUsed) });
-    // The reason that counts is the mined one: replay the call at its block. On a load-balanced RPC the
-    // pre-send simulation can hit a node one block behind (Sepolia run of 2026-10-14, A8) and say "ok".
-    if (r.status === 'reverted') entry.minedError = await replayRevert(pub, { account: wallet.account, to: address, data }, r.blockNumber, abi);
+    // The reason that counts is the mined one. On a load-balanced RPC the pre-send simulation can hit a
+    // node one block behind (Sepolia run 1, A8) and say "ok".
+    if (r.status === 'reverted') entry.minedError = await minedRevert(pub, hash, abi);
     if (net.explorer) entry.url = `${net.explorer}/tx/${hash}`;
     record(ctx, entry);
     return { ...entry, receipt: r };
@@ -94,6 +111,29 @@ export async function connect(netName, { journal } = {}) {
 
 function record(ctx, entry) {
   appendFileSync(ctx.journalFile, JSON.stringify(entry, (_, v) => (typeof v === 'bigint' ? v.toString() : v)) + '\n');
+}
+
+/** Gas for a forced call. It must leave room to reach the vault's own check: a call that dies out of gas
+ *  proves nothing. Sepolia charges ~3x anvil for the same swap (T3: 384k vs 130k), and the 300k we had
+ *  tuned locally made Sepolia's A9 run out of gas in runs 1 and 2. Only the gas used is paid. */
+export const FORCED_GAS = 1_500_000n;
+
+const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
+
+/** Why a mined transaction reverted, from the chain alone: out of gas if it burnt its whole limit,
+ *  otherwise the reason of the same call (sender, data and gas limit) replayed at its block. */
+export async function minedRevert(pub, hash, abi) {
+  let tx, r;
+  for (let i = 0; !tx; i++) {
+    try {
+      [tx, r] = await Promise.all([pub.getTransaction({ hash }), pub.getTransactionReceipt({ hash })]);
+    } catch (e) {
+      if (i >= 4) throw e;
+      await sleep(2000);
+    }
+  }
+  if (r.gasUsed >= tx.gas) return { name: 'OutOfGas', args: [String(tx.gas)] };
+  return replayRevert(pub, { account: tx.from, to: tx.to, data: tx.input, gas: tx.gas }, r.blockNumber, abi);
 }
 
 /** Decoded reason of a call that reverted in `blockNumber`, or null after a few tries (a lagging node can
@@ -106,7 +146,7 @@ export async function replayRevert(pub, call, blockNumber, abi, tries = 5) {
       const d = decodeRevert(e, abi);
       if (!/block|header/i.test(d.name)) return d;
     }
-    await new Promise((res) => setTimeout(res, 2000));
+    await sleep(2000);
   }
   return null;
 }

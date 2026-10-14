@@ -45,11 +45,11 @@ The owner does not type basis points. In the console's Mandate editor they write
 |---|---|---|
 | Contract unit + fuzz tests | 34 / 34 (fuzz: 2,000 runs each) | `forge test` |
 | Invariants (rogue-agent handler, 256 runs × 64 calls) | 7 / 7, 16,384 hostile calls | `forge test --match-path test/Invariant.t.sol` |
-| Off-chain policy + mandate compiler tests | 16 / 16 | `npm test` |
+| Off-chain policy + mandate compiler tests | 17 / 17 | `npm test` |
 | Full local campaign (5 tasks + 13 attacks, fresh chain) | 18 / 18 | `scripts/local-campaign.ps1` |
 | Same 13 attacks launched from the web console | 13 / 13 | `npm run server`, Red team panel |
 | Live LLM runs (gpt-6.1-sol via Codex CLI, no tools) | 2 routine plans + 3 mandate compilations, recorded and replayable | `evidence/model-runs/` |
-| Ethereum Sepolia campaign, vault [`0x67a1…07fD`](https://sepolia.etherscan.io/address/0x67a1d19bb9d6f19795675282a701863766fb07fd) | 18 / 18, 29 transactions, 12 mined refusals, re-derived from the chain by `audit-chain.mjs`; 4 contracts verified on Sourcify (exact match) | [docs/evidence-sepolia.md](docs/evidence-sepolia.md) |
+| Ethereum Sepolia campaign (run 4), vault [`0x8237…cE80`](https://sepolia.etherscan.io/address/0x8237d47a29e49d8f60fde0ca900df86ae2c7ce80) | 18 / 18, 29 transactions, 12 mined refusals, re-derived from the chain by `audit-chain.mjs` and matched against Blockscout's decoding; 4 contracts verified on Sourcify (exact match). Runs 1–3 were 17/18 (see Honesty notes) | [docs/evidence-sepolia.md](docs/evidence-sepolia.md) |
 
 Every attack is sent for real with a fixed gas limit, so the refusal is **mined as a reverted transaction**. Every refusal has a public hash. We call this *proof of refusal*.
 
@@ -133,12 +133,13 @@ Live model calls need `--allow-live` and a logged-in Codex CLI.
 node app/src/deploy.js sepolia
 node app/src/scenes.js sepolia
 node scripts/verify.mjs sepolia
-node scripts/audit-chain.mjs sepolia
+node scripts/audit-chain.mjs sepolia --blockscout
+node scripts/evidence-doc.mjs
 ```
 
 `verify.mjs` verifies the four contracts on Sourcify with `forge verify-contract`; no API key is needed. Its constructor arguments were checked byte for byte against the local deployment transactions.
 
-`audit-chain.mjs` does not trust our JSON. For every scene it fetches the receipt, checks that the transaction went to the vault, and replays each refusal at its block to read the revert reason from the chain. It needs no keys, only `forge build` for the ABI.
+`audit-chain.mjs` does not trust our JSON. For every scene it fetches the receipt and checks that the transaction went to the vault. It flags out-of-gas, and it replays each refusal at its block, with its own gas limit, to read the revert reason from the chain. `--blockscout` adds a third opinion: Blockscout's own decoding of each failed transaction. It needs no keys, only `forge build` for the ABI. Etherscan shows our refusals only as "execution reverted", because the sources are verified on Sourcify, not Etherscan. The evidence table therefore also links each refusal to Blockscout, where the vault's error is decoded. `evidence-doc.mjs` rewrites [docs/evidence-sepolia.md](docs/evidence-sepolia.md) from every Sepolia run in `evidence/`, failed ones included, each with a fresh audit.
 
 `deploy.js` checks the owner balance against the current gas price before sending anything: about 0.006 ETH at 0.001 gwei. Like the local one, the campaign expects a fresh vault and a single UTC day. Do not start it within 15 minutes of 00:00 UTC. If a run fails halfway, redeploy with `--fresh` rather than re-running it.
 
@@ -150,5 +151,10 @@ Nobody arbitrages our pool, so it keeps the deploy-day price while the real feed
 
 - **Not new as a primitive.** Session keys, spend permissions and allowance modules exist (ERC-4337 plugins, Coinbase Spend Permissions, MetaMask delegations, Safe Allowance module). LEASH's contribution is the complete loop: LLM → deterministic policy → contract, with an oracle-bounded portfolio mandate, deterministic mandate rendering and on-chain proof of every refusal.
 - **The model resisted.** In our recorded live runs, both the guarded prompt and a deliberately naive prompt refused the prompt injection. We therefore do not claim "the model was fooled and the vault held". We show the stolen-key case instead (A2–A4, A7), plus a clearly labelled *simulated* compromised model output in the tests.
-- **Our first Sepolia run said 17/18.** The vault refused every attack. The miss was in our harness, which took A8's revert reason from a simulation served by a lagging RPC node. The run stays in `evidence/` as recorded. The fix and the chain-only audit are in SECURITY.md (R15).
+- **Our first three Sepolia runs were 17/18, and our own tooling first hid that.** The vault never let anything through; the failures were all in how we sent and labelled the attacks:
+  - Run 1 took A8's revert reason from a simulation served by a lagging RPC node.
+  - In runs 1 and 2, A9's forced buy ran out of gas, because Sepolia costs about 3× anvil's gas and our limit was tuned on anvil. It was still labelled as a refusal. Blockscout showed "Out of gas".
+  - In run 3, an RPC node simulated A9 while filling the transaction, so it was never sent.
+
+  Labels now come from the mined transaction, forced calls are fully filled with room to spare, and the audit checks every outcome against Blockscout. All three runs stay in `evidence/` as recorded (SECURITY.md, R15).
 - **Unaudited code.** Testnet only. See [docs/SECURITY.md](docs/SECURITY.md) for the known-risk list.

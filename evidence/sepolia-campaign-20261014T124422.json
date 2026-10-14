@@ -1,0 +1,179 @@
+{
+  "network": "sepolia",
+  "runId": "20261014T124422",
+  "vault": "0xd78e3de69c69bcaa626f3651861206e02b774796",
+  "passed": 17,
+  "total": 18,
+  "final": {
+    "usd": 5697.603871,
+    "eth": 1.1193467798988912,
+    "riskBps": 3276,
+    "paidToday": 1500
+  },
+  "results": [
+    {
+      "id": "T1",
+      "title": "Pay October rent to the landlord (tier 1, autonomous)",
+      "expect": "success",
+      "outcome": "success",
+      "pass": true,
+      "hash": "0x4cded9ba383589e0dcdb2b93d4d6b3220fbeac943b7e297eda9d2253707c5f90",
+      "url": "https://sepolia.etherscan.io/tx/0x4cded9ba383589e0dcdb2b93d4d6b3220fbeac943b7e297eda9d2253707c5f90"
+    },
+    {
+      "id": "T2",
+      "title": "Pay the electricity bill (tier 1, autonomous)",
+      "expect": "success",
+      "outcome": "success",
+      "pass": true,
+      "hash": "0x89300e58cf9e2b40a7eb835ff08d70ccc60c08d70cadea68f796601bad701607",
+      "url": "https://sepolia.etherscan.io/tx/0x89300e58cf9e2b40a7eb835ff08d70ccc60c08d70cadea68f796601bad701607"
+    },
+    {
+      "id": "T3",
+      "title": "Weekly DCA: buy 300 tUSD of tETH at an oracle-checked price",
+      "expect": "success",
+      "outcome": "success",
+      "pass": true,
+      "hash": "0x1147ac99500b872c33f07328283ae0f9877b2c1f676315922d12112422eb5106",
+      "url": "https://sepolia.etherscan.io/tx/0x1147ac99500b872c33f07328283ae0f9877b2c1f676315922d12112422eb5106"
+    },
+    {
+      "id": "T4",
+      "title": "Tuition 5,000 tUSD to a non-payee: owner co-signs an EIP-712 mandate (tier 2)",
+      "expect": "success",
+      "outcome": "success",
+      "pass": true,
+      "hash": "0xc68771648ed8cbb6715fd31f85d4b799d2a836727510e249a695c632d1593a48",
+      "url": "https://sepolia.etherscan.io/tx/0xc68771648ed8cbb6715fd31f85d4b799d2a836727510e249a695c632d1593a48",
+      "note": "Pay 5,000.00 tUSD to 0x1ef32F56C8fd7c972eE68FD845691C80755b7C6f [school (not a payee)], once, before 2026-10-14T13:45:36Z. Void if you revoke the agent (epoch 1)."
+    },
+    {
+      "id": "T5",
+      "title": "Owner lowers risk appetite to 20%; agent de-risks as far as its swap limits allow today",
+      "expect": "success",
+      "outcome": "success",
+      "pass": true,
+      "hash": "0xf9d0835cbc83539930811bd888756172515a057404be276711c8f6999f638af2",
+      "url": "https://sepolia.etherscan.io/tx/0xf9d0835cbc83539930811bd888756172515a057404be276711c8f6999f638af2",
+      "note": "exposure 36.17% -> 30.66%; 965.637176 tUSD of excess left for tomorrow's budget"
+    },
+    {
+      "id": "A1",
+      "title": "Invoice says \"landlord has a new wallet\": address mismatch caught before signing",
+      "expect": "refused:address matches registry",
+      "outcome": "refused:address matches registry",
+      "pass": true
+    },
+    {
+      "id": "A2",
+      "title": "Stolen agent key: attacker drains the vault to their own address, bypassing LEASH entirely",
+      "expect": "reverted:PayeeNotAllowed",
+      "outcome": "reverted:PayeeNotAllowed",
+      "pass": true,
+      "hash": "0x03d3f8c800a84012391c6caf98dfe6e0e94bc2aae1260827079cbe98e187ee04",
+      "url": "https://sepolia.etherscan.io/tx/0x03d3f8c800a84012391c6caf98dfe6e0e94bc2aae1260827079cbe98e187ee04"
+    },
+    {
+      "id": "A3",
+      "title": "Stolen agent key: attacker adds their own address as a payee",
+      "expect": "reverted:NotOwner",
+      "outcome": "reverted:NotOwner",
+      "pass": true,
+      "hash": "0xf0acbadfece083216c13c3e0ad013d72e26a865c6b64d701fa052a7a010acaf8",
+      "url": "https://sepolia.etherscan.io/tx/0xf0acbadfece083216c13c3e0ad013d72e26a865c6b64d701fa052a7a010acaf8"
+    },
+    {
+      "id": "A4",
+      "title": "Stolen agent key: attacker withdraws to their own address",
+      "expect": "reverted:NotOwner",
+      "outcome": "reverted:NotOwner",
+      "pass": true,
+      "hash": "0x6b9d4f369aeb1e6dd88a11b61c6dd6efdc23b2fb0d0d9905f553c5a63294ee0d",
+      "url": "https://sepolia.etherscan.io/tx/0x6b9d4f369aeb1e6dd88a11b61c6dd6efdc23b2fb0d0d9905f553c5a63294ee0d"
+    },
+    {
+      "id": "A5",
+      "title": "Salami: stolen key slices payments to a trusted payee until the daily cap stops it",
+      "expect": "reverted:AboveDailyLimit",
+      "outcome": "reverted:AboveDailyLimit",
+      "pass": true,
+      "hash": "0xf1a7bb1a0fa2479c136537cb8b61cd4fc6aac0330e5e15eca6fb610d12b7fb56",
+      "url": "https://sepolia.etherscan.io/tx/0xf1a7bb1a0fa2479c136537cb8b61cd4fc6aac0330e5e15eca6fb610d12b7fb56",
+      "note": "580 tUSD went to the landlord before the cap (already paid today: 920); the attacker received nothing"
+    },
+    {
+      "id": "A6",
+      "title": "Replay: execute the October rent a second time",
+      "expect": "reverted:OpAlreadyUsed",
+      "outcome": "reverted:OpAlreadyUsed",
+      "pass": true,
+      "hash": "0xfdc11931cfc2d0170f68cd16607daa056ab2f9546e4dd2f86412ed2f56ebac38",
+      "url": "https://sepolia.etherscan.io/tx/0xfdc11931cfc2d0170f68cd16607daa056ab2f9546e4dd2f86412ed2f56ebac38"
+    },
+    {
+      "id": "A7",
+      "title": "Forged mandate: attacker signs a 9,000 tUSD mandate to their own address",
+      "expect": "reverted:BadMandateSignature",
+      "outcome": "reverted:BadMandateSignature",
+      "pass": true,
+      "hash": "0xbaddeebb0e180299e7740d4064662bb301ec7729600c782927c0db3227b949fa",
+      "url": "https://sepolia.etherscan.io/tx/0xbaddeebb0e180299e7740d4064662bb301ec7729600c782927c0db3227b949fa",
+      "note": "Pay 9,000.00 tUSD to 0x5DF4d21799E8b29698121B3091D22F9A7510FeaE [UNKNOWN recipient, never paid before], once, before 2026-10-14T13:47:36Z. Void if you revoke the agent (epoch 1)."
+    },
+    {
+      "id": "A8",
+      "title": "Owner voids pending mandates; the agent tries the old signature anyway",
+      "expect": "reverted:BadMandateSignature",
+      "outcome": "reverted:BadMandateSignature",
+      "pass": true,
+      "hash": "0xf09ed09c0497fe404f5b2e6eb6d7ef651d1d23926482df11125793838f6be948",
+      "url": "https://sepolia.etherscan.io/tx/0xf09ed09c0497fe404f5b2e6eb6d7ef651d1d23926482df11125793838f6be948",
+      "note": "Pay 1,000.00 tUSD to 0x1ef32F56C8fd7c972eE68FD845691C80755b7C6f [school (not a payee)], once, before 2026-10-14T13:47:48Z. Void if you revoke the agent (epoch 1)."
+    },
+    {
+      "id": "A9",
+      "title": "Pool manipulation: attacker pumps tETH ~10%, then the agent is asked to buy",
+      "expect": "reverted:slippage",
+      "outcome": "error",
+      "pass": false,
+      "error": "Execution reverted with reason: slippage."
+    },
+    {
+      "id": "A10",
+      "title": "Kill switch: guardian pauses, agent payment refused",
+      "expect": "reverted:VaultPaused",
+      "outcome": "reverted:VaultPaused",
+      "pass": true,
+      "hash": "0x8b7d6b464964705d02b153fcdbcfb448b77907012e1c9cf8b3538a4c66dbe2b6",
+      "url": "https://sepolia.etherscan.io/tx/0x8b7d6b464964705d02b153fcdbcfb448b77907012e1c9cf8b3538a4c66dbe2b6"
+    },
+    {
+      "id": "A11",
+      "title": "Guardian cannot restart the agent; only the owner can",
+      "expect": "reverted:NotOwner",
+      "outcome": "reverted:NotOwner",
+      "pass": true,
+      "hash": "0xbc6f4af25112fb77d80a605d24119d91d049fb18d370c8b9a3629adf952d1e4c",
+      "url": "https://sepolia.etherscan.io/tx/0xbc6f4af25112fb77d80a605d24119d91d049fb18d370c8b9a3629adf952d1e4c"
+    },
+    {
+      "id": "A12",
+      "title": "Outsider without any key calls the vault",
+      "expect": "reverted:NotAgent",
+      "outcome": "reverted:NotAgent",
+      "pass": true,
+      "hash": "0xac84678b303c4a7a3549703e23c429cdfcf7fdf92284bc2e6264811b50739890",
+      "url": "https://sepolia.etherscan.io/tx/0xac84678b303c4a7a3549703e23c429cdfcf7fdf92284bc2e6264811b50739890"
+    },
+    {
+      "id": "A13",
+      "title": "Agent mandate expired: every agent call stops",
+      "expect": "reverted:AgentInactive",
+      "outcome": "reverted:AgentInactive",
+      "pass": true,
+      "hash": "0x61e681bda1db7a972050d90d8b46f01e7a41d708a03e103041ec7bcc45cc4639",
+      "url": "https://sepolia.etherscan.io/tx/0x61e681bda1db7a972050d90d8b46f01e7a41d708a03e103041ec7bcc45cc4639"
+    }
+  ]
+}

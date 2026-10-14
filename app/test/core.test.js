@@ -7,6 +7,7 @@ import { scanDocument, review, loadInbox, SCHEMA } from '../src/planner.js';
 import { ROOT } from '../src/chain.js';
 import { diffMandate, compileMandate, replayableSamples } from '../src/compiler.js';
 import { outcomeOf } from '../src/campaign.js';
+import { minedRevert } from '../src/chain.js';
 
 const A = {
   landlord: '0xDAB5071EAf37Bf4D564e6a33da3F9E6A74687B82',
@@ -201,4 +202,19 @@ test('a mined refusal is labelled by its replayed reason, never by the pre-send 
   assert.equal(outcomeOf({ status: 'reverted', simulated: 'ok', minedError: { name: 'BadMandateSignature' } }), 'reverted:BadMandateSignature');
   assert.equal(outcomeOf({ status: 'reverted', expectedError: { name: 'BadMandateSignature' } }), 'reverted:unknown');
   assert.equal(outcomeOf({ status: 'refused-before-signing', reason: 'address matches registry' }), 'refused:address matches registry');
+});
+
+test('a mined revert that burnt its whole gas limit is out of gas; otherwise it is replayed with that limit', async () => {
+  // Sepolia runs 1 and 2, A9: 300k gas, all used. A replay without the limit had said "slippage".
+  const calls = [];
+  const stub = (gasUsed) => ({
+    getTransaction: async () => ({ from: '0x1', to: '0x2', input: '0x', gas: 300000n }),
+    getTransactionReceipt: async () => ({ gasUsed, blockNumber: 10n }),
+    call: async (c) => { calls.push(c); throw new Error('reverted with reason string \'slippage\''); },
+  });
+  assert.equal((await minedRevert(stub(300000n), '0xh', [])).name, 'OutOfGas');
+  assert.equal(calls.length, 0, 'an out-of-gas revert must not be relabelled by a replay');
+  assert.equal((await minedRevert(stub(124135n), '0xh', [])).name, 'slippage');
+  assert.equal(calls[0].gas, 300000n);
+  assert.equal(calls[0].blockNumber, 10n);
 });

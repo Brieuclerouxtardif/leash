@@ -12,13 +12,17 @@ if (!file) throw new Error(`no ${net} campaign in evidence/`);
 const c = JSON.parse(readFileSync(join(dir, file), 'utf8'));
 const explorer = net === 'sepolia' ? 'https://sepolia.etherscan.io' : null;
 const short = (h) => `${h.slice(0, 10)}…${h.slice(-4)}`;
-const link = (h) => (!h ? '(refused before signing)' : explorer ? `[${short(h)}](${explorer}/tx/${h})` : `\`${short(h)}\``);
+// Etherscan shows a refusal only as "execution reverted" (our sources are on Sourcify, not Etherscan);
+// Blockscout decodes the vault's error, so refusals get a second link.
+const blockscout = net === 'sepolia' ? 'https://eth-sepolia.blockscout.com' : null;
+const link = (h, refused) => (!h ? '(refused before signing)' : explorer
+  ? `[${short(h)}](${explorer}/tx/${h})${refused && blockscout ? ` · [decoded](${blockscout}/tx/${h})` : ''}` : `\`${short(h)}\``);
 
 // Every transaction of the run, not only the scene's final one, so [N] in the deck is a real count.
 const journal = join(dir, file.replace(/\.json$/, '.jsonl'));
 const txs = readFileSync(journal, 'utf8').trim().split('\n').map((l) => JSON.parse(l)).filter((e) => e.hash);
 
-console.log(`Campaign \`${file}\`: **${c.passed}/${c.total}** as expected · vault ${explorer ? `[${c.vault}](${explorer}/address/${c.vault})` : `\`${c.vault}\``} · ${txs.length} transactions (${txs.filter((e) => e.status === 'reverted').length} mined refusals)\n`);
+console.log(`Campaign \`${file}\`: **${c.passed}/${c.total}** as expected according to the harness · vault ${explorer ? `[${c.vault}](${explorer}/address/${c.vault})` : `\`${c.vault}\``} · ${txs.length} transactions (${txs.filter((e) => e.status === 'reverted').length} mined refusals)\n`);
 console.log('| Scene | What | Outcome | Transaction |');
 console.log('|---|---|---|---|');
-for (const r of c.results) console.log(`| ${r.id} | ${r.title.replace(/\|/g, '/')} | ${r.pass ? '✓' : '✗'} \`${r.outcome}\` | ${link(r.hash)} |`);
+for (const r of c.results) console.log(`| ${r.id} | ${r.title.replace(/\|/g, '/')} | ${r.pass ? '✓' : '✗'} \`${r.outcome}\` | ${link(r.hash, r.outcome.startsWith('reverted'))} |`);

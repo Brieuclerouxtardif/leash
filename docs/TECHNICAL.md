@@ -123,7 +123,15 @@ An address outside the registry is labelled "UNKNOWN recipient, never paid befor
 
 `chain.send` simulates every call. For a normal agent action, a reverting simulation stops there (`refused-before-signing`). For red-team scenes the call is **forced** with a fixed gas limit, so it is mined and reverts. The receipt hash, block, gas and decoded custom error (`PayeeNotAllowed`, `AboveDailyLimit`, …) are appended to `evidence/<net>-*.jsonl`. On Sepolia every refusal gets a public Etherscan link.
 
-The recorded reason is the mined one: after a reverted receipt, `replayRevert` replays the call at its block and decodes that. The pre-send simulation is not trusted for the label. On Sepolia run 1 it was served by an RPC node one block behind, said "ok", and A8 came out as `reverted:undefined`. `scripts/audit-chain.mjs` repeats this for a whole campaign from public data only (receipt, target, replayed reason), so a reader does not have to trust our JSON. On the reference run: 17 outcomes confirmed on-chain plus A1, which was refused before signing.
+The recorded reason is the mined one (`minedRevert`). If the transaction burnt its whole gas limit, it is labelled `OutOfGas` and proves nothing. Otherwise the same call, with the same gas limit, is replayed at its block and decoded. The pre-send simulation is never trusted for the label. Two Sepolia runs taught us this:
+- In run 1, the simulation was served by an RPC node one block behind. It said "ok", and A8 came out as `reverted:undefined`.
+- In runs 1 and 2, A9's forced buy had 300k gas, tuned on anvil. Sepolia charges about 3× more for the same swap, so the call died out of gas before the vault's check. A replay without the gas limit had wrongly confirmed `slippage`.
+
+- In run 3, viem asked the RPC to fill the forced transaction (`eth_fillTransaction`). A node behind the load balancer simulated it at that point and viem threw, so A9 was never sent.
+
+Forced calls now get 1.5M gas, of which only the gas used is paid. They are sent with nonce, fees and chain id already filled, so no node simulates them before they are mined.
+
+`scripts/audit-chain.mjs` repeats all of this for a whole campaign from public data only: receipt, target, gas, replayed reason. With `--blockscout` it also compares each refusal with Blockscout's own decoding. A reader does not have to trust our JSON.
 
 ### 3.6 Mandate compiler (owner text → on-chain diff)
 

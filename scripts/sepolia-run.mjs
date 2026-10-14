@@ -1,6 +1,6 @@
-// Waits until the owner is funded, then runs the whole Sepolia path: deploy, campaign, Sourcify, evidence table.
+// Waits until the owner is funded, then runs the whole Sepolia path: deploy, campaign, Sourcify, audit, evidence doc.
 // Usage: node scripts/sepolia-run.mjs [--poll=60]   Safe to re-run: it never redeploys over an existing deployment.
-import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
@@ -50,15 +50,14 @@ for (;;) {
 }
 
 if (!deployed && run(['app/src/deploy.js', 'sepolia'])) process.exit(1);
-const done = readdirSync(join(ROOT, 'evidence')).filter((f) => /^sepolia-campaign-.*\.json$/.test(f))
-  .some((f) => { const c = JSON.parse(readFileSync(join(ROOT, 'evidence', f), 'utf8')); return c.passed === c.total; });
-const scenes = done ? (log('a passing Sepolia campaign already exists; not re-running it'), 0) : run(['app/src/scenes.js', 'sepolia']);
+// A campaign needs a fresh vault, so it runs once per deployment. Whether it passed is the audit's call,
+// not the campaign file's: run 2's file said 18/18 over an out-of-gas A9 (SECURITY.md, R15).
+const vault = JSON.parse(readFileSync(join(ROOT, 'deployments', 'sepolia.json'), 'utf8')).vault.toLowerCase();
+const ran = readdirSync(join(ROOT, 'evidence')).filter((f) => /^sepolia-campaign-.*\.json$/.test(f))
+  .some((f) => JSON.parse(readFileSync(join(ROOT, 'evidence', f), 'utf8')).vault.toLowerCase() === vault);
+if (ran) log(`a campaign already ran against vault ${vault}; not re-running it (redeploy with --fresh for a new run)`);
+else run(['app/src/scenes.js', 'sepolia']);
 run(['scripts/verify.mjs', 'sepolia']);
-run(['scripts/audit-chain.mjs', 'sepolia']);
-
-const table = spawnSync(process.execPath, ['scripts/evidence-table.mjs', 'sepolia'], { cwd: ROOT, encoding: 'utf8' });
-if (table.status === 0) {
-  writeFileSync(join(ROOT, 'docs', 'evidence-sepolia.md'), `# Sepolia evidence\n\n${table.stdout}`);
-  log('wrote docs/evidence-sepolia.md');
-}
-process.exit(scenes);
+const audit = run(['scripts/audit-chain.mjs', 'sepolia', '--blockscout']);
+run(['scripts/evidence-doc.mjs']);
+process.exit(audit);

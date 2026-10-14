@@ -7,16 +7,16 @@ Deadline: **2026-10-20 23:59 Beijing = 15:59 UTC = 17:59 Paris**. Plan B (submit
 | Technical document | [TECHNICAL.md](TECHNICAL.md) | done |
 | Security self-assessment | [SECURITY.md](SECURITY.md): tiers, threat model, 13 attacks + 2 policy cases, R1–R15 | done |
 | Code, README, deploy instructions, tests | repo root, [README](../README.md) | done locally; GitHub repo not created |
-| Deck, 10 min max | Slides artifact (private), 12 slides, ~8.5 min of notes | placeholders: team name, [N] txs, vault address, GitHub URL |
+| Deck, 10 min max | Slides artifact (private), 12 slides, ~8.5 min of notes | Sepolia run 4 numbers and vault in (v12); placeholders left: team name, GitHub URL |
 | Video, 5 min max | script in [VIDEO.md](VIDEO.md), 4:40 | not recorded |
-| Real transaction hashes | [evidence-sepolia.md](evidence-sepolia.md), `evidence/sepolia-campaign-*.json` | done 2026-10-14: run 2 at 18/18, chain audit 18/18, Sourcify exact match ×4 |
+| Real transaction hashes | [evidence-sepolia.md](evidence-sepolia.md), `evidence/sepolia-campaign-*.json` | done 2026-10-14: run 4 (vault `0x8237…cE80`) at 18/18, chain audit 18/18 with Blockscout agreeing, Sourcify exact match ×4. Runs 1–3 were 17/18 (harness bugs, SECURITY R15), kept as recorded. Before submitting, re-run `node scripts/evidence-doc.mjs` so that Blockscout has indexed every refusal |
 
 ## Order of operations once the owner is funded
 
-Steps 1 to 5 were done on 2026-10-14. Run 1 recorded 17/18 (harness bug, SECURITY R15); run 2 is the reference run. Then `node scripts/audit-chain.mjs sepolia` re-derived it from the chain.
+Steps 1 to 5 were done on 2026-10-14. Runs 1–3 were 17/18 because of three harness bugs (SECURITY R15); run 4 is the reference run. `node scripts/audit-chain.mjs sepolia --blockscout` re-derived it from the chain and checked it against Blockscout.
 
 1. Fund `0x7d3FA41264BB82535Cb3F8296F1107EAe64A25c9` with 0.01 Sepolia ETH.
-2. `node scripts/sepolia-run.mjs` covers steps 2 to 4 in one command, and can be started before the funds arrive. It waits for the funds, stays clear of 00:00 UTC, and never redeploys over an existing deployment. It ends by writing `docs/evidence-sepolia.md` (`scripts/evidence-table.mjs`). By hand, steps 2 to 4 are:
+2. `node scripts/sepolia-run.mjs` covers steps 2 to 4 in one command, and can be started before the funds arrive. It waits for the funds, stays clear of 00:00 UTC, and never redeploys over an existing deployment. It ends with the audit and writes `docs/evidence-sepolia.md` (`scripts/evidence-doc.mjs`). Its exit code is the audit's. By hand, steps 2 to 4 are:
    - `node app/src/deploy.js sepolia`
    - `node app/src/scenes.js sepolia`: expect 18/18.
    - `node scripts/verify.mjs sepolia`: Sourcify.
