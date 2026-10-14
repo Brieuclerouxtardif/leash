@@ -100,7 +100,7 @@ node app/src/deploy.js local --fresh
 node app/src/scenes.js local
 ```
 
-The campaign prints 18 lines and writes `evidence/local-campaign-<run>.json`. On Windows, `scripts/local-campaign.ps1` does all of this on a fresh anvil.
+The campaign prints 18 lines and writes `evidence/local-campaign-<run>.json`. On Windows, `scripts/local-campaign.ps1` does all of this on a fresh anvil. It finds Foundry on the PATH, or in `LEASH_FOUNDRY`. It listens on `LEASH_ANVIL_PORT` (default 8545) and only restarts an anvil that is already on that port.
 
 If port 8545 is taken, start anvil with `--port 8546` and set `LEASH_LOCAL_RPC=http://127.0.0.1:8546`. `LEASH_SEPOLIA_RPC` overrides the Sepolia node, which defaults to publicnode.
 
