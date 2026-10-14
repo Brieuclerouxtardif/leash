@@ -8,7 +8,7 @@ Deadline: **2026-10-20 23:59 Beijing = 15:59 UTC = 17:59 Paris**. Plan B (submit
 | Security self-assessment | [SECURITY.md](SECURITY.md): tiers, threat model, 13 attacks + 2 policy cases, R1–R15 | done |
 | Code, README, deploy instructions, tests | repo root, [README](../README.md) | done locally; GitHub repo not created |
 | Deck, 10 min max | Slides artifact (private), 12 slides, ~8.5 min of notes | Sepolia run 4 numbers and vault in (v12); placeholders left: team name, GitHub URL |
-| Video, 5 min max | script in [VIDEO.md](VIDEO.md), 4:40 | not recorded |
+| Video, 5 min max | script in [VIDEO.md](VIDEO.md), 3:30, rehearsed on the local console on 2026-10-14 | not recorded |
 | Real transaction hashes | [evidence-sepolia.md](evidence-sepolia.md), `evidence/sepolia-campaign-*.json` | done 2026-10-14: run 4 (vault `0x8237…cE80`) at 18/18, chain audit 18/18 with Blockscout agreeing, Sourcify exact match ×4. Runs 1–3 were 17/18 (harness bugs, SECURITY R15), kept as recorded. Before submitting, re-run `node scripts/evidence-doc.mjs` so that Blockscout has indexed every refusal |
 
 ## Order of operations once the owner is funded

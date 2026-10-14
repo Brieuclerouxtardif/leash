@@ -145,12 +145,12 @@ function renderPlan(p) {
 // Once a proposal is settled on-chain its button becomes the outcome, so it cannot be clicked twice by mistake.
 function settle(btn, e, okText) {
   const ok = e.status === 'success';
-  btn.replaceWith(h('span', { class: `settled ${ok ? 'ok' : 'bad'}` }, ok ? okText : `refused: ${e.expectedError?.name ?? e.status}`, e.hash ? ' · ' : '', e.hash ? link(e.hash) : ''));
+  btn.replaceWith(h('span', { class: `settled ${ok ? 'ok' : 'bad'}` }, ok ? okText : `refused: ${reasonOf(e) ?? e.status}`, e.hash ? ' · ' : '', e.hash ? link(e.hash, e.status === 'reverted') : ''));
 }
 
 async function doExecute(i, btn) {
   const e = await api('/api/execute', { i });
-  toast(e.status === 'success' ? 'Executed on-chain.' : `Refused: ${e.expectedError?.name ?? e.status}`);
+  toast(e.status === 'success' ? 'Executed on-chain.' : `Refused: ${reasonOf(e) ?? e.status}`);
   settle(btn, e, 'executed');
   refresh();
 }
@@ -173,7 +173,7 @@ $('mandateDlg').addEventListener('close', async () => {
   if ($('mandateDlg').returnValue !== 'sign' || pendingIdx === null) return;
   try {
     const e = await api('/api/mandate/sign', { i: pendingIdx });
-    toast(e.status === 'success' ? 'Signed and executed: tier 2 payment done.' : `Refused on-chain: ${e.expectedError?.name}`);
+    toast(e.status === 'success' ? 'Signed and executed: tier 2 payment done.' : `Refused on-chain: ${reasonOf(e) ?? e.status}`);
     if (pendingBtn?.isConnected) settle(pendingBtn, e, 'signed by the owner, executed');
   } catch (err) { toast(err.message); }
   pendingIdx = null;
@@ -230,7 +230,7 @@ $('compile').addEventListener('click', (e) => busy(e.target, async () => {
 $('applyMandate').addEventListener('click', (e) => busy(e.target, async () => {
   const out = await api('/api/mandate/apply', {});
   const ok = out.every((x) => x.status === 'success');
-  toast(ok ? `Mandate updated on-chain (${out.length} tx).` : `Stopped: ${out.at(-1).expectedError?.name ?? out.at(-1).status}`);
+  toast(ok ? `Mandate updated on-chain (${out.length} tx).` : `Stopped: ${reasonOf(out.at(-1)) ?? out.at(-1).status}`);
   e.target.hidden = true;
   refresh();
 }));
@@ -246,7 +246,7 @@ async function loadAttacks() {
       const r = await api('/api/attack', { id: a.id });
       card.classList.toggle('pass', r.pass);
       card.classList.toggle('fail', !r.pass);
-      res.replaceChildren(`${r.pass ? '✓' : '✗'} ${r.outcome}`, r.hash ? h('br') : '', r.hash ? link(r.hash) : '', r.note ? h('div', {}, r.note) : '', r.error ? h('div', {}, r.error) : '');
+      res.replaceChildren(`${r.pass ? '✓' : '✗'} ${r.outcome}`, r.hash ? h('br') : '', r.hash ? link(r.hash, r.outcome.startsWith('reverted')) : '', r.note ? h('div', {}, r.note) : '', r.error ? h('div', {}, r.error) : '');
       refresh();
     }) }, 'Launch');
     card.querySelector('.row').append(btn);
@@ -254,21 +254,25 @@ async function loadAttacks() {
   }));
 }
 
-function link(hash) {
+// A refusal also links to a decoding explorer: Etherscan only says "execution reverted".
+function link(hash, reverted = false) {
   const u = txUrl(hash);
-  return u ? h('a', { href: u, target: '_blank', rel: 'noopener', class: 'mono' }, short(hash)) : h('span', { class: 'mono' }, short(hash));
+  if (!u) return h('span', { class: 'mono' }, short(hash));
+  const a = h('a', { href: u, target: '_blank', rel: 'noopener', class: 'mono' }, short(hash));
+  return reverted && S?.decoder
+    ? h('span', {}, a, ' · ', h('a', { href: `${S.decoder}/tx/${hash}`, target: '_blank', rel: 'noopener' }, 'decoded')) : a;
 }
 
 // ------------------------------------------------------------------ ledger
 function renderLedger(rows) {
   const items = rows.filter((r) => r.kind !== 'plan').slice().reverse().map((r) => {
     const st = r.status ?? 'info';
-    const why = st === 'reverted' || st === 'refused-before-signing' ? r.expectedError?.name : null;
+    const why = st === 'reverted' || st === 'refused-before-signing' ? reasonOf(r) : null;
     return h('li', { class: st },
       h('div', { class: 'l1' }, h('span', { class: 'st' }, st === 'refused-before-signing' ? 'refused (software)' : st === 'reverted' ? 'refused (contract)' : st), h('span', { class: 'meta' }, r.at?.slice(11, 19))),
       h('div', { class: 'lbl' }, r.title ?? r.label ?? r.fn ?? ''),
       why && h('div', { class: 'why' }, why),
-      r.hash && link(r.hash));
+      r.hash && link(r.hash, st === 'reverted'));
   });
   $('ledger').replaceChildren(...(items.length ? items : [h('li', { class: 'meta' }, 'Nothing yet. Run the routine or launch an attack.')]));
 }
@@ -280,7 +284,7 @@ async function loadEvidence() {
     h('div', {}, `${ev.passed}/${ev.total} scenes as expected · run ${ev.runId}`),
     h('ol', { class: 'ledger' }, ev.results.map((r) => h('li', { class: r.outcome.startsWith('reverted') ? 'reverted' : r.outcome.startsWith('refused') ? 'refused-before-signing' : 'success' },
       h('div', { class: 'l1' }, h('span', { class: 'st' }, `${r.pass ? '✓' : '✗'} ${r.id}`), h('span', { class: 'meta' }, r.outcome)),
-      h('div', { class: 'lbl' }, r.title), r.hash && link(r.hash)))));
+      h('div', { class: 'lbl' }, r.title), r.hash && link(r.hash, r.outcome.startsWith('reverted'))))));
 }
 
 // ------------------------------------------------------------------ owner / guardian

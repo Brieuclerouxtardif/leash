@@ -38,7 +38,7 @@ function log(entry) {
 async function snapshot() {
   const s = await readState(ctx, d);
   return {
-    network: NET, chainId: ctx.net.chain.id, explorer: ctx.net.explorer, vault: d.vault, oracle: d.oracle, pool: d.pool, model: MODEL, allowLive: ALLOW_LIVE,
+    network: NET, chainId: ctx.net.chain.id, explorer: ctx.net.explorer, decoder: ctx.net.decoder ?? null, vault: d.vault, oracle: d.oracle, pool: d.pool, model: MODEL, allowLive: ALLOW_LIVE,
     instruction: INSTRUCTION, roles: ctx.addr,
     now: Number(s.now), agent: s.agent, agentExpiry: Number(s.agentExpiry), paused: s.paused, epoch: s.epoch,
     usd: fmtUsd(s.usd), eth: Number(s.eth) / 1e18, ethValue: fmtUsd(s.ethValue), price: Number(s.price) / 1e8, priceAge: Number(s.now - s.priceUpdatedAt),

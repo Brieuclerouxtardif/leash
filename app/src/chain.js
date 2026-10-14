@@ -47,7 +47,7 @@ export function loadDeployment(net) {
 
 export async function connect(netName, { journal } = {}) {
   const net = network(netName);
-  const pub = createPublicClient({ chain: net.chain, transport: http(net.rpc) });
+  const pub = createPublicClient({ chain: net.chain, transport: http(net.rpc), pollingInterval: net.pollMs });
   const live = await pub.getChainId();
   if (live !== net.chain.id || !ALLOWED_CHAIN_IDS.has(live)) {
     throw new Error(`RPC answered chain ${live}, expected test chain ${net.chain.id}. Refusing to sign anything.`);

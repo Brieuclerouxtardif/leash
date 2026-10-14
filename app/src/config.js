@@ -6,12 +6,15 @@ export const NETWORKS = {
     chain: foundry,
     rpc: process.env.LEASH_LOCAL_RPC ?? 'http://127.0.0.1:8545',
     explorer: null,
+    pollMs: 250, // anvil mines at once; viem's 4 s default made A9 (5 txs) take 20 s
     oracle: null, // a MockAggregator is deployed locally
   },
   sepolia: {
     chain: sepolia,
     rpc: process.env.LEASH_SEPOLIA_RPC ?? 'https://ethereum-sepolia-rpc.publicnode.com',
     explorer: 'https://sepolia.etherscan.io',
+    // Etherscan shows our refusals only as "execution reverted" (sources are on Sourcify); Blockscout decodes them.
+    decoder: 'https://eth-sepolia.blockscout.com',
     oracle: '0x694AA1769357215DE4FAC081bf1f309aDC325306', // Chainlink ETH / USD
   },
 };
