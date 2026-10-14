@@ -62,7 +62,7 @@ const walk = (dir, depth) => {
 walk(join(ROOT, 'work'), 2);
 const video = renders.filter((r) => !r.preview && existsSync(r.file)).sort((a, b) => b.renderedAt.localeCompare(a.renderedAt))[0];
 const size = video && statSync(video.file).size;
-if (!video) fail('no final video under work/ with its render record (.json): render it with compose-video.mjs --repo <url> (docs/VIDEO.md); a --preview does not count');
+if (!video) warn('no final video under work/ with its render record (.json). The rules make it optional, but only the video shows the console in motion: render it with compose-video.mjs --repo <url> (docs/VIDEO.md); a --preview does not count');
 else if (size !== video.bytes) fail(`${video.file} is ${size} bytes, not the ${video.bytes ?? '?'} its render wrote: an interrupted render or another file; render it again`);
 else {
   const mb = (size / 1e6).toFixed(0);
@@ -112,7 +112,8 @@ if (process.argv.includes('--forge')) {
 // ---- What no script can see.
 console.log(`
 Still to do by hand, if not done:
-- the organizers' answers: are testnet hashes accepted, and can the topic move from C to F?
+- the team: 2 to 5 full-time students, registered before the same deadline (the rules refuse a one-person entry)
+- the organizers' answers (info@ican-x.com): are testnet hashes accepted, and can the topic move from C to F?
 - the deck: team name and GitHub URL filled in, exported to PDF or PPTX
 - the video uploaded to the submission platform (do not commit it)
 - the submission itself`);

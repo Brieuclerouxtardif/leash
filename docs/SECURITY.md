@@ -98,7 +98,34 @@ Default mandate (`app/src/config.js`): payees landlord ≤ 900 and utility ≤ 1
 | R14 | **Mandate compiler misreads the owner.** It can map a rule wrongly, or miss one. Our first prompt version dropped "keep ETH under 35 %" into *not enforceable* because the field was undocumented. | Nothing changes without the owner's transactions. A loosening shows as a red row; a missed rule shows as *not enforceable on-chain*. Relative rules ("double it") are refused by the prompt and land in the same list. | owner reads the diff, not the model's summary; the console labels the summary as the model's; apply refuses if the diff no longer matches the one shown, and sends no call without a visible row | accepted (the owner can still approve a red row without reading it) |
 | R15 | **Our evidence could mislabel a refusal.** Three harness bugs, all found on Sepolia. (1) A scene's revert reason came from the simulation run just before sending. In run 1 the RPC load balancer served it from a node one block behind, so it said "ok" and A8 was recorded as `reverted:undefined`. (2) Forced calls had a 300k gas limit tuned on anvil, but Sepolia charges about 3× anvil's gas for the same swap. A9's forced buy died **out of gas** in runs 1 and 2, before reaching the vault's check, and was still recorded as `slippage`. Blockscout said "Out of gas", which is how we found it. (3) In run 3, viem asked the RPC to fill the forced transaction (`eth_fillTransaction`). Some nodes behind the load balancer simulate it at that point, so viem threw on the revert and A9 was never sent. | evidence only: no rule was bypassed, but an out-of-gas revert or a transaction never sent proves nothing | Labels now come from the mined transaction: out of gas if it burnt its whole limit, otherwise the same call (same gas limit) replayed at its block (`minedRevert`). Forced calls get 1.5M gas, of which only the gas used is paid, and are sent with nonce, fees and chain id already filled. `scripts/audit-chain.mjs --blockscout` re-derives every outcome from the chain, checks it against Blockscout's independent decoding, and fails any scene that has no transaction unless it was meant to be refused before signing. Runs 1–3 stay in `evidence/` as recorded; the audit reads each as 17/18. | fixed |
 
-## 7. What we explicitly do not claim
+## 7. Compliance controls
+
+LEASH was built as a security design, not to satisfy a regulation. Several of its mechanisms are, however, the controls a bank applies to a payment account. This table maps them, so a reviewer can see what is covered and where it is enforced. An analogy is not compliance: nothing here has been assessed against a rulebook.
+
+| Control a bank would expect | In LEASH | Enforced by |
+|---|---|---|
+| Beneficiary allowlist: new payees added only by the account holder | payee registry; `setPayee` is owner-only; each payee has its own cap | contract |
+| Per-transaction and daily limits | `payPerTx`, `payDaily`, `swapPerTx`, `swapDaily` | contract |
+| Dual authorisation above a threshold | tier 2: the owner's EIP-712 signature for one payment | contract |
+| The approval names the payee and the amount (as PSD2 dynamic linking does) | the signature covers recipient, amount, opId, deadline, epoch, chain and vault; the owner reads text rendered by code from that struct | contract + console |
+| Invoice-redirection (payment-diversion) fraud check | an address that differs from the registry is refused and never escalated to the owner | policy |
+| Duplicate-payment check | each opId executes once (`used[opId]`) | contract |
+| Emergency freeze | guardian `pause`; only the owner unpauses | contract |
+| Revoking a delegated authority | `revokeAgent`, `bumpEpoch`, 14-day agent expiry | contract |
+| Concentration limit and price protection | tETH share ≤ `maxRiskBps`; no swap below the oracle price (Chainlink on Sepolia) minus 1 % | contract |
+| Segregation of duties | three keys with disjoint powers: owner, agent, guardian (§1) | contract |
+| Explainable decisions | each proposal cites its source document; `judge` returns `execute`, `needs_owner` or `refuse` with every named check and its value | policy |
+| Audit trail a third party can rebuild | every payment and every refusal is a public transaction; `evidence/*.jsonl` journals each send; `scripts/audit-chain.mjs` re-derives the outcomes from the chain | chain + scripts |
+
+Not covered, and needed before real users:
+
+- **KYC.** Nothing identifies the owner or the payees. The registry is the owner's word.
+- **AML and sanctions screening.** No payee is screened. In production, screen at `setPayee` time (a payee is only added there), with a sanctions list or a screening provider.
+- **Data protection.** Live model runs send the inbox documents (invoices, names, amounts) to the model provider. On a public chain, every amount and counterparty is visible to anyone. Production needs a data-processing agreement, data minimisation before the model call, and a privacy-preserving chain or settlement layer.
+- **Licensing.** Whether operating LEASH for other people makes the operator a regulated crypto-asset service provider (for instance under MiCA in the EU) depends on the jurisdiction. We have not assessed it.
+- **Consumer protection, disputes, tax reporting.** Out of scope. An on-chain payment cannot be charged back.
+
+## 8. What we explicitly do not claim
 
 - That the LLM was fooled. Both recorded live runs, guarded and deliberately naive, refused the injection. Our claim is narrower and stronger: **even a fooled model or a stolen agent key cannot exceed the mandate.**
 - That the primitives are new. Session keys, spend permissions and allowance modules exist. Our contribution is the integrated, evidence-backed loop described in [TECHNICAL.md](TECHNICAL.md).

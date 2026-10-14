@@ -159,6 +159,7 @@ The full threat model, attack catalogue and known-risk list are in [SECURITY.md]
 - **Least privilege by construction.** The agent has no code path to any admin function. Tier 3 is absent code, not a disabled feature.
 - **Fail closed.** A stale or broken oracle stops swaps, an expired agent stops everything, and the guardian's pause is instant and one-way.
 - **Kill switch and mandate revocation** each take one transaction.
+- **Compliance.** SECURITY.md §7 maps these mechanisms to the controls a bank applies to a payment account (beneficiary allowlist, limits, dual authorisation, freeze, audit trail). It also lists what is missing before real users: KYC, AML and sanctions screening, data protection.
 
 ## 5. Model integration
 
