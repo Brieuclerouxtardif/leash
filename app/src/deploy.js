@@ -23,6 +23,19 @@ if (net === 'local') {
   for (const a of Object.values(addr)) await pub.request({ method: 'anvil_setBalance', params: [a, toHex(parseEther('100'))] });
 }
 
+// Each forwarded key must afford ~2 M gas of campaign at twice today's gas price (the local campaign
+// used 1.2 M for the agent). Deploy (~6 M gas) plus the owner's share fit in 10 M.
+const gasPrice = await pub.getGasPrice();
+const perRole = [parseEther('0.002'), gasPrice * 2n * 2_000_000n].reduce((a, b) => (a > b ? a : b));
+if (net !== 'local') {
+  const need = gasPrice * 2n * 10_000_000n + perRole * 3n;
+  const have = await pub.getBalance({ address: addr.owner });
+  if (have < need) {
+    console.error(`owner ${addr.owner} has ${Number(have) / 1e18} ETH; at ${Number(gasPrice) / 1e9} gwei this deploy needs ~${Number(need) / 1e18} ETH. Fund it, or wait for cheaper gas.`);
+    process.exit(1);
+  }
+}
+
 async function deploy(key, file_, name, args) {
   const { abi, bytecode } = artifact(file_, name);
   const hash = await owner.deployContract({ abi, bytecode, args });
@@ -79,7 +92,7 @@ await call('mint:attacker', usd, ABI.token, 'mint', [addr.attacker, usd6(200000)
 
 if (net !== 'local') {
   for (const role of ['agent', 'guardian', 'attacker']) {
-    const hash = await owner.sendTransaction({ to: addr[role], value: parseEther('0.002') });
+    const hash = await owner.sendTransaction({ to: addr[role], value: perRole });
     await pub.waitForTransactionReceipt({ hash });
     out.txs[`gas:${role}`] = hash;
   }

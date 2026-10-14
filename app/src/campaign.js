@@ -110,7 +110,7 @@ export function makeCampaign(ctx, d, runId, { lastPaid } = {}) {
           // Now assume LEASH's software is compromised and sends at the oracle floor anyway.
           const s = await state();
           const floor = (((usd6(200) * 10n ** 20n) / s.price) * BigInt(10000 - s.risk.maxSlippageBps)) / 10000n;
-          e = { ...(await send('agent', { functionName: 'swap', args: [true, usd6(200), floor, opId(`${runId}:dca-forced-${Date.now()}`)] }, { scene: id, label: 'forced buy at oracle floor', force: true })), note: `software refused first: ${r.reason}` };
+          e = { ...(await send('agent', { functionName: 'swap', args: [true, usd6(200), floor, opId(`${runId}:dca-forced-${Date.now()}`)] }, { scene: id, label: 'forced buy at oracle floor', force: true })), note: `software refused first, failed check: ${r.reason}` };
         }
         // The attacker unwinds, so the pool is back near the oracle price for what follows.
         const loot = await ctx.pub.readContract({ address: d.eth, abi: ABI.token, functionName: 'balanceOf', args: [addr.attacker] });

@@ -134,6 +134,8 @@ node app/src/deploy.js sepolia
 node app/src/scenes.js sepolia
 ```
 
+`deploy.js` checks the owner balance against the current gas price before sending anything: about 0.006 ETH at 0.001 gwei. Like the local one, the campaign expects a fresh vault and a single UTC day. Do not start it within 15 minutes of 00:00 UTC. If a run fails halfway, redeploy with `--fresh` rather than re-running it.
+
 Swaps use the real Chainlink ETH/USD feed on Sepolia (`0x694AA1769357215DE4FAC081bf1f309aDC325306`). Tokens and the pool are ours. Every hash in `evidence/sepolia-*.json` links to sepolia.etherscan.io.
 
 Nobody arbitrages our pool, so it keeps the deploy-day price while the real feed moves. Once the gap exceeds the 1 % slippage mandate, the vault refuses every swap, as it should. `scenes.js` therefore re-pegs first: the owner donates the missing side until the pool sits at the oracle price. Run `node app/src/repeg.js sepolia` before using the console on a deployment more than a few hours old. `node scripts/oracle-age.mjs` prints the feed's update gaps: about 3,630 s when we measured, against a 7,200 s `maxOracleAge`.
