@@ -24,6 +24,13 @@ Steps 1 to 5 were done on 2026-10-14. Runs 1–3 were 17/18 because of three har
 6. Re-take the screenshots on Sepolia (`node scripts/screens.mjs` against a fresh Sepolia vault, or keep the local ones and say so).
 7. Record the video on Sepolia, on a fresh vault (`node app/src/deploy.js sepolia --fresh`, ~5 min), after `node scripts/preflight.mjs sepolia` prints "Ready to record". Cut the block waits and caption each cut. If nobody can narrate, the fallback cut above is ready; re-render it with `--repo <url>` once the repo exists (`node scripts/compose-video.mjs work/demo-sepolia2 --voice --repo <url> --out work/demo-sepolia2/leash-demo-sepolia`, 3 min, no new take needed).
 8. Create the GitHub repo, push, make it public. Check that `secrets/` is not in it: `git ls-files secrets` must print nothing.
+   - Checked on 2026-10-15. None of the 24 commits contains `secrets/`, a `.env` file or any of the 7 real keys. A fresh clone passes the whole README (forge, npm, campaign 18/18, console).
+   - Two decisions before pushing:
+     - **License.** The contracts already say `SPDX-License-Identifier: MIT`, but there is no LICENSE file, so the rest of the code has no license. If MIT is fine, add a root `LICENSE` file.
+     - **Commit email.** The commits carry the author's personal email. GitHub shows it publicly. To hide it, rewrite the author to the GitHub noreply address before the first push.
+   - Then create an empty repo on github.com (no README, no license; `gh` is not installed here), and push:
+     - `git remote add origin https://github.com/<user>/leash.git`
+     - `git push -u origin main`
 9. Export the deck (PDF or PPTX) from the Slides artifact. Submit.
 
 ## To ask the organizers
