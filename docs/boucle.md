@@ -56,6 +56,7 @@ Ce ne sont pas des promesses du prompt : c'est le contrat qui refuse. Chaque ref
 - 2026-10-14 — Stack : Foundry pour les contrats (fuzz et invariants = crédibilité sécurité), Node 24 + viem pour l'agent. Pas de Hardhat : deux outils pour le même travail.
 
 ## Journal (une ligne par tour)
+> **Correction (14 oct., 02:55 heure de Paris).** Les heures de 01:45 à 05:40 ci-dessous sont fausses : je les ai estimées au lieu de lire l'horloge, et certaines sont dans le futur. Seul l'ordre des entrées est fiable. Les heures réelles sont celles des commits (`git log --date=iso`). À partir d'ici, chaque heure vient de `Get-Date`.
 - 01:45 — outillage OK, plan écrit.
 - 02:10 — Contrats compilés. Le linter a relevé : zero-checks, CEI, ordre des modifiers et cast commenté (corrigés). `block.timestamp` est accepté : granularité au jour, documentée.
 - 02:25 — 34 tests unitaires et fuzz verts (2 000 runs), 7 invariants verts (256 × 64 appels hostiles).
@@ -98,3 +99,13 @@ Ce ne sont pas des promesses du prompt : c'est le contrat qui refuse. Chaque ref
   - **UI.** Le message « Loading the recorded run… » restait affiché après une erreur : corrigé. Sous 900 px, l'en-tête collant passait sur 2 lignes (127 px) et masquait la section : il n'est plus collant sous 900 px. L'erreur « cap above per-payment » dit maintenant quoi faire (relever le plafond par paiement, ou rester en palier 2).
   - **Limite.** Les règles temporelles (« pas le dimanche », « loyer une fois par mois ») n'ont pas de champ dans le contrat. Elles sont affichées comme non applicables, pas inventées. Risque R14 ajouté dans SECURITY.md.
   - **Sepolia.** Le solde de l'owner est toujours de 0 ETH. On attend le faucet (Brieuc).
+- 02:55 (réel) — Captures, deck, script vidéo (étape 16).
+  - **Captures reproductibles.** `scripts/screens.mjs` pilote Edge headless en CDP sur un déploiement neuf : 12 PNG dans `docs/screens/`. Les anciennes captures faites à la main sont supprimées : elles ne correspondaient plus à l'UI.
+  - **Défauts vus sur les captures, pas dans le code.**
+    - Une proposition exécutée gardait son bouton Execute. Elle est maintenant remplacée par « executed » ou « refused », avec le hash.
+    - Le titre des cartes d'attaque flottait au milieu de la carte.
+    - TECHNICAL.md citait une adresse tronquée dans l'exemple du palier 2. Une adresse tronquée, c'est justement ce qu'imite l'empoisonnement d'adresse : corrigé en adresse complète.
+  - **Deck.** 12 slides, notes orateur chronométrées, environ 9 min. Artifact privé ; Brieuc le partage lui-même. Il reste des trous à remplir après Sepolia : [N] tx, l'adresse du vault, l'URL GitHub, le nom d'équipe.
+  - **Script vidéo** dans `docs/VIDEO.md`, 4:40.
+    - **Erreur à moi.** La 1re version enchaînait Kill switch puis A10. Or A10 met déjà le vault en pause lui-même, et le bouton est masqué en pause : le `pause()` du guardian aurait reverté et la scène aurait échoué en pleine prise. J'ai corrigé en lançant A10 seul.
+    - **À vérifier en tournant.** Le script n'a pas encore été joué de bout en bout à la montre.
