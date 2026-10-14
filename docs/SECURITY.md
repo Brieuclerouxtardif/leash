@@ -54,6 +54,7 @@ Default mandate (`app/src/config.js`): payees landlord ≤ 900 and utility ≤ 1
 | Each mandate rule rejects what it should | 34 unit and fuzz tests (`contracts/test/LeashVault.t.sol`), fuzz 2,000 runs each, including a stolen-key fuzz over random recipients and amounts |
 | Rules hold under arbitrary hostile sequences | 7 invariants, 256 runs × 64 calls = 16,384 calls by a rogue-agent handler. It pays, swaps, replays, manipulates the pool, moves the market and warps time. Invariants: strangers receive nothing; daily cap holds; payees got exactly what was paid; no allowance survives; swaps never below oracle floor; buys never breach exposure; no op executes twice. Anti-vacuity: successful operations are logged. |
 | Off-chain policy | 13 Node tests: malformed model output, plus two **simulated** (labelled) compromised model outputs, and a no-false-refusal check on both recorded live plans |
+| Static analysis | `forge lint src`: 0 findings. Every suppression is inline with its reason (event after a measured pool call, ecrecover precompile, zero address used to disable a role, deprecated Chainlink fields, block.timestamp on PoS). Slither 0.11.6: 0 results (`evidence/slither.txt`). Caveat: Slither fails to resolve 26 OpenZeppelin 5.6.1 identifiers, so its coverage is partial. Its one earlier finding (`LeashPool` should inherit `ILeashPool`) was fixed. |
 | End to end | 5 tasks and 13 attacks on a fresh chain, 18/18 as expected (`evidence/local-campaign-*.json`). The same 13 attacks launched from the console: 13/13. Sepolia: pending. |
 
 ## 5. Attack catalogue

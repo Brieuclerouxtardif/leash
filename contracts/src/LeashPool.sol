@@ -4,11 +4,12 @@ pragma solidity 0.8.30;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {ILeashPool} from "./Interfaces.sol";
 
 /// @title LeashPool — minimal x*y=k pool (0.3% fee) for testnet demos.
 /// @notice Testnets have no real liquidity, so LEASH ships its own pool. Anyone can swap,
 /// which is the point: an attacker can move its price, and the vault must refuse to trade at it.
-contract LeashPool is ReentrancyGuard {
+contract LeashPool is ILeashPool, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     uint256 public constant FEE_BPS = 30;

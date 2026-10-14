@@ -7,15 +7,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-
-interface IAggregatorV3 {
-    function decimals() external view returns (uint8);
-    function latestRoundData() external view returns (uint80, int256, uint256, uint256, uint80);
-}
-
-interface ILeashPool {
-    function swapExactIn(address tokenIn, uint256 amountIn, uint256 minOut, address to) external returns (uint256);
-}
+import {IAggregatorV3, ILeashPool} from "./Interfaces.sol";
 
 /// @title LeashVault — a two-asset vault an AI agent can operate but cannot drain.
 /// @notice Tier 1: the agent acts alone inside on-chain limits. Tier 2: anything above needs an
@@ -102,6 +94,8 @@ contract LeashVault is EIP712, ReentrancyGuard {
     /// Agent calls require: the agent key, an unexpired mandate, an unpaused vault, a fresh opId.
     modifier agentOp(bytes32 opId) {
         if (msg.sender != agent || agent == address(0)) revert NotAgent();
+        // On PoS Ethereum block.timestamp is the slot time; every window here is hours or days long.
+        // forge-lint: disable-next-line(block-timestamp)
         if (block.timestamp > agentExpiry) revert AgentInactive();
         if (paused) revert VaultPaused();
         if (used[opId]) revert OpAlreadyUsed(opId);
@@ -158,6 +152,8 @@ contract LeashVault is EIP712, ReentrancyGuard {
             uint256 bps = _riskBps(price);
             if (bps > risk.maxRiskBps) revert ExposureAboveMandate(bps, risk.maxRiskBps);
         }
+        // The event carries the measured output, so it must follow the pool call; nonReentrant blocks reordering.
+        // forge-lint: disable-next-line(reentrancy-events)
         emit Swapped(opId, buyRisky, amountIn, received, fair);
     }
 
@@ -170,17 +166,21 @@ contract LeashVault is EIP712, ReentrancyGuard {
         agentOp(opId)
     {
         if (amount == 0) revert ZeroAmount();
+        // forge-lint: disable-next-line(block-timestamp)
         if (block.timestamp > deadline) revert MandateExpired(deadline);
         bytes32 digest = _hashTypedDataV4(keccak256(abi.encode(MANDATE_TYPEHASH, to, amount, opId, deadline, epoch)));
         (address signer, ECDSA.RecoverError err,) = ECDSA.tryRecover(digest, signature);
         if (err != ECDSA.RecoverError.NoError || signer != owner) revert BadMandateSignature();
+        // The only "external call" above is the ecrecover precompile, which cannot re-enter.
+        // forge-lint: disable-next-line(reentrancy-events)
         emit Paid(opId, to, amount, 2);
         stable.safeTransfer(to, amount);
     }
 
     // ---------------------------------------------------------------- owner and guardian
 
-    /// A new agent key never inherits the old key's mandates.
+    /// A new agent key never inherits the old key's mandates. address(0) is allowed: it disables the agent.
+    // forge-lint: disable-next-line(missing-zero-check)
     function setAgent(address agent_, uint64 expiry) external onlyOwner {
         bool rotated = agent_ != agent;
         agent = agent_;
@@ -222,6 +222,8 @@ contract LeashVault is EIP712, ReentrancyGuard {
         emit PoolSet(address(pool_));
     }
 
+    /// address(0) is allowed: the owner can run without a guardian.
+    // forge-lint: disable-next-line(missing-zero-check)
     function setGuardian(address guardian_) external onlyOwner {
         guardian = guardian_;
         emit GuardianSet(guardian_);
@@ -299,8 +301,11 @@ contract LeashVault is EIP712, ReentrancyGuard {
     }
 
     function _price() private view returns (uint256) {
+        // roundId, startedAt and answeredInRound are deprecated in Chainlink's guidance; freshness uses updatedAt.
+        // forge-lint: disable-next-line(unused-return)
         (, int256 answer,, uint256 updatedAt,) = oracle.latestRoundData();
         if (answer <= 0) revert BadOraclePrice();
+        // forge-lint: disable-next-line(block-timestamp)
         if (updatedAt > block.timestamp || block.timestamp - updatedAt > risk.maxOracleAge) revert StaleOracle(updatedAt);
         // casting to 'uint256' is safe because answer > 0 was checked above
         // forge-lint: disable-next-line(unsafe-typecast)
