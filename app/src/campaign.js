@@ -144,8 +144,9 @@ export function makeCampaign(ctx, d, runId, { lastPaid } = {}) {
   return { tasks, attacks, state, send, agentDoes, coSigned };
 }
 
+/** A mined refusal is labelled by the reason replayed at its block, never by the pre-send simulation alone. */
 export function outcomeOf(got) {
   return got.status === 'success' ? 'success'
-    : got.status === 'reverted' ? `reverted:${got.expectedError?.name}`
+    : got.status === 'reverted' ? `reverted:${got.minedError?.name ?? 'unknown'}`
       : got.status === 'refused-before-signing' ? `refused:${got.reason ?? got.expectedError?.name}` : got.status;
 }

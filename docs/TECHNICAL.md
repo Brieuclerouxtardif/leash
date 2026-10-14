@@ -123,6 +123,8 @@ An address outside the registry is labelled "UNKNOWN recipient, never paid befor
 
 `chain.send` simulates every call. For a normal agent action, a reverting simulation stops there (`refused-before-signing`). For red-team scenes the call is **forced** with a fixed gas limit, so it is mined and reverts. The receipt hash, block, gas and decoded custom error (`PayeeNotAllowed`, `AboveDailyLimit`, …) are appended to `evidence/<net>-*.jsonl`. On Sepolia every refusal gets a public Etherscan link.
 
+The recorded reason is the mined one: after a reverted receipt, `replayRevert` replays the call at its block and decodes that. The pre-send simulation is not trusted for the label. On Sepolia run 1 it was served by an RPC node one block behind, said "ok", and A8 came out as `reverted:undefined`. `scripts/audit-chain.mjs` repeats this for a whole campaign from public data only (receipt, target, replayed reason), so a reader does not have to trust our JSON. On the reference run: 17 outcomes confirmed on-chain plus A1, which was refused before signing.
+
 ### 3.6 Mandate compiler (owner text → on-chain diff)
 
 The owner should not have to type basis points. In the console's **Mandate editor** they write rules in English; the pipeline is:

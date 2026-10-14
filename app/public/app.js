@@ -26,6 +26,8 @@ const money = (n, d = 2) => Number(n).toLocaleString('en-US', { minimumFractionD
 const short = (a) => (a ? `${a.slice(0, 6)}…${a.slice(-4)}` : '—');
 const txUrl = (hash) => (S?.explorer && hash ? `${S.explorer}/tx/${hash}` : null);
 const addrUrl = (a) => (S?.explorer ? `${S.explorer}/address/${a}` : null);
+// A mined refusal shows the reason replayed at its block; the pre-send simulation is only a fallback.
+const reasonOf = (e) => e?.minedError?.name ?? e?.expectedError?.name;
 const nameOf = (a) => Object.entries(S?.roles ?? {}).find(([, v]) => v.toLowerCase() === String(a).toLowerCase())?.[0];
 
 function toast(msg) {

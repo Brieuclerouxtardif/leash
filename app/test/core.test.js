@@ -6,6 +6,7 @@ import { judge, opId, renderMandate, poolQuote } from '../src/core.js';
 import { scanDocument, review, loadInbox, SCHEMA } from '../src/planner.js';
 import { ROOT } from '../src/chain.js';
 import { diffMandate, compileMandate, replayableSamples } from '../src/compiler.js';
+import { outcomeOf } from '../src/campaign.js';
 
 const A = {
   landlord: '0xDAB5071EAf37Bf4D564e6a33da3F9E6A74687B82',
@@ -193,4 +194,11 @@ test('recorded live model runs exist, used no tools and match the schema hash', 
     assert.deepEqual(r.verdicts.map((v) => v.decision), profile === 'guarded' ? ['execute', 'execute', 'needs_owner'] : ['execute', 'execute', 'execute']);
   }
   assert.equal(SCHEMA.properties.intents.items.additionalProperties, false);
+});
+
+test('a mined refusal is labelled by its replayed reason, never by the pre-send simulation', () => {
+  // Sepolia 2026-10-14, A8: the simulation hit a lagging node and said "ok"; the chain said BadMandateSignature.
+  assert.equal(outcomeOf({ status: 'reverted', simulated: 'ok', minedError: { name: 'BadMandateSignature' } }), 'reverted:BadMandateSignature');
+  assert.equal(outcomeOf({ status: 'reverted', expectedError: { name: 'BadMandateSignature' } }), 'reverted:unknown');
+  assert.equal(outcomeOf({ status: 'refused-before-signing', reason: 'address matches registry' }), 'refused:address matches registry');
 });

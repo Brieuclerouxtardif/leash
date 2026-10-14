@@ -54,6 +54,7 @@ const done = readdirSync(join(ROOT, 'evidence')).filter((f) => /^sepolia-campaig
   .some((f) => { const c = JSON.parse(readFileSync(join(ROOT, 'evidence', f), 'utf8')); return c.passed === c.total; });
 const scenes = done ? (log('a passing Sepolia campaign already exists; not re-running it'), 0) : run(['app/src/scenes.js', 'sepolia']);
 run(['scripts/verify.mjs', 'sepolia']);
+run(['scripts/audit-chain.mjs', 'sepolia']);
 
 const table = spawnSync(process.execPath, ['scripts/evidence-table.mjs', 'sepolia'], { cwd: ROOT, encoding: 'utf8' });
 if (table.status === 0) {

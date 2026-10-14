@@ -1,5 +1,5 @@
 // Prints the latest campaign of a network as a Markdown table with explorer links, for README, SECURITY and the deck.
-// Usage: node scripts/evidence-table.mjs [local|sepolia]
+// Usage: node scripts/evidence-table.mjs [local|sepolia] [<net>-campaign-<run>.json]   (default: the latest run)
 import { readdirSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const net = process.argv[2] ?? 'sepolia';
 const dir = join(ROOT, 'evidence');
-const file = readdirSync(dir).filter((f) => f.startsWith(`${net}-campaign-`) && f.endsWith('.json')).sort().at(-1);
+const file = process.argv[3] ?? readdirSync(dir).filter((f) => f.startsWith(`${net}-campaign-`) && f.endsWith('.json')).sort().at(-1);
 if (!file) throw new Error(`no ${net} campaign in evidence/`);
 const c = JSON.parse(readFileSync(join(dir, file), 'utf8'));
 const explorer = net === 'sepolia' ? 'https://sepolia.etherscan.io' : null;

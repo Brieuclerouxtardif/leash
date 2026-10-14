@@ -82,6 +82,9 @@ export async function connect(netName, { journal } = {}) {
     const hash = await wallet.sendTransaction({ to: address, data, gas: force || gas ? (gas ?? 300000n) : undefined });
     const r = await pub.waitForTransactionReceipt({ hash });
     Object.assign(entry, { hash, status: r.status, block: Number(r.blockNumber), gasUsed: Number(r.gasUsed) });
+    // The reason that counts is the mined one: replay the call at its block. On a load-balanced RPC the
+    // pre-send simulation can hit a node one block behind (Sepolia run of 2026-10-14, A8) and say "ok".
+    if (r.status === 'reverted') entry.minedError = await replayRevert(pub, { account: wallet.account, to: address, data }, r.blockNumber, abi);
     if (net.explorer) entry.url = `${net.explorer}/tx/${hash}`;
     record(ctx, entry);
     return { ...entry, receipt: r };
@@ -91,6 +94,21 @@ export async function connect(netName, { journal } = {}) {
 
 function record(ctx, entry) {
   appendFileSync(ctx.journalFile, JSON.stringify(entry, (_, v) => (typeof v === 'bigint' ? v.toString() : v)) + '\n');
+}
+
+/** Decoded reason of a call that reverted in `blockNumber`, or null after a few tries (a lagging node can
+ *  lack the block, or answer from an older state and not revert at all). */
+export async function replayRevert(pub, call, blockNumber, abi, tries = 5) {
+  for (let i = 0; i < tries; i++) {
+    try {
+      await pub.call({ ...call, blockNumber });
+    } catch (e) {
+      const d = decodeRevert(e, abi);
+      if (!/block|header/i.test(d.name)) return d;
+    }
+    await new Promise((res) => setTimeout(res, 2000));
+  }
+  return null;
 }
 
 export function decodeRevert(err, abi) {

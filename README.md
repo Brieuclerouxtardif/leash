@@ -45,11 +45,11 @@ The owner does not type basis points. In the console's Mandate editor they write
 |---|---|---|
 | Contract unit + fuzz tests | 34 / 34 (fuzz: 2,000 runs each) | `forge test` |
 | Invariants (rogue-agent handler, 256 runs × 64 calls) | 7 / 7, 16,384 hostile calls | `forge test --match-path test/Invariant.t.sol` |
-| Off-chain policy + mandate compiler tests | 15 / 15 | `npm test` |
+| Off-chain policy + mandate compiler tests | 16 / 16 | `npm test` |
 | Full local campaign (5 tasks + 13 attacks, fresh chain) | 18 / 18 | `scripts/local-campaign.ps1` |
 | Same 13 attacks launched from the web console | 13 / 13 | `npm run server`, Red team panel |
 | Live LLM runs (gpt-6.1-sol via Codex CLI, no tools) | 2 routine plans + 3 mandate compilations, recorded and replayable | `evidence/model-runs/` |
-| Ethereum Sepolia deployment + campaign | **pending faucet funding** | see below |
+| Ethereum Sepolia campaign, vault [`0x67a1…07fD`](https://sepolia.etherscan.io/address/0x67a1d19bb9d6f19795675282a701863766fb07fd) | 18 / 18, 29 transactions, 12 mined refusals, re-derived from the chain by `audit-chain.mjs`; 4 contracts verified on Sourcify (exact match) | [docs/evidence-sepolia.md](docs/evidence-sepolia.md) |
 
 Every attack is sent for real with a fixed gas limit, so the refusal is **mined as a reverted transaction**. Every refusal has a public hash. We call this *proof of refusal*.
 
@@ -133,9 +133,12 @@ Live model calls need `--allow-live` and a logged-in Codex CLI.
 node app/src/deploy.js sepolia
 node app/src/scenes.js sepolia
 node scripts/verify.mjs sepolia
+node scripts/audit-chain.mjs sepolia
 ```
 
 `verify.mjs` verifies the four contracts on Sourcify with `forge verify-contract`; no API key is needed. Its constructor arguments were checked byte for byte against the local deployment transactions.
+
+`audit-chain.mjs` does not trust our JSON. For every scene it fetches the receipt, checks that the transaction went to the vault, and replays each refusal at its block to read the revert reason from the chain. It needs no keys, only `forge build` for the ABI.
 
 `deploy.js` checks the owner balance against the current gas price before sending anything: about 0.006 ETH at 0.001 gwei. Like the local one, the campaign expects a fresh vault and a single UTC day. Do not start it within 15 minutes of 00:00 UTC. If a run fails halfway, redeploy with `--fresh` rather than re-running it.
 
@@ -147,4 +150,5 @@ Nobody arbitrages our pool, so it keeps the deploy-day price while the real feed
 
 - **Not new as a primitive.** Session keys, spend permissions and allowance modules exist (ERC-4337 plugins, Coinbase Spend Permissions, MetaMask delegations, Safe Allowance module). LEASH's contribution is the complete loop: LLM → deterministic policy → contract, with an oracle-bounded portfolio mandate, deterministic mandate rendering and on-chain proof of every refusal.
 - **The model resisted.** In our recorded live runs, both the guarded prompt and a deliberately naive prompt refused the prompt injection. We therefore do not claim "the model was fooled and the vault held". We show the stolen-key case instead (A2–A4, A7), plus a clearly labelled *simulated* compromised model output in the tests.
+- **Our first Sepolia run said 17/18.** The vault refused every attack. The miss was in our harness, which took A8's revert reason from a simulation served by a lagging RPC node. The run stays in `evidence/` as recorded. The fix and the chain-only audit are in SECURITY.md (R15).
 - **Unaudited code.** Testnet only. See [docs/SECURITY.md](docs/SECURITY.md) for the known-risk list.
