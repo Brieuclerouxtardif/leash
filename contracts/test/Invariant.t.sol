@@ -38,7 +38,7 @@ contract RogueAgentHandler is Test {
         vm.prank(agent);
         try vault.pay(to, amount, opId) {
             consumed.push(opId);
-            uint256 day = block.timestamp / 1 days;
+            uint256 day = vm.getBlockTimestamp() / 1 days;
             if (ghostPaidOnDay[day] == 0) touchedDays.push(day);
             ghostPaidOnDay[day] += amount;
             paidTotal += amount;
@@ -78,12 +78,12 @@ contract RogueAgentHandler is Test {
     }
 
     function moveMarket(uint256 price) external {
-        feed.set(int256(bound(price, 1000e8, 5000e8)), block.timestamp);
+        feed.set(int256(bound(price, 1000e8, 5000e8)), vm.getBlockTimestamp());
     }
 
     function warp(uint256 secs, bool refreshOracle) external {
-        vm.warp(block.timestamp + bound(secs, 0, 2 days));
-        if (refreshOracle) feed.set(feed.answer(), block.timestamp);
+        vm.warp(vm.getBlockTimestamp() + bound(secs, 0, 2 days));
+        if (refreshOracle) feed.set(feed.answer(), vm.getBlockTimestamp());
     }
 
     function touchedCount() external view returns (uint256) {

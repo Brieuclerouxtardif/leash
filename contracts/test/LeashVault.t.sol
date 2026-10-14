@@ -45,8 +45,8 @@ contract PayTest is LeashBase {
         vault.pay(landlord, 500e6, "b");
         vm.expectRevert(abi.encodeWithSelector(LeashVault.AboveDailyLimit.selector, 1550e6, 1500e6));
         vault.pay(utility, 150e6, "c");
-        vm.warp(block.timestamp + 1 days);
-        feed.set(int256(PRICE), block.timestamp);
+        vm.warp(vm.getBlockTimestamp() + 1 days);
+        feed.set(int256(PRICE), vm.getBlockTimestamp());
         vault.pay(utility, 150e6, "c");
         vm.stopPrank();
         assertEq(usd.balanceOf(utility), 150e6);
@@ -61,7 +61,7 @@ contract PayTest is LeashBase {
     }
 
     function test_pay_rejects_expired_agent() public {
-        vm.warp(block.timestamp + 31 days);
+        vm.warp(vm.getBlockTimestamp() + 31 days);
         vm.prank(agent);
         vm.expectRevert(LeashVault.AgentInactive.selector);
         vault.pay(utility, 10e6, "x");
@@ -157,14 +157,14 @@ contract SwapTest is LeashBase {
     }
 
     function test_swap_rejects_stale_oracle() public {
-        vm.warp(block.timestamp + 3601);
+        vm.warp(vm.getBlockTimestamp() + 3601);
         vm.prank(agent);
-        vm.expectRevert(abi.encodeWithSelector(LeashVault.StaleOracle.selector, block.timestamp - 3601));
+        vm.expectRevert(abi.encodeWithSelector(LeashVault.StaleOracle.selector, vm.getBlockTimestamp() - 3601));
         vault.swap(true, 100e6, 0, "x");
     }
 
     function test_swap_rejects_bad_oracle() public {
-        feed.set(0, block.timestamp);
+        feed.set(0, vm.getBlockTimestamp());
         vm.prank(agent);
         vm.expectRevert(LeashVault.BadOraclePrice.selector);
         vault.swap(true, 100e6, 0, "x");
@@ -202,7 +202,7 @@ contract SwapTest is LeashBase {
 contract MandateTest is LeashBase {
     function test_mandate_pays_outside_tier1() public {
         address school = makeAddr("school"); // not a payee, above every tier-1 limit
-        uint64 deadline = uint64(block.timestamp + 1 hours);
+        uint64 deadline = uint64(vm.getBlockTimestamp() + 1 hours);
         bytes memory sig = sign(ownerPk, school, 5000e6, "tuition", deadline);
         vm.prank(agent);
         vault.payWithMandate(school, 5000e6, "tuition", deadline, sig);
@@ -211,7 +211,7 @@ contract MandateTest is LeashBase {
 
     function test_mandate_rejects_foreign_signer() public {
         (, uint256 pk) = makeAddrAndKey("not-owner");
-        uint64 deadline = uint64(block.timestamp + 1 hours);
+        uint64 deadline = uint64(vm.getBlockTimestamp() + 1 hours);
         bytes memory sig = sign(pk, attacker, 5000e6, "op", deadline);
         vm.prank(agent);
         vm.expectRevert(LeashVault.BadMandateSignature.selector);
@@ -219,7 +219,7 @@ contract MandateTest is LeashBase {
     }
 
     function test_mandate_rejects_tampered_amount_or_payee() public {
-        uint64 deadline = uint64(block.timestamp + 1 hours);
+        uint64 deadline = uint64(vm.getBlockTimestamp() + 1 hours);
         bytes memory sig = sign(ownerPk, landlord, 2000e6, "op", deadline);
         vm.startPrank(agent);
         vm.expectRevert(LeashVault.BadMandateSignature.selector);
@@ -230,7 +230,7 @@ contract MandateTest is LeashBase {
     }
 
     function test_mandate_rejects_replay() public {
-        uint64 deadline = uint64(block.timestamp + 1 hours);
+        uint64 deadline = uint64(vm.getBlockTimestamp() + 1 hours);
         bytes memory sig = sign(ownerPk, landlord, 2000e6, "op", deadline);
         vm.startPrank(agent);
         vault.payWithMandate(landlord, 2000e6, "op", deadline, sig);
@@ -240,7 +240,7 @@ contract MandateTest is LeashBase {
     }
 
     function test_mandate_rejects_after_deadline() public {
-        uint64 deadline = uint64(block.timestamp + 1 hours);
+        uint64 deadline = uint64(vm.getBlockTimestamp() + 1 hours);
         bytes memory sig = sign(ownerPk, landlord, 2000e6, "op", deadline);
         vm.warp(deadline + 1);
         vm.prank(agent);
@@ -249,7 +249,7 @@ contract MandateTest is LeashBase {
     }
 
     function test_mandate_voided_by_epoch_bump() public {
-        uint64 deadline = uint64(block.timestamp + 1 hours);
+        uint64 deadline = uint64(vm.getBlockTimestamp() + 1 hours);
         bytes memory sig = sign(ownerPk, landlord, 2000e6, "op", deadline);
         vm.prank(owner);
         vault.bumpEpoch();
@@ -259,18 +259,18 @@ contract MandateTest is LeashBase {
     }
 
     function test_mandate_not_inherited_by_new_agent() public {
-        uint64 deadline = uint64(block.timestamp + 1 hours);
+        uint64 deadline = uint64(vm.getBlockTimestamp() + 1 hours);
         bytes memory sig = sign(ownerPk, landlord, 2000e6, "op", deadline);
         address agent2 = makeAddr("agent2");
         vm.prank(owner);
-        vault.setAgent(agent2, uint64(block.timestamp + 1 days));
+        vault.setAgent(agent2, uint64(vm.getBlockTimestamp() + 1 days));
         vm.prank(agent2);
         vm.expectRevert(LeashVault.BadMandateSignature.selector);
         vault.payWithMandate(landlord, 2000e6, "op", deadline, sig);
     }
 
     function test_mandate_only_runs_through_agent() public {
-        uint64 deadline = uint64(block.timestamp + 1 hours);
+        uint64 deadline = uint64(vm.getBlockTimestamp() + 1 hours);
         bytes memory sig = sign(ownerPk, landlord, 2000e6, "op", deadline);
         vm.prank(attacker);
         vm.expectRevert(LeashVault.NotAgent.selector);
@@ -281,8 +281,8 @@ contract MandateTest is LeashBase {
         LeashVault other = new LeashVault(owner, usd, eth, IAggregatorV3(address(feed)));
         usd.mint(address(other), 10_000e6);
         vm.prank(owner);
-        other.setAgent(agent, uint64(block.timestamp + 1 days));
-        uint64 deadline = uint64(block.timestamp + 1 hours);
+        other.setAgent(agent, uint64(vm.getBlockTimestamp() + 1 days));
+        uint64 deadline = uint64(vm.getBlockTimestamp() + 1 hours);
         bytes memory sig = sign(ownerPk, landlord, 2000e6, "op", deadline); // signed for `vault`
         vm.prank(agent);
         vm.expectRevert(LeashVault.BadMandateSignature.selector);
@@ -316,7 +316,7 @@ contract StolenKeyFuzz is LeashBase {
     function testFuzz_mandate_needs_owner_key(uint256 pk) public {
         pk = bound(pk, 1, 115792089237316195423570985008687907852837564279074904382605163141518161494336);
         vm.assume(pk != ownerPk);
-        uint64 deadline = uint64(block.timestamp + 1 hours);
+        uint64 deadline = uint64(vm.getBlockTimestamp() + 1 hours);
         bytes memory sig = sign(pk, attacker, 9000e6, "steal", deadline);
         vm.prank(agent);
         vm.expectRevert(LeashVault.BadMandateSignature.selector);

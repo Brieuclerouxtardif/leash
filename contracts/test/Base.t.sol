@@ -30,7 +30,7 @@ abstract contract LeashBase is Test {
         usd = new TestToken("Test Dollar", "tUSD", 6);
         eth = new TestToken("Test Ether", "tETH", 18);
         feed = new MockAggregator();
-        feed.set(int256(PRICE), block.timestamp);
+        feed.set(int256(PRICE), vm.getBlockTimestamp());
 
         pool = new LeashPool(usd, eth);
         usd.mint(whale, 2_000_000e6);
@@ -46,7 +46,7 @@ abstract contract LeashBase is Test {
         eth.mint(address(vault), 1e18);
 
         vm.startPrank(owner);
-        vault.setAgent(agent, uint64(block.timestamp + 30 days));
+        vault.setAgent(agent, uint64(vm.getBlockTimestamp() + 30 days));
         vault.setGuardian(guardian);
         vault.setPool(ILeashPool(address(pool)));
         vault.setLimits(LeashVault.Limits({payPerTx: 1000e6, payDaily: 1500e6, swapPerTx: 500e6, swapDaily: 1000e6}));
