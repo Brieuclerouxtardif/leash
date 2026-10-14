@@ -56,7 +56,7 @@ node scripts/record-demo.mjs http://127.0.0.1:8791/ work/demo
 node scripts/compose-video.mjs work/demo --voice --repo <url>
 ```
 
-Keep the computer awake, with the lid open, during a take and during a render. On 2026-10-14, two runs died the moment the laptop went to sleep. It writes `work/demo/leash-demo-voice.mp4` (1080p, H.264 + AAC) and an `.srt`, rendering in real time (3 min); `--plan` prints the timing without rendering. The title card says the video is recorded from the live console, on which network, how many waits were cut, and that the voice is synthetic. A person reading the script is still better: a synthetic voice sounds like one.
+Keep the computer awake, with the lid open, during a take and during a render. On 2026-10-14, two runs died the moment the laptop went to sleep. It writes `work/demo/leash-demo-voice.mp4` (1080p, H.264 + AAC) and an `.srt`, rendering in real time (3 min); `--plan` prints the timing without rendering. `--preview` writes a 720p copy (23 MB for 3:00) to watch on a phone; submit the 1080p one. The title card says the video is recorded from the live console, on which network, how many waits were cut, and that the voice is synthetic. A person reading the script is still better: a synthetic voice sounds like one.
 
 Recorded on Sepolia on 2026-10-14 (vault `0xe30d…dd82`): 3:37 of capture, of which 142 s of block waits were cut (8 cuts, 8 to 60 s each). The result is 3:00 long. During 80 s of it, the picture holds while the voice speaks. A2, A7, A9 and A10 were refused on-chain.
 

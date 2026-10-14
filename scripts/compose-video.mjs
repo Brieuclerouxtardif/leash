@@ -2,8 +2,9 @@
 // title and closing cards, the voice-over of docs/VIDEO.md as subtitles (and, with --voice, spoken by the Windows
 // voice), a ring on every click, and each block wait cut and labelled. Where a sentence is still being spoken when
 // its moment comes, the picture holds on the frame before that moment instead of running ahead of the words.
-// Usage: node scripts/compose-video.mjs <captureDir> [--voice] [--repo <url>] [--out <file without extension>] [--plan]
+// Usage: node scripts/compose-video.mjs <captureDir> [--voice] [--repo <url>] [--out <file without extension>] [--plan] [--preview]
 // --plan prints the timing (length, cuts, holds) and stops before the real-time render.
+// --preview renders a 720p copy at a low bitrate (~25 MB for 3 min), small enough to send to a phone.
 // Writes <out>.mp4 (or .webm) and <out>.srt.
 import { createServer } from 'node:http';
 import { spawnSync } from 'node:child_process';
@@ -18,6 +19,7 @@ const opt = (name) => { const i = args.indexOf(name); return i < 0 ? undefined :
 const DIR = resolve(args[0] ?? '');
 if (!args[0] || !existsSync(join(DIR, 'timeline.json'))) { console.error('usage: node scripts/compose-video.mjs <captureDir> [--voice] [--repo <url>] [--out <file>]'); process.exit(2); }
 const VOICE = args.includes('--voice');
+const PREVIEW = args.includes('--preview');
 const REPO = opt('--repo');
 const OUT = resolve(opt('--out') ?? join(DIR, VOICE ? 'leash-demo-voice' : 'leash-demo'));
 
@@ -277,8 +279,11 @@ window.onerror = (m) => { window.__error = String(m); };
 window.onunhandledrejection = (e) => { window.__error = String(e.reason?.stack ?? e.reason); };
 const plan = await (await fetch('plan.json')).json();
 const { width: W, height: H, frames, segments, subs, rings, captions, spots, total } = plan;
-const cv = document.getElementById('c'); cv.width = W; cv.height = H;
+// Everything is drawn in capture pixels; a preview scales the whole canvas down once.
+const S = ${PREVIEW ? '2 / 3' : '1'};
+const cv = document.getElementById('c'); cv.width = Math.round(W * S); cv.height = Math.round(H * S);
 const g = cv.getContext('2d');
+g.setTransform(S, 0, 0, S, 0, 0);
 const C = { bg: '#0b0d10', panel: '#12161b', line: '#232b35', text: '#e7ecf2', muted: '#8a96a3', accent: '#f5a524' };
 const FONT = '"Segoe UI", system-ui, sans-serif';
 const logo = new Image(); logo.src = 'leash.svg'; await logo.decode().catch(() => {});
@@ -389,7 +394,7 @@ render(0);
 const mime = ['video/mp4;codecs=avc1.640028,mp4a.40.2', 'video/webm;codecs=vp9,opus'].find((t) => MediaRecorder.isTypeSupported(t));
 await fetch('start', { method: 'POST', body: mime });
 const stream = new MediaStream([...cv.captureStream(30).getVideoTracks(), ...dest.stream.getAudioTracks()]);
-const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 10e6, audioBitsPerSecond: 160e3 });
+const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: ${PREVIEW ? '1.1e6' : '10e6'}, audioBitsPerSecond: ${PREVIEW ? '96e3' : '160e3'} });
 let chain = Promise.resolve();
 rec.ondataavailable = (e) => { if (e.data.size) { const b = e.data; chain = chain.then(() => fetch('chunk', { method: 'POST', body: b })); } };
 rec.onstop = () => chain.then(() => fetch('done', { method: 'POST' })).then(() => { window.__done = true; });
