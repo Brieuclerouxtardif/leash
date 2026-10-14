@@ -27,7 +27,9 @@ export async function launch({ width = 1600, height = 1000, scale = 2, dark = tr
   let seq = 0;
   const pending = new Map();
   const listeners = new Map();
+  let heard = Date.now();
   ws.addEventListener('message', (ev) => {
+    heard = Date.now();
     const m = JSON.parse(ev.data);
     trace(m.id ? `← ${m.id}${m.error ? ` error ${m.error.message}` : ''}` : `◇ ${m.method} ${ev.data.length}`);
     if (m.id && pending.has(m.id)) {
@@ -45,7 +47,9 @@ export async function launch({ width = 1600, height = 1000, scale = 2, dark = tr
   });
   ws.addEventListener('close', (ev) => {
     if (closed) return;
-    closed = new Error(`DevTools connection closed (code ${ev.code}${ev.reason ? `, ${ev.reason}` : ''})`);
+    // Both failed takes on 2026-10-14 were the laptop going to sleep (lid, power button): say so when it looks like it.
+    const silent = Math.round((Date.now() - heard) / 1000);
+    closed = new Error(`DevTools connection closed (code ${ev.code}${ev.reason ? `, ${ev.reason}` : ''})${silent > 10 ? `, after ${silent} s without a message: did the computer sleep?` : ''}`);
     trace(closed.message);
     for (const { reject } of pending.values()) reject(closed);
     pending.clear();

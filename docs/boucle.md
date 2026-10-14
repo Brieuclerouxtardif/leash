@@ -167,3 +167,41 @@ Ce ne sont pas des promesses du prompt : c'est le contrat qui refuse. Chaque ref
     - Sur les deux vaults usés, il attrape 3 problèmes chacun, dont le pool Sepolia à 106 bps de l'oracle après A9.
     - Sur un vault neuf : « Ready to record ».
     - Sans lui, une prise aurait pu être perdue en plein milieu sur un opId déjà dépensé.
+
+- 17:04 (réel) — Vidéo de secours, sans ffmpeg ni narrateur (commit 04948f3).
+  - **Pourquoi.** La vidéo est le livrable le plus à risque : elle dépend de Brieuc, d'un micro et d'un logiciel de montage. Il n'y a pas d'ffmpeg sur la machine, et je ne télécharge rien.
+  - **Ce qui existe.**
+    - `record-demo.mjs` joue les scènes de VIDEO.md dans un Edge headless et garde chaque image du screencast DevTools, avec des repères horodatés.
+    - `compose-video.mjs` monte le tout sur un canvas et l'enregistre avec MediaRecorder : MP4 1080p, H.264 + AAC. La voix est Zira, la voix anglaise de Windows, synthétisée hors ligne via SAPI.
+    - Local : 2:59, attaques 4/4 refusées. Vérifié en relisant le MP4 dans le navigateur (durée, pistes, niveau audio seconde par seconde) et sur 12 images extraites.
+  - **Ce que les images ont attrapé, pas le code.**
+    - Deux erreurs dans le script de VIDEO.md, que Brieuc aurait dites face caméra. « The rules on the right » : la carte Mandate est au milieu. « Two documents turn red » : le code les marque avant le lancement, le run ajoute seulement les drapeaux du modèle.
+    - Le projecteur était mesuré au clic, donc avant que le résultat redimensionne la carte : A9 débordait, la carte du loyer mordait sur la suivante. Corrigé avec un repère `resize` après chaque résultat.
+  - **Ce que l'impression du plan a attrapé avant un rendu de 3 min.**
+    - Premier jet : l'image gelait juste avant le repère suivant. Pendant une phrase longue, la page défilait donc déjà vers la suite : l'inbox partait pendant qu'on en parlait encore. Le gel tombe maintenant au premier changement de page après le repère précédent.
+    - Deux bugs de bord : une frontière flottante dans `outAt`, et des instants de redimensionnement non décalés de la durée du carton titre.
+  - **Honnêteté du montage.** 86 s sur 179 sont des images gelées de la vraie capture. Sur une console immobile, ça ne se voit pas, mais c'est un fait. Le carton titre dit « recorded from the live console », le réseau, le nombre d'attentes coupées et « synthetic voice ». Une vraie voix reste meilleure.
+  - **Échec sur Sepolia, prise 1 (vault `0xd99d…ce88`).** La connexion DevTools s'est fermée en silence juste après la signature tier 2. `cdp.mjs` n'écoutait pas `close`, donc la capture a attendu 10 min sans rien dire. Ce que j'ai écarté par mesure :
+    - pas un navigateur orphelin sur le port ;
+    - pas la taille des images (≤ 260 Ko) ;
+    - pas la durée : 3 min de screencast et de requêtes tiennent en local.
+    - **Cause : inconnue à ce stade.** Désormais, une fermeture rejette les appels en cours avec son code, et `CDP_LOG` trace chaque appel et chaque événement. Prise 2 sur un vault neuf avec la trace.
+
+- 17:15 (réel) — Vidéo de secours sur Sepolia : prise 2 réussie (vault `0xe30d…dd82`, commit 9c382c2 pour le durcissement DevTools).
+  - **La prise.** 3 min 37 de capture, 577 images, attaques A2, A7, A9, A10 refusées on-chain. Huit attentes de bloc, de 8 à 60 s (A9). La trace : 3 043 lignes, aucune erreur, aucune fermeture.
+  - **Ce que je n'ai pas résolu (à 17:15).** La fermeture de la prise 1 ne s'est pas reproduite, donc sa cause restait inconnue. Je ne prétendais pas l'avoir corrigée. Ce qui avait changé : un échec éventuel ne bloque plus 10 min en silence, il s'arrête net avec son code et laisse la timeline partielle.
+  - **Montage.** 3:00, dont 142 s d'attente coupées et signalées, et 80 s d'image gelée pendant la voix (même ratio qu'en local).
+  - **Ce que les images extraites ont attrapé, encore.**
+    - À 2:17, le sous-titre remonte en haut (le projecteur est sur A9, en bas) et masque le bandeau « block wait cut · 60 s ». Précisément la coupe la plus longue, celle qu'un jury doit voir. Les deux étaient à y≈100. Le bandeau passe au centre de la barre d'en-tête, qui y est vide.
+    - Le plan affichait « 2:60 » : arrondi des secondes après le modulo. Corrigé.
+  - **Critique.** Le bandeau sous le sous-titre existait déjà dans le rendu local, je ne l'avais pas vu : mes 12 images locales ne tombaient sur aucune coupe avec projecteur en bas. Choisir les instants d'extraction à partir des légendes du plan (une image par coupe), pas à l'œil.
+  - **Taille.** 104 Mo pour ce premier rendu : au-dessus de la limite de 100 Mo par fichier de GitHub. Le MP4 reste dans `work/` (ignoré), à déposer sur la plateforme ou en lien.
+
+- 23:58 (réel) — Cause des deux échecs trouvée : le portable s'est mis en veille.
+  - **Les faits.** Le re-rendu de 17:13 est mort à ~75 % avec le même symptôme que la prise 1 : connexion DevTools fermée, code 1006. Au même moment, un simple `sleep 80` a dépassé 100 s. Le journal système (Kernel-Power 506/507) tranche :
+    - prise 1 : dernière image écrite à 16:47:21.058, veille moderne à 16:47:22 (bouton d'alimentation) ;
+    - re-rendu : capot fermé à 17:17:08, puis hibernation (batterie) à 23:08 et réveil à 23:51.
+  - **Donc pas un bug.** Ni le code, ni Edge, ni la mémoire (1,5 Go libres, ma deuxième fausse piste). Il n'y a rien à corriger dans le pipeline, il faut garder la machine éveillée, capot ouvert. VIDEO.md le dit. Le maintien en éveil de l'app ne couvre que la veille par inactivité, pas le capot ni le bouton.
+  - **Diagnostic ajouté.** `cdp.mjs` dit maintenant « after N s without a message: did the computer sleep? » quand la fermeture suit un long silence.
+  - **Critique de ma méthode, encore.** Même erreur qu'à 16:08 : j'ai fait des hypothèses (port, taille des images, durée, puis mémoire) avant de regarder la source de vérité. Le journal d'événements Windows répondait en une commande. Règle : sur une mort inexpliquée d'un processus long, lire d'abord `Get-WinEvent` (Kernel-Power, Application 1000).
+  - **Rendu final.** Refait à 23:55 : 3:00, 1080p, 90,7 Mo (le débit varie d'un rendu à l'autre ; sous les 100 Mo cette fois, sans marge). Une image au milieu de chacune des 8 coupes : bandeau lisible dans l'en-tête, y compris la coupe de 60 s d'A9 sous un sous-titre remonté.

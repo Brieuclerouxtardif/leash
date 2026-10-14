@@ -220,7 +220,7 @@ const srt = (x) => { const ms = Math.round(x * 1000); const p = (n, w = 2) => St
 writeFileSync(`${OUT}.srt`, subs.map((s, i) => `${i + 1}\n${srt(s.o0)} --> ${srt(s.o1)}\n${s.text}\n`).join('\n'));
 
 const holds = segments.filter((s) => s.kind === 'hold');
-const fmt = (x) => `${Math.floor(x / 60)}:${String(Math.round(x % 60)).padStart(2, '0')}`;
+const fmt = (x) => { const s = Math.round(x); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
 console.log(`${fmt(total)} in all · ${cuts.length} cuts (${Math.round(cuts.reduce((a, c) => a + c.s1 - c.s0, 0))} s removed) · ${holds.length} holds (${holds.reduce((a, h) => a + h.o1 - h.o0, 0).toFixed(1)} s)`);
 for (const h of holds) if (h.o1 - h.o0 > 1.5) console.log(`  hold ${(h.o1 - h.o0).toFixed(1)} s at ${fmt(h.o0)}`);
 if (args.includes('--plan')) process.exit(0); // the timing above is all that was asked for
@@ -366,8 +366,9 @@ function render(o) {
     g.globalAlpha = clamp((o - c.o0) / 0.2) * clamp((c.o1 - o) / 0.3);
     g.font = '600 26px ' + FONT; const w = g.measureText(c.text).width + 44;
     g.fillStyle = 'rgba(11,13,16,0.92)'; g.strokeStyle = C.accent; g.lineWidth = 2;
-    rrect(W / 2 - w / 2, 96, w, 50, 25); g.fill(); g.stroke();
-    g.fillStyle = C.accent; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(c.text, W / 2, 122); g.globalAlpha = 1;
+    // In the middle of the console's header bar, which is empty there: clear of the page and of subtitles moved to the top.
+    rrect(W / 2 - w / 2, 12, w, 50, 25); g.fill(); g.stroke();
+    g.fillStyle = C.accent; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(c.text, W / 2, 38); g.globalAlpha = 1;
   }
   const s = subs.find((x) => o >= x.o0 && o < x.o1);
   if (s) {
