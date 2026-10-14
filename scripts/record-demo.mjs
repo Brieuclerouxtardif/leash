@@ -18,6 +18,10 @@ const { S, on, js, until } = browser;
 const frames = [];
 const marks = [];
 const mark = (kind, extra = {}) => marks.push({ kind, t: Date.now(), ...extra });
+let network = null;
+const save = (extra) => writeFileSync(join(OUT, 'timeline.json'), JSON.stringify({ url: URL_, network, width: W, height: H, recordedAt: new Date().toISOString(), ...extra, frames, marks }, null, 1));
+// A take that fails still leaves its timeline, with the error and the last mark reached.
+process.on('uncaughtException', (e) => { save({ error: e.message }); console.error(`failed after "${marks.at(-1)?.kind} ${marks.at(-1)?.what ?? marks.at(-1)?.label ?? marks.at(-1)?.id ?? ''}": ${e.message}`); browser.close(); process.exit(1); });
 on('Page.screencastFrame', (p) => {
   const file = `f${String(frames.length).padStart(5, '0')}.jpg`;
   writeFileSync(join(OUT, 'frames', file), Buffer.from(p.data, 'base64'));
@@ -71,7 +75,7 @@ const pick = (prefix) => js(`const sel = document.getElementById('sample'); sel.
 
 await S('Page.navigate', { url: URL_ });
 await until(`document.querySelectorAll('#attacks .atk').length && document.querySelectorAll('#sample option').length`, 'console loaded');
-const network = await js(`return document.getElementById('net').textContent`);
+network = await js(`return document.getElementById('net').textContent`);
 await S('Page.startScreencast', { format: 'jpeg', quality: 85, maxWidth: W, maxHeight: H, everyNthFrame: 1 });
 await sleep(500);
 
@@ -174,7 +178,7 @@ await sleep(2500);
 scene('end');
 await S('Page.stopScreencast');
 const results = await js(`return [...document.querySelectorAll('#attacks .atk')].filter((c) => c.matches('.pass, .fail')).map((c) => [c.querySelector('b').textContent, c.matches('.pass')])`);
-writeFileSync(join(OUT, 'timeline.json'), JSON.stringify({ url: URL_, network, width: W, height: H, recordedAt: new Date().toISOString(), results, frames, marks }, null, 1));
+save({ results });
 browser.close();
 console.log(`${frames.length} frames, ${marks.filter((m) => m.kind === 'scene').length - 1} scenes, attacks ${results.map(([id, ok]) => `${id}:${ok ? 'pass' : 'FAIL'}`).join(' ')} → ${OUT}`);
 if (results.some(([, ok]) => !ok)) process.exit(1);
