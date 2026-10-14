@@ -45,6 +45,7 @@ Default mandate (`app/src/config.js`): payees landlord ≤ 900 and utility ≤ 1
    - Kill switch (guardian `pause`). Only the owner can restart.
    - `revokeAgent` and `bumpEpoch` void every outstanding mandate in one transaction.
    - Tier-2 text is rendered deterministically from the signed struct. It shows "UNKNOWN recipient, never paid before" for addresses outside the registry. The model never writes what the owner reads before signing.
+   - Mandate editor: the owner writes rules in English; the model fills a struct that has **no address field** (payees are an enum of registry names). Code diffs the struct against the live chain state, marks every row that loosens the leash, blocks inconsistent mandates (cap above the per-payment limit, slippage above 5 %, agent validity above 90 days…), and only the owner key sends the resulting `setPayee` / `setLimits` / `setRisk` / `setAgent` calls. The model can propose a wrong mandate; it cannot apply one, and it cannot loosen one without a red row on screen.
 5. **Proof of refusal.** Red-team calls are sent with a fixed gas limit, so each refusal is mined. The reverted transaction hash and the decoded error are written to `evidence/`.
 
 ## 4. Evidence
@@ -53,7 +54,7 @@ Default mandate (`app/src/config.js`): payees landlord ≤ 900 and utility ≤ 1
 |---|---|
 | Each mandate rule rejects what it should | 34 unit and fuzz tests (`contracts/test/LeashVault.t.sol`), fuzz 2,000 runs each, including a stolen-key fuzz over random recipients and amounts |
 | Rules hold under arbitrary hostile sequences | 7 invariants, 256 runs × 64 calls = 16,384 calls by a rogue-agent handler. It pays, swaps, replays, manipulates the pool, moves the market and warps time. Invariants: strangers receive nothing; daily cap holds; payees got exactly what was paid; no allowance survives; swaps never below oracle floor; buys never breach exposure; no op executes twice. Anti-vacuity: successful operations are logged. |
-| Off-chain policy | 13 Node tests: malformed model output, plus two **simulated** (labelled) compromised model outputs, and a no-false-refusal check on both recorded live plans |
+| Off-chain policy | 15 Node tests: malformed model output, two **simulated** (labelled) compromised model outputs, a no-false-refusal check on both recorded live plans, the mandate diff rules, and a replay of the 3 recorded live mandate compilations (an attacker address written in the owner text never reaches a transaction) |
 | Static analysis | `forge lint src`: 0 findings. Every suppression is inline with its reason (event after a measured pool call, ecrecover precompile, zero address used to disable a role, deprecated Chainlink fields, block.timestamp on PoS). Slither 0.11.6: 0 results (`evidence/slither.txt`). Caveat: Slither fails to resolve 26 OpenZeppelin 5.6.1 identifiers, so its coverage is partial. Its one earlier finding (`LeashPool` should inherit `ILeashPool`) was fixed. |
 | End to end | 5 tasks and 13 attacks on a fresh chain, 18/18 as expected (`evidence/local-campaign-*.json`). The same 13 attacks launched from the console: 13/13. Sepolia: pending. |
 
@@ -93,6 +94,7 @@ Default mandate (`app/src/config.js`): payees landlord ≤ 900 and utility ≤ 1
 | R11 | **Regex scanner can be evaded** by paraphrased injections. | software layer only | It is defence in depth, not the boundary. The boundary is the contract. | accepted |
 | R12 | **Unaudited Solidity**, OpenZeppelin 5.6.1 dependencies, solc 0.8.30. | testnet | external audit, Slither/Echidna, formal spec of the invariants | open |
 | R13 | **Local console**: binds 127.0.0.1, checks Host (DNS rebinding), requires a per-launch token and a local Origin on every POST, strict CSP, renders hostile documents with `textContent` only, re-judges every proposal at execution time. Any local process can read the token from the page. | local machine | Production: authenticated app, owner signing in the browser wallet | demo scope |
+| R14 | **Mandate compiler misreads the owner.** It can map a rule wrongly, or miss one. Our first prompt version dropped "keep ETH under 35 %" into *not enforceable* because the field was undocumented. | Nothing changes without the owner's transactions. A loosening shows as a red row; a missed rule shows as *not enforceable on-chain*. Relative rules ("double it") are refused by the prompt and land in the same list. | owner reads the diff, not the model's summary; the console labels the summary as the model's | accepted (the owner can still approve a red row without reading it) |
 
 ## 7. What we explicitly do not claim
 

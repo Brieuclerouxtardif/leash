@@ -81,6 +81,23 @@
       </section>
 
       <section class="card">
+        <h2>Mandate editor <span class="sub">write the rules in English; code shows what changes on-chain</span></h2>
+        <div class="controls compile-controls">
+          <label class="grow">Owner text <select id="sample"></select></label>
+          <label>Model <select id="cmode"><option value="replay">recorded replay</option><option value="live">live call</option></select></label>
+          <button class="primary" id="compile">Compile</button>
+        </div>
+        <textarea id="ownerText" rows="3" maxlength="2000" spellcheck="false"></textarea>
+        <div id="cMeta" class="meta"></div>
+        <table class="diff" id="diff" hidden>
+          <thead><tr><th>Setting</th><th>Now</th><th>Proposed</th><th></th></tr></thead>
+          <tbody id="diffBody"></tbody>
+        </table>
+        <ul class="cnotes" id="cNotes"></ul>
+        <div class="row-end"><button id="applyMandate" hidden>Apply as owner (demo key)</button></div>
+      </section>
+
+      <section class="card">
         <h2>Red team <span class="sub">each attack is sent for real; the refusal is mined on-chain</span></h2>
         <div class="attacks" id="attacks"></div>
       </section>

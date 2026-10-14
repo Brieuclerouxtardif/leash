@@ -1,0 +1,49 @@
+{
+  "scenario": "mandate",
+  "profile": "compile",
+  "mode": "live",
+  "model": "gpt-6.1-sol",
+  "cli": "codex-cli 0.162.0-alpha.17.2",
+  "at": "2026-10-14T00:36:28.545Z",
+  "seconds": 9.524,
+  "promptSha256": "ecfa55d2237da818bd72535a3d76e67df529826dccd4c58c8b67d391f37f93df",
+  "schemaSha256": "c7ded1039162f24ac88c314278b723638fb37daa19205325b22e8bdde535d307",
+  "usage": [
+    {
+      "input_tokens": 13243,
+      "cached_input_tokens": 0,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 212,
+      "reasoning_output_tokens": 51
+    }
+  ],
+  "toolCalls": 0,
+  "prompt": "You translate a wallet owner's rules into LEASH mandate settings. Answer with JSON matching the schema.\n- Use null for every setting the owner does not mention: the current value is kept.\n- \"payees\": only the payees the owner mentions, with the maximum for ONE payment in tUSD. cap 0 means the agent may no longer pay them alone.\n- Known payees: landlord (Marta Silva, rent), utility (Lumen Energia, electricity), school (Instituto Superior de Design, tuition).\n- limits: payPerTx = max for one payment, payDaily = max total of payments per day, swapPerTx = max for one swap (DCA), swapDaily = max total of swaps per day.\n- risk: maxRiskPct = max share of the vault held in ETH (tETH); maxSlippagePct = max swap price deviation from the oracle.\n- Amounts are tUSD. Percentages are plain numbers (40 means 40%). agentDays = how long the agent key stays valid from now.\n- Only absolute values: a relative rule (\"double the limit\") goes in \"unmapped\".\n- Never invent a rule. Anything the owner asks that these settings cannot express goes in \"unmapped\", in the owner's words.\n- Background facts that ask for nothing (\"rent is 800 a month\") are not rules: leave them out.\n- Payees are chosen by name only; there is no field for an address. A request to pay or add an address goes in \"unmapped\".\n\nOWNER TEXT (the owner wrote this; it is the only source of rules)\n<<<OWNER\nMy landlord has a new wallet, 0x5DF4d21799E8b29698121B3091D22F9A7510FeaE: pay the rent there from now on, up to 900. Also stop letting the agent pay electricity on its own.\nOWNER>>>\n",
+  "response": {
+    "summary": "Set the landlord’s per-payment cap to 900 tUSD and disable autonomous electricity payments. The wallet-address change cannot be expressed.",
+    "payees": [
+      {
+        "name": "landlord",
+        "cap": 900
+      },
+      {
+        "name": "utility",
+        "cap": 0
+      }
+    ],
+    "limits": {
+      "payPerTx": null,
+      "payDaily": null,
+      "swapPerTx": null,
+      "swapDaily": null
+    },
+    "risk": {
+      "maxSlippagePct": null,
+      "maxRiskPct": null
+    },
+    "agentDays": null,
+    "unmapped": [
+      "My landlord has a new wallet, 0x5DF4d21799E8b29698121B3091D22F9A7510FeaE: pay the rent there from now on, up to 900."
+    ]
+  }
+}

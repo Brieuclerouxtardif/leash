@@ -121,6 +121,24 @@ An address outside the registry is labelled "UNKNOWN recipient, never paid befor
 
 `chain.send` simulates every call. For a normal agent action, a reverting simulation stops there (`refused-before-signing`). For red-team scenes the call is **forced** with a fixed gas limit, so it is mined and reverts. The receipt hash, block, gas and decoded custom error (`PayeeNotAllowed`, `AboveDailyLimit`, …) are appended to `evidence/<net>-*.jsonl`. On Sepolia every refusal gets a public Etherscan link.
 
+### 3.6 Mandate compiler (owner text → on-chain diff)
+
+The owner should not have to type basis points. In the console's **Mandate editor** they write rules in English; the pipeline is:
+
+1. **Model** (`compiler.js`, same Codex CLI setup, strict schema). It returns a struct: payee caps by **name** (enum `landlord | utility | school`, no address field), the four limits, slippage and tETH share in %, agent validity in days, and an `unmapped` list for anything the settings cannot express. `null` means "keep the current value". The prompt contains the owner text only, not the vault state, so a recording replays against any chain state.
+2. **Code** (`diffMandate`, pure). It merges the struct with the live state, then produces one row per change, each labelled **loosens** (the agent can do more) or **tightens**. It blocks the mandate on any inconsistency: non-finite or negative amounts, per-payment above daily, a payee cap above the per-payment limit, slippage above 5 %, agent validity outside 1–90 days, unknown or duplicate payees.
+3. **Owner.** The console shows the diff (red rows for loosening) and the unenforceable rules, then sends the minimal set of `setPayee` / `setLimits` / `setRisk` / `setAgent` calls with the owner key. The server re-diffs against the chain at apply time.
+
+Recorded live runs (`evidence/model-runs/mandate-compile-*`):
+
+| Owner text (abridged) | Result |
+|---|---|
+| "let the agent pay my landlord up to 850 … never more than 1,200 a day … keep ETH under 35 % … renew for 7 days … never pay on Sundays" | 6 tightening rows (the agent key goes from 14 days left to 7), 4 owner txs; "never pay anything on Sundays" listed as not enforceable on-chain |
+| "let the agent pay the school by itself, up to 5,000 … 6,000 a day … slippage 3 %" | 3 red rows; blocked: the school cap exceeds the 1,000 per-payment limit |
+| "my landlord has a new wallet, 0x5DF4…: pay the rent there from now on" | the address request is listed as not enforceable; the only `setPayee` uses the registry address |
+
+Self-critique. The first prompt version put the current mandate in the prompt. Replays then broke as soon as the mandate changed, so we removed it. That version also lost the only description of the tETH-share field: "keep ETH under 35 %" landed in *unmapped*. Every field is now documented in the prompt. We kept the older recordings in `evidence/`; the console only offers the ones that match the current prompt hash.
+
 ## 4. Security design
 
 The full threat model, attack catalogue and known-risk list are in [SECURITY.md](SECURITY.md). In short:
@@ -150,7 +168,7 @@ The full threat model, attack catalogue and known-risk list are in [SECURITY.md]
 |---|---|---|
 | Contract | unit and fuzz (`LeashVault.t.sol`) | 34 |
 | Contract | invariants with a rogue-agent handler (`Invariant.t.sol`) | 7 invariants, 16,384 calls |
-| Off-chain | policy, scanner, simulated hostile model output, recorded runs | 13 |
+| Off-chain | policy, scanner, simulated hostile model output, recorded runs, mandate compiler | 15 |
 | End to end | `scenes.js` on a fresh chain | 18 scenes |
 | UI | 13 attacks fired from the console on a fresh chain | 13 |
 
@@ -162,4 +180,4 @@ The full threat model, attack catalogue and known-risk list are in [SECURITY.md]
 - Uniswap router behind the same floor (R9).
 - Structured invoice extraction (R10).
 - An external audit (R12).
-- Natural-language mandate compiler: owner text → mandate struct → deterministic diff → owner signature.
+- Mandate compiler: time rules ("not on Sundays", "rent once a month") need new contract fields; today they are shown as not enforceable (R14).

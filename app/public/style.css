@@ -90,6 +90,21 @@ blockquote { margin: 0 0 10px; padding: 10px 12px; border-radius: 10px; backgrou
 .checks li::before { content: "✓ "; color: var(--ok); }
 .checks li.fail::before { content: "✗ "; color: var(--bad); }
 
+.compile-controls { margin-bottom: 8px; }
+.compile-controls .grow { flex: 1 1 260px; min-width: 0; }
+.compile-controls select { width: 100%; }
+textarea { width: 100%; font: inherit; font-size: 13px; line-height: 1.5; background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 10px; padding: 10px; resize: vertical; }
+.diff { width: 100%; border-collapse: collapse; font-size: 13px; margin: 6px 0; }
+.diff th { text-align: left; font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; padding: 4px 6px; }
+.diff td { border-top: 1px solid var(--line); padding: 6px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.diff tr.looser td { background: color-mix(in srgb, var(--bad) 9%, transparent); }
+.diff .dir { font-size: 11px; font-weight: 700; text-transform: uppercase; white-space: nowrap; }
+.diff tr.looser .dir { color: var(--bad); } .diff tr.tighter .dir { color: var(--ok); }
+.cnotes { list-style: none; margin: 6px 0; padding: 0; display: grid; gap: 4px; font-size: 12.5px; }
+.cnotes li.err { color: var(--bad); } .cnotes li.err::before { content: "✗ "; }
+.cnotes li.unm { color: var(--warn); } .cnotes li.unm::before { content: "not enforceable on-chain: "; font-weight: 600; }
+.row-end { display: flex; justify-content: end; }
+button.danger { background: var(--bad); border-color: var(--bad); color: #fff; font-weight: 600; }
 .attacks { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
 .atk { border: 1px solid var(--line); border-radius: 10px; padding: 10px; background: var(--panel2); display: grid; gap: 8px; align-content: space-between; }
 .atk p { margin: 0; font-size: 12.5px; }
@@ -121,5 +136,6 @@ dialog::backdrop { background: rgba(0,0,0,.6); }
 #toast.on { opacity: 1; }
 
 @media (max-width: 1200px) { .layout { grid-template-columns: 1fr; } .col-side { position: static; max-height: none; } }
-@media (max-width: 900px) { .cards3, .routine-body { grid-template-columns: 1fr; } }
-@media (max-width: 520px) { .top { position: static; } .top, .layout { padding-left: 16px; padding-right: 16px; } .big { font-size: 24px; } }
+.card { scroll-margin-top: 80px; }
+@media (max-width: 900px) { .cards3, .routine-body { grid-template-columns: 1fr; } .top { position: static; } .card { scroll-margin-top: 12px; } }
+@media (max-width: 520px) { .top, .layout { padding-left: 16px; padding-right: 16px; } .big { font-size: 24px; } }

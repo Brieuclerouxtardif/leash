@@ -173,6 +173,55 @@ $('run').addEventListener('click', (e) => busy(e.target, async () => {
   renderPlan(await api('/api/plan', { profile: $('profile').value, mode: $('mode').value }));
 }));
 
+// ------------------------------------------------------------------ mandate editor
+async function loadSamples() {
+  const samples = await api('/api/mandate/samples');
+  $('sample').replaceChildren(...samples.map((t, i) => h('option', { value: i }, t.length > 70 ? `${t.slice(0, 70)}…` : t)), h('option', { value: 'own' }, 'Write your own (live call)'));
+  const pick = () => {
+    const own = $('sample').value === 'own';
+    $('ownerText').value = own ? '' : samples[Number($('sample').value)] ?? '';
+    if (own && S.allowLive) $('cmode').value = 'live';
+  };
+  $('sample').addEventListener('change', pick);
+  pick();
+}
+
+$('compile').addEventListener('click', (e) => busy(e.target, async () => {
+  $('cMeta').textContent = $('cmode').value === 'live' ? 'Calling the model… (≈10 s)' : 'Loading the recorded run…';
+  $('diff').hidden = true;
+  $('cNotes').replaceChildren();
+  $('applyMandate').hidden = true;
+  let r;
+  try {
+    r = await api('/api/mandate/compile', { text: $('ownerText').value, mode: $('cmode').value });
+  } catch (err) {
+    $('cMeta').textContent = `Not compiled: ${err.message}`;
+    throw err;
+  }
+  $('cMeta').textContent = `${r.meta.mode} · ${r.meta.model}${r.meta.seconds ? ` · ${r.meta.seconds.toFixed(1)} s` : ''} · model: “${r.struct.summary}”`;
+  $('diff').hidden = !r.rows.length;
+  $('diffBody').replaceChildren(...r.rows.map((row) => h('tr', { class: row.direction }, h('td', {}, row.label), h('td', {}, String(row.from)), h('td', {}, String(row.to)),
+    h('td', { class: 'dir' }, row.direction === 'looser' ? 'loosens' : 'tightens'))));
+  $('cNotes').replaceChildren(
+    ...(r.rows.length ? [] : [h('li', {}, 'No change to the on-chain mandate.')]),
+    ...r.errors.map((x) => h('li', { class: 'err' }, x)),
+    ...r.unmapped.map((x) => h('li', { class: 'unm' }, x)));
+  const btn = $('applyMandate');
+  btn.hidden = !r.calls.length;
+  btn.disabled = r.errors.length > 0;
+  btn.className = r.looser ? 'danger' : 'primary';
+  btn.textContent = r.errors.length ? 'Fix the errors before applying'
+    : `Apply ${r.calls.length} owner transaction${r.calls.length > 1 ? 's' : ''}${r.looser ? ` (${r.looser} loosen the leash)` : ''}`;
+}));
+
+$('applyMandate').addEventListener('click', (e) => busy(e.target, async () => {
+  const out = await api('/api/mandate/apply', {});
+  const ok = out.every((x) => x.status === 'success');
+  toast(ok ? `Mandate updated on-chain (${out.length} tx).` : `Stopped: ${out.at(-1).expectedError?.name ?? out.at(-1).status}`);
+  e.target.hidden = true;
+  refresh();
+}));
+
 // ------------------------------------------------------------------ red team
 async function loadAttacks() {
   const list = await api('/api/attacks');
@@ -234,6 +283,6 @@ async function refresh() {
 
 await refresh();
 $('instruction').textContent = `Owner: “${S.instruction}”`;
-await Promise.all([loadInbox(), loadAttacks(), loadEvidence()]);
-if (!S.allowLive) $('mode').querySelector('[value="live"]').disabled = true;
+await Promise.all([loadInbox(), loadAttacks(), loadEvidence(), loadSamples()]);
+if (!S.allowLive) for (const id of ['mode', 'cmode']) $(id).querySelector('[value="live"]').disabled = true;
 setInterval(refresh, 5000);

@@ -33,16 +33,22 @@ An AI agent that pays your bills and manages a small portfolio needs a key. A ke
 
 The guardian (a second key, e.g. a phone) can **pause** instantly but cannot unpause or move funds.
 
+## Writing the leash in English
+
+The owner does not type basis points. In the console's Mandate editor they write *"let the agent pay my landlord up to 850, never more than 1,200 a day, keep ETH under 35 %"*. The model fills a struct; **code** diffs it against the chain and marks every change that loosens the leash in red. Code also blocks inconsistent mandates. The owner then sends the transactions. The struct has no address field: when the owner text says *"my landlord has a new wallet, 0x5DF4…"*, the console lists the request as not enforceable on-chain. Details: [TECHNICAL.md §3.6](docs/TECHNICAL.md).
+
+![Mandate editor: three loosening rows in red, blocked by an inconsistency](docs/screens/mandate-editor.jpg)
+
 ## What works today
 
 | | Result | How to reproduce |
 |---|---|---|
 | Contract unit + fuzz tests | 34 / 34 (fuzz: 2,000 runs each) | `forge test` |
 | Invariants (rogue-agent handler, 256 runs × 64 calls) | 7 / 7, 16,384 hostile calls | `forge test --match-path test/Invariant.t.sol` |
-| Off-chain policy tests | 13 / 13 | `npm test` |
+| Off-chain policy + mandate compiler tests | 15 / 15 | `npm test` |
 | Full local campaign (5 tasks + 13 attacks, fresh chain) | 18 / 18 | `scripts/local-campaign.ps1` |
 | Same 13 attacks launched from the web console | 13 / 13 | `npm run server`, Red team panel |
-| Live LLM runs (gpt-6.1-sol via Codex CLI, no tools) | 2 recorded, replayable | `evidence/model-runs/` |
+| Live LLM runs (gpt-6.1-sol via Codex CLI, no tools) | 2 routine plans + 3 mandate compilations, recorded and replayable | `evidence/model-runs/` |
 | Ethereum Sepolia deployment + campaign | **pending faucet funding** | see below |
 
 Every attack is sent for real with a fixed gas limit, so the refusal is **mined as a reverted transaction**. Every refusal has a public hash. We call this *proof of refusal*.
@@ -60,6 +66,7 @@ app/src/
   chain.js            chain-id guard, wallets, send-and-record (every tx goes to a JSONL journal)
   core.js             policy engine (judge), EIP-712 typed data, deterministic mandate text
   planner.js          LLM adapter, document scanner, review of model output
+  compiler.js         owner text → mandate struct → deterministic on-chain diff (CLI: compile.js)
   campaign.js         the 5 tasks and 13 attacks, shared by the CLI and the console
   scenes.js           CLI campaign runner → evidence/<net>-campaign-<run>.json
   server.js           local web console (127.0.0.1 only)
@@ -106,8 +113,9 @@ Open http://127.0.0.1:8791. Then:
 1. Run the weekly routine (recorded replay by default).
 2. Execute the tier-1 proposals.
 3. Review and sign the tier-2 tuition mandate.
-4. Launch any of the 13 attacks.
-5. Pull the kill switch.
+4. Compile an owner text in the Mandate editor and read the diff.
+5. Launch any of the 13 attacks.
+6. Pull the kill switch.
 
 Live model calls need `--allow-live` and a logged-in Codex CLI.
 

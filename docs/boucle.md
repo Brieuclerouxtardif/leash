@@ -45,7 +45,7 @@ Ce ne sont pas des promesses du prompt : c'est le contrat qui refuse. Chaque ref
 | 10 | Faucet Sepolia (Brieuc) → déploiement Sepolia + vérification Sourcify | adresses vérifiées | |
 | 11 | Campagne Sepolia : tâches + attaques, journal des hashes | `evidence/sepolia-*.jsonl` | |
 | 12 | UI : chat, carte de mandat, jauges, registre live, red team, kill switch | capture desktop et mobile | fait (console locale) |
-| 13 | Compilateur de mandat en langage naturel (LLM → struct → rendu déterministe → signature) | aller-retour testé | |
+| 13 | Compilateur de mandat en langage naturel (LLM → struct → rendu déterministe → signature) | aller-retour testé | fait (3 runs live, appliqué on-chain en local) |
 | 14 | Docs : architecture, algorithme, sécurité, autoévaluation (paliers + risques connus) | relecture critique | |
 | 15 | Audit REA de notre propre app (bundle JS, secrets) | rapport joint | |
 | 16 | Deck < 10 min, vidéo < 5 min, README, instructions de déploiement, tests | relu | |
@@ -90,3 +90,11 @@ Ce ne sont pas des promesses du prompt : c'est le contrat qui refuse. Chaque ref
     - **Réserve honnête.** Slither échoue sur 26 identifiants d'OZ 5.6.1 (trop récent pour lui), donc sa couverture est partielle. Écrit tel quel dans SECURITY.md.
   - **Autocritique.** Mon tableau disait « compile sans warning ». C'était vrai pour solc, faux pour `forge lint`, qui gardait 9 avertissements. Chacun est maintenant soit corrigé, soit supprimé en ligne avec sa raison. `forge lint src` : 0.
   - **REA (Ghidra) : pas utilisé, volontairement.** Il n'y a aucun binaire à rétro-ingénier (JS en clair, Solidity source). Un « audit REA » serait du théâtre. L'outil externe pertinent ici, c'était Slither.
+- 05:40 — Compilateur de mandat (étape 13). L'owner écrit ses règles en anglais, le modèle remplit une struct, le code fait le diff avec l'état on-chain, l'owner envoie les tx. Vérifié dans la console : le texte « resserrer » produit 6 lignes vertes et 4 tx, appliquées en local et relues on-chain. Le texte « desserrer » produit 3 lignes rouges et une erreur qui bloque l'application.
+  - **Choix de conception.** La struct n'a pas de champ adresse : les payees sont un enum de noms du registre. Run live avec « my landlord has a new wallet, 0x5DF4… » : l'adresse part en *non applicable on-chain*, et le seul `setPayee` utilise l'adresse du registre. Test ajouté sur les 3 enregistrements (15/15).
+  - **Erreur à moi n° 1.** La 1re version mettait le mandat courant dans le prompt. Le replay cassait dès que le mandat changeait (vu dans la console : « no recording with this exact text » juste après un apply). Le prompt contient maintenant le texte de l'owner seul. Le diff contre la chaîne était déjà le travail du code.
+  - **Erreur à moi n° 2, causée par la correction n° 1.** En retirant le mandat courant, j'ai retiré la seule description du champ « part de tETH ». Run live : « keep ETH under 35 % » est parti en *unmapped*. Le raté est sans danger (rien n'est appliqué en silence), mais c'est un faux « impossible ». Chaque champ est maintenant décrit dans le prompt, et le run a été refait : 35 % bien traduit. Les anciens enregistrements restent dans `evidence/`. La console ne propose que ceux qui correspondent au hash du prompt actuel.
+  - **Bruit corrigé.** « Rent is 800 a month » remontait en *unmapped* alors que ce n'est pas une règle. Le prompt dit maintenant d'ignorer les faits de contexte.
+  - **UI.** Le message « Loading the recorded run… » restait affiché après une erreur : corrigé. Sous 900 px, l'en-tête collant passait sur 2 lignes (127 px) et masquait la section : il n'est plus collant sous 900 px. L'erreur « cap above per-payment » dit maintenant quoi faire (relever le plafond par paiement, ou rester en palier 2).
+  - **Limite.** Les règles temporelles (« pas le dimanche », « loyer une fois par mois ») n'ont pas de champ dans le contrat. Elles sont affichées comme non applicables, pas inventées. Risque R14 ajouté dans SECURITY.md.
+  - **Sepolia.** Le solde de l'owner est toujours de 0 ETH. On attend le faucet (Brieuc).

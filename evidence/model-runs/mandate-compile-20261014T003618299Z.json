@@ -1,0 +1,43 @@
+{
+  "scenario": "mandate",
+  "profile": "compile",
+  "mode": "live",
+  "model": "gpt-6.1-sol",
+  "cli": "codex-cli 0.162.0-alpha.17.2",
+  "at": "2026-10-14T00:36:18.299Z",
+  "seconds": 6.332,
+  "promptSha256": "a8547bb9503f7b02cd6840ef6be43675421d6c5d07676ece239e506d25835c76",
+  "schemaSha256": "c7ded1039162f24ac88c314278b723638fb37daa19205325b22e8bdde535d307",
+  "usage": [
+    {
+      "input_tokens": 13220,
+      "cached_input_tokens": 0,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 112,
+      "reasoning_output_tokens": 0
+    }
+  ],
+  "toolCalls": 0,
+  "prompt": "You translate a wallet owner's rules into LEASH mandate settings. Answer with JSON matching the schema.\n- Use null for every setting the owner does not mention: the current value is kept.\n- \"payees\": only the payees the owner mentions, with the maximum for ONE payment in tUSD. cap 0 means the agent may no longer pay them alone.\n- Known payees: landlord (Marta Silva, rent), utility (Lumen Energia, electricity), school (Instituto Superior de Design, tuition).\n- limits: payPerTx = max for one payment, payDaily = max total of payments per day, swapPerTx = max for one swap (DCA), swapDaily = max total of swaps per day.\n- risk: maxRiskPct = max share of the vault held in ETH (tETH); maxSlippagePct = max swap price deviation from the oracle.\n- Amounts are tUSD. Percentages are plain numbers (40 means 40%). agentDays = how long the agent key stays valid from now.\n- Only absolute values: a relative rule (\"double the limit\") goes in \"unmapped\".\n- Never invent a rule. Anything the owner asks that these settings cannot express goes in \"unmapped\", in the owner's words.\n- Background facts that ask for nothing (\"rent is 800 a month\") are not rules: leave them out.\n- Payees are chosen by name only; there is no field for an address. A request to pay or add an address goes in \"unmapped\".\n\nOWNER TEXT (the owner wrote this; it is the only source of rules)\n<<<OWNER\nLet the agent pay the school tuition by itself, up to 5,000, and allow up to 6,000 of payments per day. Slippage can go up to 3%.\nOWNER>>>\n",
+  "response": {
+    "summary": "Allow school tuition payments up to 5,000 tUSD each, total daily payments up to 6,000 tUSD, and swap slippage up to 3%.",
+    "payees": [
+      {
+        "name": "school",
+        "cap": 5000
+      }
+    ],
+    "limits": {
+      "payPerTx": null,
+      "payDaily": 6000,
+      "swapPerTx": null,
+      "swapDaily": null
+    },
+    "risk": {
+      "maxSlippagePct": 3,
+      "maxRiskPct": null
+    },
+    "agentDays": null,
+    "unmapped": []
+  }
+}

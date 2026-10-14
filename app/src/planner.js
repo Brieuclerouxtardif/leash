@@ -10,7 +10,7 @@ import { judge, fmtUsd, opId } from './core.js';
 
 export const MODEL = process.env.LEASH_MODEL ?? 'gpt-6.1-sol';
 const DISABLED = ['shell_tool', 'apps', 'browser_use', 'computer_use', 'in_app_browser', 'plugins', 'remote_plugin', 'multi_agent', 'goals'];
-const sha = (s) => createHash('sha256').update(s).digest('hex');
+export const sha = (s) => createHash('sha256').update(s).digest('hex');
 
 export const SCHEMA = {
   type: 'object', additionalProperties: false, required: ['summary', 'intents', 'flags'],
@@ -112,11 +112,11 @@ function findCodex() {
 }
 
 /** One live model call. No tools, read-only sandbox, ephemeral, user config ignored. */
-export function callModel(prompt, { timeoutMs = 240000 } = {}) {
+export function callModel(prompt, { timeoutMs = 240000, schema = SCHEMA } = {}) {
   const exe = findCodex();
   const dir = mkdtempSync(join(tmpdir(), 'leash-plan-'));
   try {
-    writeFileSync(join(dir, 'schema.json'), JSON.stringify(SCHEMA));
+    writeFileSync(join(dir, 'schema.json'), JSON.stringify(schema));
     const args = ['exec', '--ignore-user-config', '--ephemeral', '--sandbox', 'read-only', '--model', MODEL, '--skip-git-repo-check',
       '--json', '--output-schema', join(dir, 'schema.json'), '--output-last-message', join(dir, 'response.json'), '--cd', dir];
     for (const f of DISABLED) args.push('--disable', f);
@@ -137,20 +137,22 @@ export function callModel(prompt, { timeoutMs = 240000 } = {}) {
 
 const RUNS = join(ROOT, 'evidence', 'model-runs');
 
-/** live: call the model and record everything. replay: reuse the latest recording, labelled as such. */
-export function propose({ scenario, profile, prompt, mode }) {
+/** live: call the model and record everything. replay: reuse the latest recording, labelled as such.
+ *  With exactPrompt, a replay must match the prompt byte for byte (used when the prompt is user text). */
+export function propose({ scenario, profile, prompt, mode, schema = SCHEMA, exactPrompt = false }) {
   mkdirSync(RUNS, { recursive: true });
   const tag = `${scenario}-${profile}`;
   if (mode === 'replay') {
-    const files = readdirSync(RUNS).filter((f) => f.startsWith(tag) && f.endsWith('.json')).sort();
-    if (!files.length) throw new Error(`no recording for ${tag}; run once with mode=live`);
+    const files = readdirSync(RUNS).filter((f) => f.startsWith(tag) && f.endsWith('.json')).sort()
+      .filter((f) => !exactPrompt || JSON.parse(readFileSync(join(RUNS, f), 'utf8')).promptSha256 === sha(prompt));
+    if (!files.length) throw new Error(`no recording for ${tag}${exactPrompt ? ' with this exact text' : ''}; run once with mode=live`);
     const rec = JSON.parse(readFileSync(join(RUNS, files.at(-1)), 'utf8'));
     return { ...rec, mode: 'RECORDED REPLAY', recording: files.at(-1), promptMatches: rec.promptSha256 === sha(prompt) };
   }
-  const out = callModel(prompt);
+  const out = callModel(prompt, { schema });
   const rec = {
     scenario, profile, mode: 'live', model: MODEL, cli: out.cli, at: new Date().toISOString(), seconds: out.seconds,
-    promptSha256: sha(prompt), schemaSha256: sha(JSON.stringify(SCHEMA)), usage: out.usage, toolCalls: out.toolCalls, prompt, response: out.response,
+    promptSha256: sha(prompt), schemaSha256: sha(JSON.stringify(schema)), usage: out.usage, toolCalls: out.toolCalls, prompt, response: out.response,
   };
   const file = `${tag}-${rec.at.replace(/[-:.]/g, '')}.json`;
   writeFileSync(join(RUNS, file), JSON.stringify(rec, null, 2));

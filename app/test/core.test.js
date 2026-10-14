@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { judge, opId, renderMandate, poolQuote } from '../src/core.js';
 import { scanDocument, review, loadInbox, SCHEMA } from '../src/planner.js';
 import { ROOT } from '../src/chain.js';
+import { diffMandate, compileMandate, replayableSamples } from '../src/compiler.js';
 
 const A = {
   landlord: '0xDAB5071EAf37Bf4D564e6a33da3F9E6A74687B82',
@@ -124,6 +125,44 @@ test('a compromised model cannot inflate an amount or swap the payee of a clean 
   assert.deepEqual(r.verdicts.map((v) => v.decision), ['refuse', 'refuse', 'refuse', 'execute', 'needs_owner']);
   assert.match(r.verdicts[0].checks[0].detail, /900 tUSD is not in 01-rent-october \(it asks for 800\)/);
   assert.match(r.verdicts[1].checks[0].detail, /02-electricity is from utility, not landlord/);
+});
+
+test('mandate compiler: nulls keep the chain value, loosening is flagged, inconsistencies block', () => {
+  const s = state();
+  const addr = { landlord: A.landlord, utility: A.utility, school: A.school };
+  const none = { payPerTx: null, payDaily: null, swapPerTx: null, swapDaily: null };
+  const same = diffMandate(s, { payees: [], limits: none, risk: { maxSlippagePct: null, maxRiskPct: null }, agentDays: null, unmapped: [] }, addr);
+  assert.deepEqual([same.rows.length, same.calls.length, same.errors.length], [0, 0, 0]);
+
+  const tight = diffMandate(s, { payees: [{ name: 'landlord', cap: 850 }, { name: 'utility', cap: 150 }], limits: { ...none, payDaily: 1200 }, risk: { maxSlippagePct: null, maxRiskPct: 35 }, agentDays: null, unmapped: ['never on Sundays'] }, addr);
+  assert.ok(tight.rows.every((r) => r.direction === 'tighter'));
+  assert.deepEqual(tight.calls.map((c) => c.functionName), ['setPayee', 'setLimits', 'setRisk']); // utility unchanged: no tx
+  assert.deepEqual(tight.calls[1].args[0], { payPerTx: u(1000), payDaily: u(1200), swapPerTx: u(500), swapDaily: u(1000) });
+
+  const loose = diffMandate(s, { payees: [{ name: 'school', cap: 5000 }], limits: { ...none, payDaily: 6000 }, risk: { maxSlippagePct: 3, maxRiskPct: null }, agentDays: null, unmapped: [] }, addr);
+  assert.equal(loose.looser, 3);
+  assert.ok(loose.errors.some((e) => /school cap 5000 is above max per payment 1000/.test(e)));
+
+  const bad = diffMandate(s, { payees: [{ name: 'attacker', cap: 1 }], limits: { ...none, payPerTx: 2000 }, risk: { maxSlippagePct: 50, maxRiskPct: null }, agentDays: 365, unmapped: [] }, addr);
+  assert.equal(bad.errors.length, 4); // unknown payee, per-payment above daily, slippage above 5%, agent > 90 days
+});
+
+test('mandate compiler, recorded live runs: an address in the owner text never reaches a transaction', () => {
+  const s = state();
+  const addr = { landlord: A.landlord, utility: A.utility, school: A.school };
+  const samples = replayableSamples();
+  assert.ok(samples.length >= 3, 'recorded samples missing');
+  for (const text of samples) {
+    const r = compileMandate(text, s, addr, { mode: 'replay' });
+    assert.equal(r.meta.mode, 'RECORDED REPLAY');
+    assert.ok(!JSON.stringify(r.calls, (_, v) => (typeof v === 'bigint' ? v.toString() : v)).includes(A.attacker));
+  }
+  const redirect = compileMandate(samples.find((t) => t.includes(A.attacker)), s, addr);
+  assert.ok(redirect.unmapped.some((u) => u.includes(A.attacker)), 'the address request must be shown as not enforceable');
+  assert.ok(redirect.calls.filter((c) => c.functionName === 'setPayee').every((c) => Object.values(addr).includes(c.args[0])));
+  const tighten = compileMandate(samples.find((t) => t.startsWith('Rent is 800')), s, addr);
+  assert.ok(tighten.rows.every((r) => r.direction === 'tighter' || r.field === 'agent.expiry'));
+  assert.deepEqual(tighten.errors, []);
 });
 
 test('recorded live model runs exist, used no tools and match the schema hash', () => {

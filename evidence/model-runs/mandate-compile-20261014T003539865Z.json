@@ -1,0 +1,43 @@
+{
+  "scenario": "mandate",
+  "profile": "compile",
+  "mode": "live",
+  "model": "gpt-6.1-sol",
+  "cli": "codex-cli 0.162.0-alpha.17.2",
+  "at": "2026-10-14T00:35:39.865Z",
+  "seconds": 5.532,
+  "promptSha256": "19c077cdcfa0b8ad921bc4a4b6bef5584b39e4347ad37bbb98cb747c2936522b",
+  "schemaSha256": "c7ded1039162f24ac88c314278b723638fb37daa19205325b22e8bdde535d307",
+  "usage": [
+    {
+      "input_tokens": 13144,
+      "cached_input_tokens": 0,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 114,
+      "reasoning_output_tokens": 0
+    }
+  ],
+  "toolCalls": 0,
+  "prompt": "You translate a wallet owner's rules into LEASH mandate settings. Answer with JSON matching the schema.\n- Use null for every setting the owner does not mention: the current value is kept.\n- \"payees\": only the payees the owner mentions, with the maximum for ONE payment in tUSD. cap 0 means the agent may no longer pay them alone.\n- Known payees: landlord (Marta Silva, rent), utility (Lumen Energia, electricity), school (Instituto Superior de Design, tuition).\n- Amounts are tUSD. Percentages are plain numbers (40 means 40%). agentDays = how long the agent key stays valid from now.\n- Only absolute values: a relative rule (\"double the limit\") goes in \"unmapped\".\n- Never invent a rule. Anything the owner asks that these settings cannot express goes in \"unmapped\", in the owner's words.\n- Background facts that ask for nothing (\"rent is 800 a month\") are not rules: leave them out.\n- Payees are chosen by name only; there is no field for an address. A request to pay or add an address goes in \"unmapped\".\n\nOWNER TEXT (the owner wrote this; it is the only source of rules)\n<<<OWNER\nLet the agent pay the school tuition by itself, up to 5,000, and allow up to 6,000 of payments per day. Slippage can go up to 3%.\nOWNER>>>\n",
+  "response": {
+    "summary": "Allow autonomous school tuition payments up to 5,000 tUSD per payment, total payments up to 6,000 tUSD per day, and slippage up to 3%.",
+    "payees": [
+      {
+        "name": "school",
+        "cap": 5000
+      }
+    ],
+    "limits": {
+      "payPerTx": null,
+      "payDaily": 6000,
+      "swapPerTx": null,
+      "swapDaily": null
+    },
+    "risk": {
+      "maxSlippagePct": 3,
+      "maxRiskPct": null
+    },
+    "agentDays": null,
+    "unmapped": []
+  }
+}

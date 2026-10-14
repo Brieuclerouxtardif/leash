@@ -9,6 +9,7 @@ import { readState, execute, renderMandate, mandateTypedData, fmtUsd, opId, used
 import { loadInbox, buildPrompt, propose, review, scanDocument, MODEL } from './planner.js';
 import { makeCampaign, outcomeOf } from './campaign.js';
 import { INSTRUCTION, WEEK } from './routine.js';
+import { compileMandate, diffMandate, replayableSamples } from './compiler.js';
 
 const arg = (k, def) => { const i = process.argv.indexOf(`--${k}`); return i > 0 ? process.argv[i + 1] : def; };
 const NET = arg('network', 'local');
@@ -22,6 +23,7 @@ const d = loadDeployment(NET);
 let lastPaid = null;
 const campaign = makeCampaign(ctx, d, runId, { lastPaid: () => lastPaid });
 let plan = null; // last proposal + verdicts
+let draft = null; // last compiled mandate: the model's struct, re-diffed against the live state before applying
 const ledger = []; // this session's entries, newest last
 
 const big = (_, v) => (typeof v === 'bigint' ? v.toString() : v);
@@ -109,6 +111,29 @@ const routes = {
     const e = await ctx.send('agent', { address: d.vault, abi: ABI.vault, functionName: 'payWithMandate', args: [to, amount, id, deadline, sig], scene: 'console', label: renderMandate(pend.m, s.payees), force: true });
     plan.pending = null;
     return log({ kind: 'mandate', ...strip(e) });
+  },
+  'GET /api/mandate/samples': async () => replayableSamples(),
+  'POST /api/mandate/compile': async ({ text, mode = 'replay' }) => {
+    if (!['replay', 'live'].includes(mode)) throw new Error('bad mode');
+    if (mode === 'live' && !ALLOW_LIVE) throw new Error('live model calls are disabled; start the server with --allow-live');
+    const r = compileMandate(text, await readState(ctx, d), ctx.addr, { mode });
+    draft = { struct: r.struct };
+    log({ kind: 'plan', label: `mandate compiled (${r.meta.mode}): ${r.rows.length} changes, ${r.looser} looser`, status: 'info' });
+    return { ...r, calls: r.calls.map((c) => c.label) };
+  },
+  'POST /api/mandate/apply': async () => {
+    if (!draft) throw new Error('compile a mandate first');
+    const r = diffMandate(await readState(ctx, d), draft.struct, ctx.addr); // re-diff against the chain as it is now
+    if (r.errors.length) throw new Error(`not applied: ${r.errors.join('; ')}`);
+    if (!r.calls.length) throw new Error('nothing to change');
+    const out = [];
+    for (const c of r.calls) {
+      const e = await ctx.send('owner', { address: d.vault, abi: ABI.vault, functionName: c.functionName, args: c.args, scene: 'console', label: `owner: ${c.label}` });
+      out.push(log({ kind: 'owner', ...strip(e) }));
+      if (e.status !== 'success') break;
+    }
+    draft = null;
+    return out;
   },
   'POST /api/attack': async ({ id }) => {
     const a = campaign.attacks.find((x) => x.id === id);
