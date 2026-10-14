@@ -205,3 +205,19 @@ Ce ne sont pas des promesses du prompt : c'est le contrat qui refuse. Chaque ref
   - **Diagnostic ajouté.** `cdp.mjs` dit maintenant « after N s without a message: did the computer sleep? » quand la fermeture suit un long silence.
   - **Critique de ma méthode, encore.** Même erreur qu'à 16:08 : j'ai fait des hypothèses (port, taille des images, durée, puis mémoire) avant de regarder la source de vérité. Le journal d'événements Windows répondait en une commande. Règle : sur une mort inexpliquée d'un processus long, lire d'abord `Get-WinEvent` (Kernel-Power, Application 1000).
   - **Rendu final.** Refait à 23:55 : 3:00, 1080p, 90,7 Mo (le débit varie d'un rendu à l'autre ; sous les 100 Mo cette fois, sans marge). Une image au milieu de chacune des 8 coupes : bandeau lisible dans l'en-tête, y compris la coupe de 60 s d'A9 sous un sous-titre remonté.
+
+- 00:11 (réel, 15/10) — Le repo vu par un juge : clone neuf, README suivi à la lettre.
+  - **Avant de rendre public.** Rendre le repo public publie tous les commits, pas seulement le dernier. J'ai donc cherché dans les 24 commits :
+    - aucun fichier de `secrets/`, `.env` ou `local-access.json` n'y est jamais entré ;
+    - aucune affectation de clé, et aucune des 7 clés réelles n'apparaît dans l'historique (comptage seulement, rien d'affiché).
+  - **Clone neuf, dans un dossier vide.**
+    - `npm ci --offline` passe : le lockfile est suivi et forge-std est copié dans le repo.
+    - `keys.js` régénère `secrets/`, le seul fichier ignoré dont l'app a besoin.
+    - Forge 34 + 7 et npm 17/17 passent.
+    - Sur un second anvil (port 8546, via `LEASH_LOCAL_RPC`), le deploy et la campagne donnent 18/18.
+    - Le serveur répond : routine, exécution, A2, A10, redémarrage. Un POST sans jeton reçoit un 403.
+  - **Ce que le test a attrapé.**
+    - Forge 1.8 range les 7 invariants dans une seule campagne. Il affiche 7 lignes `[PASS]`, mais son résumé dit « 1 passed », et « 35 tests » pour l'ensemble. Le README (« 7 / 7 ») disait vrai, mais un juge qui ne lit que la dernière ligne aurait cru à un chiffre gonflé. Le README le dit maintenant.
+    - `LEASH_LOCAL_RPC` et `LEASH_SEPOLIA_RPC` existaient dans le code sans être documentés. Un juge dont le port 8545 est pris serait resté bloqué. Ajouté au README.
+    - Le README disait `npm install`, mais c'est `npm ci` que j'ai testé. Remplacé.
+  - **Critique.** J'avais annoncé « 7 / 7 » sans jamais regarder ce qu'affiche la ligne de résumé de forge. Un chiffre vrai mais présenté autrement que l'outil coûte de la crédibilité au moment précis où le juge vérifie. Règle : chaque chiffre du README doit se retrouver tel quel dans la sortie de la commande citée à côté, ou être accompagné de la conversion.
