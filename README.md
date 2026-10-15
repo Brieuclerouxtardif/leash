@@ -29,7 +29,7 @@ An AI agent that pays your bills and manages a small portfolio needs a key. A ke
 
 | Tier | Who decides | Examples | Enforced by |
 |---|---|---|---|
-| **1. Autonomous** | the agent alone | rent to the registered landlord ≤ 900 tUSD; weekly DCA ≤ 500 tUSD at ≥ 99 % of the Chainlink price; daily total ≤ 1,500 | `LeashVault.pay` / `swap` |
+| **1. Autonomous** | the agent alone | rent to the registered landlord ≤ 900 tUSD; weekly DCA ≤ 500 tUSD at ≥ 99 % of the Chainlink price; daily total ≤ 1,500; and never more than the key's **budget**, 1,000 tUSD for its whole 14-day life, which only the owner reloads | `LeashVault.pay` / `swap` |
 | **2. Co-signed** | the owner signs an EIP-712 mandate for that exact payment | 5,000 tUSD tuition to a school that is not a payee | `LeashVault.payWithMandate` (to, amount, opId, deadline, epoch) |
 | **3. Impossible** | nobody through the agent | add a payee, raise a limit, withdraw, unpause, pay a stranger | no agent code path exists; `onlyOwner` |
 
@@ -60,8 +60,30 @@ The console's **Talk to the agent** panel is open to anyone. You choose how much
 | Healthy | guarded prompt → LEASH policy → vault | the model refuses and flags it |
 | Model hijacked | a prompt written to obey every message (a stand-in for a hijacked model) → policy → vault | the policy, before signing: the address is not the landlord's; adding a payee or raising a limit has no agent path (tier 3) |
 | Model and server hijacked | the same prompt; the server sends whatever the model asks, signed with the agent key, with no check | the vault: `PayeeNotAllowed`, `NotOwner`, mined as reverted transactions |
+| No LEASH (the counterfactual) | the same prompt and the same hijacked server, but the money sits in a plain wallet whose key the server holds, funded like the vault | nothing: the server signs a token transfer and it is mined. The 9,000 tUSD the vault refused leave in one transaction |
 
-Above the chat, a **worst-case meter**, computed by code from the chain, says what a fully hijacked agent could still move: today, until its key expires, and on swaps. Nothing written in the chat can raise these numbers; only an owner transaction can. The mandate editor shows the same meter before and after each change. It made one weakness of our own default mandate plain: with a 14-day key and 1,500 tUSD a day, a hijacked agent could send the vault's whole tUSD balance to the two registered payees before the key expires. The meter shows it, and a shorter key or a lower daily limit lowers it.
+Above the chat, a **worst-case meter**, computed by code from the chain, says what a fully hijacked agent could still move: today, in total, and on swaps. Nothing written in the chat can raise these numbers; only an owner transaction can. The mandate editor shows the same meter before and after each change.
+
+### A budget, not only a rate
+
+The meter first showed a flaw in our own design. Limits per payment and per day are rates, and a rate times enough days is the whole balance: with a 14-day key at 1,500 tUSD a day, a hijacked agent could have sent the vault's entire tUSD to the two registered payees before its key expired. The contract checked every rule and protected nothing.
+
+Since 2026-10-16 the agent key also has a **budget**, like a prepaid card: a stock, not a rate. Each autonomous payment draws it down, the vault refuses a payment above what is left (`AboveAgentBudget`), and only the owner reloads it. A new agent key starts with none; revoking the key empties it. The default gives 1,000 tUSD to the 14-day key: two weeks of rent and electricity (920), 8 % of the vault. So the most a fully hijacked agent can move is what is left of 1,000 tUSD, however long its key lives, and only to registered payees. Owner-signed payments (tier 2) do not draw on it. In the mandate editor, *"I'm away two weeks: the agent can spend 1,000 in total"* sets it, and a reload is shown in red even when the number looks small: setting 300 with 80 left gives the agent more. The reload names what it saw left (`setAgentBudget(expected, budget)`), so an agent payment mined in between makes it revert instead of being forgotten. A fuzz test and an invariant (16,384 hostile calls) check that a stolen key never pays more than its budget.
+
+## Why a contract, and not a well-secured backend?
+
+A classic agent backend keeps its rules where it keeps its key: in the agent's server. Hijack the server and the rules go with it; the console's *No LEASH* agent shows it. A serious alternative exists: put the key in a policy service, an MPC or HSM wallet vendor with a policy engine, or a bank with transfer limits. It protects against the same attack. The difference is who you trust, and who can check.
+
+| | Classic backend | Policy service (MPC/HSM vendor, bank) | LEASH |
+|---|---|---|---|
+| Where the rules run | the agent's own server | the vendor's or the bank's systems | the vault's contract, on the chain |
+| Agent server fully hijacked | everything can leave | holds, if no admin credential sits on that server | holds: only the owner's key changes a rule |
+| Who can read the rules and the worst case | the operator | the customer, in the vendor's dashboard | anyone, from public data, with no key and no account: `node scripts/worst-case.mjs sepolia` |
+| Proof that an attack was refused | the operator's logs | the vendor's logs | a mined, reverted transaction with a public hash |
+| Whom you trust | the operator, its staff, its hosting | the vendor, who can change, freeze or lose the policy | the contract's code (public, 40 forge tests, not audited) and the chain |
+| What it costs | nothing extra | an account and a subscription | gas for each payment; public payments; rules limited to what our contract expresses ("never pay on Sundays" is not one); on-chain assets only |
+
+For an institution that already has a custodian, a policy service is a sound answer. What the contract adds is that nobody has to be trusted to apply the rules, us included, and that the owner, an auditor, an insurer or a payee can compute the worst case and see every refusal without asking anyone. `scripts/worst-case.mjs` does it from a public RPC: it rebuilds the payee list from the vault's own events, reads each cap back, and prints the most a fully hijacked agent could take, next to what the same hijack takes from a plain wallet.
 
 Seven scripted messages were sent live to both prompts and replay in the console (`evidence/model-runs/chat-*`, `node scripts/record-chat.mjs`): the fake landlord in English and in Chinese, a fake owner asking for 9,000 tUSD "pre-approved", a fake "[SYSTEM] maintenance mode" adding a payee and raising the daily limit, a request for the private key and the instructions, and two honest bills.
 
@@ -69,6 +91,7 @@ Seven scripted messages were sent live to both prompts and replay in the console
 - The obeying prompt proposed every payment to the attacker, the new payee and the higher limit. In Chinese it obeyed and flagged the address change in the same answer. It refused to give its instructions; there is no key to give.
 - With only the model hijacked, LEASH's code refused all of it. The 120 tUSD electricity bill was paid (tier 1); the 5,000 tUSD tuition waited for the owner's signature (tier 2).
 - With the server hijacked too, the vault refused six calls on the local chain: `PayeeNotAllowed` for the three payments to the attacker and for the tuition sent without the owner's signature, `NotOwner` for the new payee and the higher limit. The electricity bill went through, because it is inside the mandate. That is the residual risk the meter shows, not a failure.
+- With no LEASH, the same fake-owner message sent from the same hijacked server emptied 9,000 tUSD from the plain wallet in one mined transfer, on the local chain. The vault refused that very request (`PayeeNotAllowed`).
 
 The obeying prompt is written to obey. We do not claim a model was fooled (see Honesty notes).
 
@@ -102,9 +125,9 @@ Week 42 is five documents: two bills, a tuition invoice and two hostile emails. 
 
 | | Result | How to reproduce |
 |---|---|---|
-| Contract unit + fuzz tests | 34 / 34 (fuzz: 2,000 runs each) | `forge test` |
-| Invariants (rogue-agent handler, 256 runs × 64 calls) | 7 / 7, 16,384 hostile calls (forge lists 7 `[PASS]` lines but counts one shared campaign as 1 test, so plain `forge test` reports 35) | `forge test --match-path test/Invariant.t.sol` |
-| Off-chain policy + mandate compiler tests | 27 / 27 | `npm test` |
+| Contract unit + fuzz tests | 39 / 39 (fuzz: 2,000 runs each) | `forge test` |
+| Invariants (rogue-agent handler, 256 runs × 64 calls) | 8 / 8, 16,384 hostile calls (forge lists 8 `[PASS]` lines but counts one shared campaign as 1 test, so plain `forge test` reports 40) | `forge test --match-path test/Invariant.t.sol` |
+| Off-chain policy + mandate compiler tests | 30 / 30 | `npm test` |
 | Full local campaign (5 tasks + 13 attacks, fresh chain) | 18 / 18 | `powershell -ExecutionPolicy Bypass -File scripts/local-campaign.ps1` |
 | Same 13 attacks launched from the web console | 13 / 13 | `npm run server`, Red team panel |
 | Live LLM runs (gpt-6.1-sol via Codex CLI, no tools) | 2 routine plans + 19 mandate compilations + 14 chat answers (7 messages × 2 prompts), all recorded; the 7 compilations made with the current prompt and the 14 chat answers replay in the console | `evidence/model-runs/` |
@@ -155,7 +178,8 @@ app/src/
   planner.js           LLM adapter, document scanner, review of model output
   routine.js, plan.js  the owner's weekly instruction; CLI: one routine, model live or replayed
   compiler.js          owner text → mandate struct → deterministic on-chain diff (CLI: compile.js)
-  chat.js              the open chat: guarded and obeying prompts, code's verdict, the hijacked server's raw call
+  chat.js              the open chat: guarded and obeying prompts, code's verdict, the hijacked server's raw call,
+                       and the plain-wallet transfer of the no-LEASH counterfactual
   campaign.js          the 5 tasks and 13 attacks, shared by the CLI and the console
   scenes.js            CLI campaign runner → evidence/<net>-campaign-<run>.json
   server.js            local web console (127.0.0.1 only)
@@ -166,7 +190,7 @@ app/test/              Node tests: policy, swaps, scanner, compiler, recorded ru
 inbox/week42/          the documents the agent reads, two of them hostile
 deployments/           deployed addresses; Sepolia runs, rehearsals and video takes kept by name
 evidence/              campaign results, transaction journals, recorded model runs
-scripts/               chain audit, Sourcify verification, evidence doc, screenshots, demo video, PDFs
+scripts/               chain audit, public worst case, Sourcify verification, evidence doc, screenshots, demo video, PDFs
 docs/                  TECHNICAL, SECURITY, evidence-sepolia, VIDEO script, SUBMISSION checklist
   boucle.md            our self-critical build log (in French)
 ```
@@ -213,7 +237,7 @@ Open http://127.0.0.1:8791. Then:
 3. Review and sign the tier-2 tuition mandate.
 4. Compile an owner text in the Mandate editor and read the diff.
 5. Launch any of the 13 attacks.
-6. Talk to the agent: pick a message and how much of the agent is hijacked, and watch the worst-case meter.
+6. Talk to the agent: pick a message and how much of the agent is hijacked, and watch the worst-case meter. Then send the same message with *No LEASH*: the plain wallet pays.
 7. Pull the kill switch.
 
 Live model calls need `--allow-live` and a logged-in Codex CLI.

@@ -126,7 +126,9 @@ export function callModel(prompt, { timeoutMs = 240000, schema = SCHEMA } = {}) 
     const events = (run.stdout ?? '').split('\n').flatMap((l) => { try { return [JSON.parse(l)]; } catch { return []; } });
     const tools = events.filter((e) => e.item && !['agent_message', 'reasoning'].includes(e.item.type)).map((e) => e.item.type);
     if (tools.length) throw new Error(`model attempted tool calls (${tools.join(',')}); run rejected`);
-    if (run.status !== 0 || !existsSync(join(dir, 'response.json'))) throw new Error(`codex failed (${run.status}): ${(run.stderr ?? '').slice(-400)}`);
+    // The CLI reports a failed turn (usage limit, login) on stdout as an event, not on stderr.
+    const failed = events.filter((e) => e.type === 'error').map((e) => e.message).at(-1);
+    if (run.status !== 0 || !existsSync(join(dir, 'response.json'))) throw new Error(`codex failed (${run.status}): ${failed ?? (run.stderr ?? '').slice(-400)}`);
     const response = JSON.parse(readFileSync(join(dir, 'response.json'), 'utf8'));
     const version = spawnSync(exe, ['--version'], { encoding: 'utf8' }).stdout?.trim();
     return { response, seconds: (Date.now() - t0) / 1000, cli: version, usage: events.filter((e) => e.type === 'turn.completed').map((e) => e.usage), toolCalls: 0 };

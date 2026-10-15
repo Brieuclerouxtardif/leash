@@ -90,12 +90,71 @@ contract PayTest is LeashBase {
     function test_revoke_kills_agent() public {
         vm.prank(owner);
         vault.revokeAgent();
+        assertEq(vault.agentBudget(), 0);
         vm.prank(agent);
         vm.expectRevert(LeashVault.NotAgent.selector);
         vault.pay(utility, 10e6, "x");
     }
 
-    /// All ten onlyOwner functions listed in SECURITY.md (tier 3), from the agent key and from the guardian.
+    /// The daily cap alone would let a stolen key take 1,500 a day until expiry: 30 days, the whole vault.
+    function test_budget_bounds_the_key_for_life() public {
+        uint256 paid;
+        for (uint256 d; d < 30; d++) {
+            vm.prank(agent);
+            try vault.pay(landlord, 900e6, keccak256(abi.encode("rent", d))) {
+                paid += 900e6;
+            } catch (bytes memory err) {
+                assertEq(err, abi.encodeWithSelector(LeashVault.AboveAgentBudget.selector, 900e6, 500e6));
+                break;
+            }
+            vm.warp(vm.getBlockTimestamp() + 1 days);
+        }
+        assertEq(paid, 4500e6);
+        assertEq(vault.agentBudget(), 500e6);
+        vm.prank(agent);
+        vault.pay(utility, 150e6, "last"); // what is left can still be spent, and nothing more
+        assertEq(usd.balanceOf(landlord) + usd.balanceOf(utility), BUDGET - 350e6);
+    }
+
+    function test_owner_reloads_the_budget() public {
+        vm.prank(owner);
+        vault.setAgentBudget(BUDGET, 100e6);
+        vm.prank(agent);
+        vm.expectRevert(abi.encodeWithSelector(LeashVault.AboveAgentBudget.selector, 101e6, 100e6));
+        vault.pay(landlord, 101e6, "x");
+        vm.prank(owner);
+        vault.setAgentBudget(100e6, 800e6);
+        vm.prank(agent);
+        vault.pay(landlord, 800e6, "x");
+        assertEq(vault.agentBudget(), 0);
+    }
+
+    /// The owner saw 100 left and reloads to 800; the agent's payment mined first must not be forgotten (SECURITY.md R16).
+    function test_budget_reload_reverts_if_the_agent_spent_meanwhile() public {
+        vm.prank(owner);
+        vault.setAgentBudget(BUDGET, 100e6);
+        vm.prank(agent);
+        vault.pay(utility, 100e6, "front-run");
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSelector(LeashVault.BudgetChanged.selector, 100e6, 0));
+        vault.setAgentBudget(100e6, 800e6);
+        assertEq(vault.agentBudget(), 0);
+    }
+
+    function test_new_agent_key_starts_with_no_budget() public {
+        address agent2 = makeAddr("agent2");
+        vm.prank(owner);
+        vault.setAgent(agent, uint64(vm.getBlockTimestamp() + 7 days)); // renewing the same key keeps it
+        assertEq(vault.agentBudget(), BUDGET);
+        vm.prank(owner);
+        vault.setAgent(agent2, uint64(vm.getBlockTimestamp() + 7 days));
+        assertEq(vault.agentBudget(), 0);
+        vm.prank(agent2);
+        vm.expectRevert(abi.encodeWithSelector(LeashVault.AboveAgentBudget.selector, 1e6, 0));
+        vault.pay(utility, 1e6, "x");
+    }
+
+    /// All eleven onlyOwner functions listed in SECURITY.md (tier 3), from the agent key and from the guardian.
     function test_admin_is_owner_only() public {
         address[2] memory callers = [agent, guardian];
         uint256 epoch = vault.epoch();
@@ -112,6 +171,8 @@ contract PayTest is LeashBase {
             vm.expectRevert(LeashVault.NotOwner.selector);
             vault.setAgent(attacker, type(uint64).max);
             vm.expectRevert(LeashVault.NotOwner.selector);
+            vault.setAgentBudget(BUDGET, type(uint128).max);
+            vm.expectRevert(LeashVault.NotOwner.selector);
             vault.revokeAgent();
             vm.expectRevert(LeashVault.NotOwner.selector);
             vault.bumpEpoch();
@@ -127,6 +188,7 @@ contract PayTest is LeashBase {
         assertEq(vault.guardian(), guardian);
         assertEq(address(vault.pool()), address(pool));
         assertEq(vault.payeeCap(attacker), 0);
+        assertEq(vault.agentBudget(), BUDGET);
         assertEq(vault.epoch(), epoch);
         assertFalse(vault.paused());
     }
@@ -228,6 +290,7 @@ contract MandateTest is LeashBase {
         vm.prank(agent);
         vault.payWithMandate(school, 5000e6, "tuition", deadline, sig);
         assertEq(usd.balanceOf(school), 5000e6);
+        assertEq(vault.agentBudget(), BUDGET, "the owner signed this one: it is not the agent's money");
     }
 
     function test_mandate_rejects_foreign_signer() public {
@@ -332,6 +395,21 @@ contract StolenKeyFuzz is LeashBase {
         }
         assertLe(total, 1500e6, "daily cap breached");
         assertEq(usd.balanceOf(landlord), total);
+    }
+
+    /// Over any number of days, the stolen key moves at most its budget, whatever the daily cap allows.
+    function testFuzz_stolen_key_total_bounded_by_budget(uint256[12] memory amounts, uint256[12] memory gaps) public {
+        uint256 total;
+        for (uint256 i; i < amounts.length; i++) {
+            vm.warp(vm.getBlockTimestamp() + bound(gaps[i], 0, 3 days));
+            uint256 a = bound(amounts[i], 1, 1000e6);
+            vm.prank(agent);
+            try vault.pay(i % 2 == 0 ? landlord : utility, a, bytes32(i)) {
+                total += a;
+            } catch {}
+        }
+        assertLe(total, BUDGET, "budget breached");
+        assertEq(total + vault.agentBudget(), BUDGET);
     }
 
     function testFuzz_mandate_needs_owner_key(uint256 pk) public {

@@ -42,6 +42,9 @@ contract LeashVault is EIP712, ReentrancyGuard {
 
     address public agent;
     uint64 public agentExpiry;
+    /// What tier-1 payments may still take, in stable units, for the key's whole life: a stock, not a rate.
+    /// Daily limits bound the speed; this bounds the total, so a hijacked agent can never empty the vault.
+    uint128 public agentBudget;
     address public guardian;
     bool public paused;
     uint32 public epoch; // bumping it voids every outstanding owner mandate
@@ -57,6 +60,7 @@ contract LeashVault is EIP712, ReentrancyGuard {
     event Paid(bytes32 indexed opId, address indexed to, uint256 amount, uint8 tier);
     event Swapped(bytes32 indexed opId, bool buyRisky, uint256 amountIn, uint256 amountOut, uint256 fairOut);
     event AgentSet(address agent, uint64 expiry);
+    event AgentBudgetSet(uint128 budget);
     event PayeeSet(address indexed payee, uint256 cap);
     event LimitsSet(Limits limits);
     event RiskSet(Risk risk);
@@ -77,6 +81,8 @@ contract LeashVault is EIP712, ReentrancyGuard {
     error AbovePayeeCap(uint256 amount, uint256 cap);
     error AbovePerTxLimit(uint256 amount, uint256 limit);
     error AboveDailyLimit(uint256 wouldBe, uint256 limit);
+    error AboveAgentBudget(uint256 amount, uint256 budget);
+    error BudgetChanged(uint256 expected, uint256 actual);
     error MandateExpired(uint64 deadline);
     error BadMandateSignature();
     error BadOraclePrice();
@@ -126,7 +132,12 @@ contract LeashVault is EIP712, ReentrancyGuard {
         uint256 day = block.timestamp / 1 days;
         uint256 wouldBe = paidOnDay[day] + amount;
         if (wouldBe > limits.payDaily) revert AboveDailyLimit(wouldBe, limits.payDaily);
+        uint128 budget = agentBudget;
+        if (amount > budget) revert AboveAgentBudget(amount, budget);
         paidOnDay[day] = wouldBe;
+        // casting to 'uint128' is safe because amount <= budget, a uint128, was checked above
+        // forge-lint: disable-next-line(unsafe-typecast)
+        agentBudget = budget - uint128(amount);
         emit Paid(opId, to, amount, 1);
         stable.safeTransfer(to, amount);
     }
@@ -179,14 +190,25 @@ contract LeashVault is EIP712, ReentrancyGuard {
 
     // ---------------------------------------------------------------- owner and guardian
 
-    /// A new agent key never inherits the old key's mandates. address(0) is allowed: it disables the agent.
+    /// A new agent key never inherits the old key's mandates or budget. address(0) is allowed: it disables the agent.
     // forge-lint: disable-next-line(missing-zero-check)
     function setAgent(address agent_, uint64 expiry) external onlyOwner {
         bool rotated = agent_ != agent;
         agent = agent_;
         agentExpiry = expiry;
         emit AgentSet(agent_, expiry);
-        if (rotated) _bumpEpoch();
+        if (rotated) {
+            _setAgentBudget(0);
+            _bumpEpoch();
+        }
+    }
+
+    /// Loads the agent key like a prepaid card: the total its tier-1 payments may take from now on.
+    /// Compare-and-set: the owner states what they saw left. An agent payment mined in between makes the
+    /// reload revert, instead of being forgotten by it.
+    function setAgentBudget(uint128 expected, uint128 budget) external onlyOwner {
+        if (agentBudget != expected) revert BudgetChanged(expected, agentBudget);
+        _setAgentBudget(budget);
     }
 
     /// Kill the agent and void every mandate it holds, in one transaction.
@@ -194,6 +216,7 @@ contract LeashVault is EIP712, ReentrancyGuard {
         agent = address(0);
         agentExpiry = 0;
         emit AgentSet(address(0), 0);
+        _setAgentBudget(0);
         _bumpEpoch();
     }
 
@@ -293,6 +316,11 @@ contract LeashVault is EIP712, ReentrancyGuard {
         uint256 riskyValue = _riskyToStable(risky.balanceOf(address(this)), price);
         uint256 total = riskyValue + stable.balanceOf(address(this));
         return total == 0 ? 0 : riskyValue * 10_000 / total;
+    }
+
+    function _setAgentBudget(uint128 budget) private {
+        agentBudget = budget;
+        emit AgentBudgetSet(budget);
     }
 
     function _bumpEpoch() private {

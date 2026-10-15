@@ -23,7 +23,7 @@ function state(over = {}) {
     now: 1_800_000_000n, agent: '0x4B2afDa45aa306B02ee4b5286585BC558c165fbD', agentExpiry: 1_800_100_000n, paused: false, epoch: 1,
     limits: { payPerTx: u(1000), payDaily: u(1500), swapPerTx: u(500), swapDaily: u(1000) },
     risk: { maxSlippageBps: 100, maxRiskBps: 4000, maxOracleAge: 7200 },
-    paidToday: 0n, swappedToday: 0n, usd: u(12000), eth: 12n * 10n ** 17n, ethValue: u(3000), price, priceUpdatedAt: 1_800_000_000n - 60n,
+    agentBudget: u(5000), paidToday: 0n, swappedToday: 0n, usd: u(12000), eth: 12n * 10n ** 17n, ethValue: u(3000), price, priceUpdatedAt: 1_800_000_000n - 60n,
     riskBps: 2000, pool: { usd: u(500000), eth: 200n * 10n ** 18n, price },
     payees: { landlord: { address: A.landlord, cap: u(900) }, utility: { address: A.utility, cap: u(150) }, school: { address: A.school, cap: 0n } },
     ...over,
@@ -54,6 +54,13 @@ test('malformed model output is refused, never escalated to the owner', () => {
 test('legitimate payment above tier 1 asks the owner', () => {
   assert.equal(J({ type: 'pay', payee: 'school', amount: 5000 }).decision, 'needs_owner');
   assert.equal(J({ type: 'pay', payee: 'landlord', amount: 800 }, state({ paidToday: u(800) })).decision, 'needs_owner');
+});
+
+test('a payment beyond what is left of the agent key\'s budget asks the owner, inside every other limit', () => {
+  const v = J({ type: 'pay', payee: 'landlord', amount: 800 }, state({ agentBudget: u(799) }));
+  assert.equal(v.decision, 'needs_owner');
+  assert.deepEqual(v.checks.filter((c) => !c.ok).map((c) => c.rule), ['within the agent key\'s budget']);
+  assert.equal(J({ type: 'pay', payee: 'landlord', amount: 800 }, state({ agentBudget: u(800) })).decision, 'execute');
 });
 
 test('paused, expired or replayed operations are refused outright', () => {
@@ -160,6 +167,12 @@ test('mandate compiler: nulls keep the chain value, loosening is flagged, incons
   assert.deepEqual([renew.rows.length, renew.calls.length], [0, 0]);
   const renew2 = diffMandate({ ...s, agentExpiry: s.now + 86400n }, { ...blank, agentDays: 7 }, addr);
   assert.deepEqual([renew2.rows.map((r) => r.field), renew2.calls.map((c) => c.functionName)], [['agent.expiry'], ['setAgent']]);
+
+  // The budget replaces what is left, it does not add: 300 is a reload with 80 left, a cut with 800 left.
+  const reload = diffMandate({ ...s, agentBudget: u(80) }, { ...blank, agentDays: null, agentBudget: 300 }, addr);
+  assert.deepEqual([reload.rows.map((r) => [r.field, r.direction]), reload.calls.map((c) => c.args)], [[['agent.budget', 'looser']], [[u(80), u(300)]]]);
+  assert.equal(diffMandate({ ...s, agentBudget: u(800) }, { ...blank, agentDays: null, agentBudget: 300 }, addr).rows[0].direction, 'tighter');
+  assert.equal(diffMandate(s, { ...blank, agentDays: null, agentBudget: -1 }, addr).errors.length, 1);
 });
 
 test('mandate compiler, recorded live runs: an address in the owner text never reaches a transaction', () => {
