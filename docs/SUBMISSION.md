@@ -15,7 +15,7 @@ Source: the rules page of fintechathon.g-ican.com (`#/rule`, International Track
   - security & compliance 30 %: defence against induced transfers, data extraction, privilege escalation and prompt injection; "serious security failures trigger substantial deductions";
   - innovation & interaction 30 %: novelty, real-world value, dialogue efficiency, clarification, correction and fallback;
   - a capped 0–5 bonus for advanced topics or real-world deployment.
-- **Calendar (UTC+8):** compliance screening 10-21, online review 10-22 and 23, finalists and invitations 10-31, English defence at WeBank in Shenzhen 11-22, awards 11-23. Appeals within three business days of the results.
+- **Calendar (UTC+8, rules page, international track):** compliance screening 10-21, online review 10-23, finalists and invitations 10-31, check-in and WeBank visit in Shenzhen 11-20, English defence 11-22, finale 11-23. Appeals within three business days of the results.
 - **Third-party code must be properly licensed:** ours is OpenZeppelin and viem (MIT) and forge-std (MIT or Apache-2.0, license files vendored). See the README.
 
 | Deliverable | Where | State |

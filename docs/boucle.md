@@ -318,3 +318,17 @@ Ce ne sont pas des promesses du prompt : c'est le contrat qui refuse. Chaque ref
   - **Le tableau des livrables n'avait ni la vidéo ni le deck**, alors que le règlement les exige. Je n'ai pas mis de ligne vide « à venir » qu'un juré pourrait lire : presubmit avertit tant que le README ne les lie pas, et l'étape 9 de SUBMISSION dit quand les ajouter.
   - `2-video.cmd` rend aussi les PDF avec l'URL du repo, une seule saisie. Je l'ai testé par cmd avec une fausse URL. Les PDF de `work/pdf` pointaient alors vers ce faux repo : je les ai re-rendus aussitôt, et il ne reste aucun lien faux. LISEZ-MOI dit maintenant que la vidéo est obligatoire et comment soumettre.
   - **Critique.** Ces deux schémas étaient faux depuis le premier jour. Je les ai relus des dizaines de fois en Markdown, où l'œil complète les colonnes. Seul un rendu les a montrés. Le test qui aurait dû exister : mesurer les colonnes des caractères de cadre, ce qui prend 10 lignes de script. Il est maintenant dans presubmit (1654ef2). Je l'ai vérifié sur les versions d'avant la correction : il signale bien les deux schémas.
+- 02:31 (réel, 15/10) — La « valeur mesurable » du Challenge Brief n'avait aucun chiffre. Commit dc8b0f5.
+  - **Le trou.** Le brief demande un agent qui montre une « measurable value ». Le README racontait la semaine 42 sans chiffrer ce qu'elle apporte. Nouvelle section « Measured on week 42 », chaque ligne avec sa source (run 4, campagne locale, runs modèle enregistrés) :
+    - une instruction et une signature pour la semaine ;
+    - 9 800 tUSD demandés par les deux documents hostiles, rien payé ;
+    - pire cas avec la clé agent volée : 1 500/jour (3 000 à cheval sur minuit), vers les deux bénéficiaires seulement ;
+    - arrêt en une transaction ;
+    - plan en 18,7 s ;
+    - coût en gaz.
+  - **Le gaz.** Un paiement de niveau 1 à 380k gaz sur Sepolia, contre 80–114k sur anvil, m'a fait chercher un bug. Il n'y en a pas : chaque nouvel emplacement de stockage coûte ~98k sur Sepolia contre ~17k sur anvil (mesuré sur T1−T2, T2−A5 et un `approve` : 46 376 contre 128 296). Les écritures sur un emplacement existant coûtent pareil, à 4 % près. Je n'attribue pas la cause à un hard fork précis : je ne l'ai pas vérifié, donc je ne l'écris pas.
+  - **Deck v18.** Diapo routine : « 9,800 tUSD asked for, none paid » et, dans les notes, une instruction, une signature et un plan en 19 s. Les notes font 140 mots pour 60 s. Rendu vérifié par Edge headless, sans débordement. La v17 était publiée avec la mauvaise racine (un fichier en double hors de `project/`) ; je l'ai corrigée aussitôt en v18.
+  - **SUBMISSION.** Le calendrier est recopié de la page du site : revue en ligne le 23/10, check-in le 20/11. L'ancien « 10-22 et 23 » n'avait aucune source que je retrouve. Je l'ai supprimé plutôt que de lui en inventer une.
+  - **Critique.**
+    - « Sepolia coûte environ 3× plus » était écrit dans quatre fichiers et un générateur, sans mesure. La mesure donne 2–2,4× pour un swap et ~6× pour une création de stockage : selon l'opération, le « 3× » était trop haut ou trop bas. **Un ratio qui sert d'explication se mesure avant de s'écrire.**
+    - Pour la v17, j'ai repris la racine de mémoire au lieu de relire ma note. C'est la liste des fichiers renvoyée par le publish qui a montré l'erreur. **Lire cette liste après chaque publish.**
