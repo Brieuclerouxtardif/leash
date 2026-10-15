@@ -1,0 +1,33 @@
+{
+  "network": "basefork",
+  "chainId": 31337,
+  "deployedAt": "2026-10-15T11:49:04.227Z",
+  "owner": "0x7d3FA41264BB82535Cb3F8296F1107EAe64A25c9",
+  "txs": {
+    "deploy:usd": "0x59d6f001df3744f4c8785bc24a54645dd284c36c05d88781152b28ba60c6f236",
+    "deploy:eth": "0x8091ca0a9336e0c014a95374ef379d96b61278b38b4e36b84c39c4496260ebfc",
+    "deploy:pool": "0x42d00b2bcca14f5e9bebbfd7d12b0a4753cfbe3845bd7e07bddc8cf47f0ef267",
+    "mint:pool-usd": "0x4684378144be16a3098c8321eae0e8a0c67673b32ee51d56a64b535ba4239322",
+    "mint:pool-eth": "0x19a665c374b1f9f136b3958bfb548fdf4f32470a360095ca7a81080cf5833e42",
+    "approve:usd": "0x8da2e5698d70fd80d00593c7525487472e8d4c4515f45fe2b5ea3109b90ae980",
+    "approve:eth": "0x92618c4c22176f16e8ac18aaccfa858d05187e9a1d780fa74552c7db059413f0",
+    "pool:liquidity": "0x881b7fc4e5f1fd54fae0561272b4debb142bde7f78f6d0062b775be7c214ffce",
+    "deploy:vault": "0xb0a905a08f4fe0e027ecba47efb87e2d85664fd02c566a93b6e4379dd3e7300e",
+    "setAgent": "0x14d0e88d6e00efa8113a0fa3137ba1ea997be52e0a0578adb25e079482f4e709",
+    "setGuardian": "0x1e6a707d12545faa2592a8be61c47736e932cab3172f9d211cdba25d35f647ef",
+    "setPool": "0x23df61c479605a64dcea49a84ec6f89705d991bd02f19b68ede90b15f17353f5",
+    "setLimits": "0x7e8f103e5ace994b613da10b293b17b5a13324b12b78190daa2438a1bb0843a7",
+    "setRisk": "0x227bf9397d090fec3caded62f728db592c51d9babbe8fd2ab07c7c6ea6fe55f3",
+    "setPayee:landlord": "0x03ff791bbd9595dbacdefe580fc2d5eb78fee1c98525a499b3742bf24939f6d1",
+    "setPayee:utility": "0x1f5e00ce5fca86e8a1db0f51383873e7796206254a462e05caca1315085f40b2",
+    "fund:usd": "0x181ade010b3257dfe8129b520a68b728d0797aad7eb2114262c838a334fe8759",
+    "fund:eth": "0xa147e01325a80b9192602956a7d5be8f0052af7c88f641c4b61cbc6dded74f4a",
+    "mint:attacker": "0xd859e5fe87394694946ab19f6e607f61b9d2051d57c48a1d4e7d1331d797b82c"
+  },
+  "usd": "0xbb00acc2655f8a3e68a68445c3eae8ab9a415873",
+  "eth": "0xdd8dfc8e91a1124e2a476370c2356fd59f71eecb",
+  "oracle": "0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70",
+  "priceAtDeploy": 2366.0653,
+  "pool": "0x3b6c8bda38394dba99847caf3fb93698038588ca",
+  "vault": "0xa65341d0b522cd1d0a9d40a726df79c796bd4c0a"
+}
