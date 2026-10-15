@@ -2,7 +2,7 @@
 
 **An AI wallet agent that can spend, but can't run away.**
 
-FinTechathon 2026, Topic F: Autonomous On-chain Wallet.
+FinTechathon 2026, Topic F: Agent Wallet (autonomous on-chain wallet).
 
 An AI agent that pays your bills and manages a small portfolio needs a key. A key can be stolen, and a model can be talked into things: a fake "new bank details" invoice, a prompt injection hidden in an email. LEASH accepts that the agent will one day be wrong or compromised, and makes sure that **the worst it can do is bounded by a contract, not by the model's good behaviour.**
 
