@@ -123,6 +123,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: #fff; f
 .atk.fail { border-color: var(--bad); }
 
 .ledger li { border-left: 3px solid var(--line); padding: 6px 8px 6px 10px; background: var(--panel2); border-radius: 0 8px 8px 0; font-size: 12px; display: grid; gap: 2px; animation: in .35s cubic-bezier(.2,.8,.2,1); }
+#ledger li:not(.new) { animation: none; }
 .ledger li.success { border-left-color: var(--ok); }
 .ledger li.reverted { border-left-color: var(--bad); }
 .ledger li.refused-before-signing { border-left-color: var(--warn); }

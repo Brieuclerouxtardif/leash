@@ -307,17 +307,25 @@ function link(hash, reverted = false) {
 }
 
 // ------------------------------------------------------------------ ledger
+// The 5 s refresh redraws the list; only rows not shown before fade in, or the whole ledger blinks every 5 s.
+let ledgerShown = null;
 function renderLedger(rows) {
-  const items = rows.filter((r) => r.kind !== 'plan').slice().reverse().map((r) => {
+  rows = rows.filter((r) => r.kind !== 'plan');
+  const key = (r) => `${r.at}|${r.hash ?? r.label ?? r.fn ?? ''}|${r.status ?? ''}`;
+  const sig = rows.map(key).join('\n');
+  if (sig === ledgerShown?.sig) return;
+  const seen = new Set(ledgerShown?.keys ?? []);
+  const items = rows.slice().reverse().map((r) => {
     const st = r.status ?? 'info';
     const why = st === 'reverted' || st === 'refused-before-signing' ? reasonOf(r) : null;
-    return h('li', { class: st },
+    return h('li', { class: seen.has(key(r)) ? st : `${st} new` },
       h('div', { class: 'l1' }, h('span', { class: 'st' }, st === 'refused-before-signing' ? 'refused (software)' : st === 'reverted' ? 'refused (contract)' : st), h('span', { class: 'meta' }, r.at?.slice(11, 19))),
       h('div', { class: 'lbl' }, r.title ?? r.label ?? r.fn ?? ''),
       why && h('div', { class: 'why' }, why),
       r.hash && link(r.hash, st === 'reverted'));
   });
   $('ledger').replaceChildren(...(items.length ? items : [h('li', { class: 'meta' }, 'Nothing yet. Run the routine or launch an attack.')]));
+  ledgerShown = { sig, keys: rows.map(key) };
 }
 
 async function loadEvidence() {
