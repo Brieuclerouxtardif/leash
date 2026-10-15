@@ -41,13 +41,24 @@ The owner does not type basis points. In the console's Mandate editor they write
 
 ![Mandate editor: three loosening rows in red, blocked by an inconsistency](docs/screens/mandate-editor-loosen.png)
 
+## How the agent deals with the owner
+
+| | What LEASH does |
+|---|---|
+| Few turns | one instruction from the owner, plus the inbox, gives the whole week's plan in one model call |
+| Asking the owner | only when the contract requires it: a payment above the agent's limits becomes a signature request, with text written by code. A suspicious document is reported with the reason |
+| Correcting | a mandate error says how to fix it ("raise max per payment too, or keep these payments owner-signed"). The owner edits the text and compiles again. Apply refuses if the chain changed since the diff was shown |
+| Out of scope | what the contract cannot express ("double it", "pay this new address") is listed as *not enforceable on-chain*, in the owner's words. A payment the policy cannot justify is refused, never guessed. A stale oracle stops swaps |
+
+What it does not do: hold a conversation. The agent never asks a question before planning, and the owner cannot answer a flag in the console; they change the mandate or sign.
+
 ## What works today
 
 | | Result | How to reproduce |
 |---|---|---|
 | Contract unit + fuzz tests | 34 / 34 (fuzz: 2,000 runs each) | `forge test` |
 | Invariants (rogue-agent handler, 256 runs × 64 calls) | 7 / 7, 16,384 hostile calls (forge lists 7 `[PASS]` lines but counts one shared campaign as 1 test, so plain `forge test` reports 35) | `forge test --match-path test/Invariant.t.sol` |
-| Off-chain policy + mandate compiler tests | 17 / 17 | `npm test` |
+| Off-chain policy + mandate compiler tests | 18 / 18 | `npm test` |
 | Full local campaign (5 tasks + 13 attacks, fresh chain) | 18 / 18 | `powershell -ExecutionPolicy Bypass -File scripts/local-campaign.ps1` |
 | Same 13 attacks launched from the web console | 13 / 13 | `npm run server`, Red team panel |
 | Live LLM runs (gpt-6.1-sol via Codex CLI, no tools) | 2 routine plans + 3 mandate compilations, recorded and replayable | `evidence/model-runs/` |
@@ -133,7 +144,7 @@ The campaign prints 18 lines and writes `evidence/local-campaign-<run>.json`. On
 
 If port 8545 is taken, start anvil with `--port 8546` and set `LEASH_LOCAL_RPC=http://127.0.0.1:8546`. `LEASH_SEPOLIA_RPC` overrides the Sepolia node, which defaults to publicnode.
 
-These steps were replayed on 2026-10-15 from a fresh clone, with no prior build. Results: `npm ci`, then 34 + 7 forge tests, 17 Node tests and 18/18 on the campaign.
+These steps were replayed on 2026-10-15 from a fresh clone, with no prior build. Results: `npm ci`, then 34 + 7 forge tests, 17 Node tests (18 since a test added later that day) and 18/18 on the campaign.
 
 ### Web console
 

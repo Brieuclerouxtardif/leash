@@ -14,9 +14,9 @@ LEASH gives the agent a key that is **useful for routine work and harmless beyon
 ## 2. Architecture
 
 ```
-            ┌──────────────── off-chain (app/src) ────────────────┐        ┌──── on-chain (contracts/src) ────┐
- owner ───► │ instruction                                          │        │                                  │
- inbox ───► │ planner.js ── LLM (Codex CLI, no tools) ─► intents   │        │  LeashVault                      │
+            ┌───────────────── off-chain (app/src) ─────────────────┐        ┌──── on-chain (contracts/src) ────┐
+ owner ───► │ instruction                                           │        │                                  │
+ inbox ───► │ planner.js ── LLM (Codex CLI, no tools) ─► intents    │        │  LeashVault                      │
  (untrusted)│      │                                                │        │   ├─ tier 1: pay / swap          │
             │      ▼                                                │        │   ├─ tier 2: payWithMandate      │
             │ review(): scanner, source/amount/payee rules          │        │   ├─ owner: limits, payees, risk │
@@ -24,7 +24,7 @@ LEASH gives the agent a key that is **useful for routine work and harmless beyon
             │ core.judge(): registry, limits, oracle floor, exposure│        │        │            │            │
             │      ▼                                                │  tx    │        ▼            ▼            │
             │ chain.send(): chain guard → simulate → sign → journal │ ─────► │  LeashPool     Chainlink feed    │
-            └──────────────────────────────────────────────────────┘        └──────────────────────────────────┘
+            └────────────────────────────────────────────────┬──────┘        └──────────────────────────────────┘
                      ▲                                       │ hashes, statuses, decoded reverts
              server.js console (127.0.0.1)  ◄────────────────┘ evidence/*.jsonl, *.json
 ```
@@ -181,7 +181,7 @@ The full threat model, attack catalogue and known-risk list are in [SECURITY.md]
 |---|---|---|
 | Contract | unit and fuzz (`LeashVault.t.sol`) | 34 |
 | Contract | invariants with a rogue-agent handler (`Invariant.t.sol`) | 7 invariants, 16,384 calls |
-| Off-chain | policy, scanner, simulated hostile model output, recorded runs, mandate compiler | 15 |
+| Off-chain | policy, scanner, simulated hostile model output, recorded runs, mandate compiler, revert labelling, no secret in any prompt sent to the model | 18 |
 | End to end | `scenes.js` on a fresh chain | 18 scenes |
 | UI | 13 attacks fired from the console on a fresh chain | 13 |
 
@@ -194,3 +194,5 @@ The full threat model, attack catalogue and known-risk list are in [SECURITY.md]
 - Structured invoice extraction (R10).
 - An external audit (R12).
 - Mandate compiler: time rules ("not on Sundays", "rent once a month") need new contract fields; today they are shown as not enforceable (R14).
+- A real dialogue. The agent never asks before planning, and a flag cannot be answered from the console. Next: a `questions` field in the plan schema (for example "the electricity bill is 3× last month's: pay it?"), answered by the owner in one click. The answer would go back through the policy, never straight to a transaction. This changes the schema, so it needs new recorded runs.
+- KYC, sanctions screening and data minimisation before the model call (SECURITY.md §7).

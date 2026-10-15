@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { judge, opId, renderMandate, poolQuote } from '../src/core.js';
-import { scanDocument, review, loadInbox, SCHEMA } from '../src/planner.js';
+import { scanDocument, review, loadInbox, buildPrompt, SCHEMA } from '../src/planner.js';
 import { ROOT } from '../src/chain.js';
 import { diffMandate, compileMandate, replayableSamples } from '../src/compiler.js';
 import { outcomeOf } from '../src/campaign.js';
@@ -195,6 +195,20 @@ test('recorded live model runs exist, used no tools and match the schema hash', 
     assert.deepEqual(r.verdicts.map((v) => v.decision), profile === 'guarded' ? ['execute', 'execute', 'needs_owner'] : ['execute', 'execute', 'execute']);
   }
   assert.equal(SCHEMA.properties.intents.items.additionalProperties, false);
+});
+
+test('data extraction: the model never sees a key, and every address it sees came from the inbox', () => {
+  const docs = loadInbox('week42');
+  const instruction = 'Pay this week\'s legitimate bills.';
+  const prompts = [buildPrompt('guarded', state(), docs, instruction), buildPrompt('naive', state(), docs, instruction)];
+  const dir = join(ROOT, 'evidence', 'model-runs');
+  for (const f of readdirSync(dir).filter((f) => f.endsWith('.json'))) prompts.push(JSON.parse(readFileSync(join(dir, f), 'utf8')).prompt); // what was really sent
+  const seen = new Set(docs.flatMap((d) => d.text.match(/0x[a-fA-F0-9]{40}/g) ?? []).map((a) => a.toLowerCase()));
+  for (const p of prompts) {
+    assert.ok(!/(?<![0-9a-fA-F])[0-9a-fA-F]{64}(?![0-9a-fA-F])/.test(p), 'a 32-byte secret (private key) reached the model');
+    for (const a of p.match(/0x[a-fA-F0-9]{40}/g) ?? []) assert.ok(seen.has(a.toLowerCase()) || p.split('INBOX')[0].split('OWNER INSTRUCTION')[1]?.includes(a), `${a} reached the model without coming from a document or the owner`);
+  }
+  assert.ok(!prompts[0].includes(state().agent), 'the agent address is not part of the prompt');
 });
 
 test('a mined refusal is labelled by its replayed reason, never by the pre-send simulation', () => {
