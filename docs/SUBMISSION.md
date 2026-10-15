@@ -89,7 +89,9 @@ Registration and submission are one email to fintechathon@ican-x.com. The site o
 
 ## To ask the organizers
 
-- Do Sepolia testnet hashes count as on-chain proof?
+- Do Sepolia testnet hashes count as on-chain proof? If the answer is mainnet, or if no answer comes by
+  the 18th, the branch `base-mainnet` reruns the campaign on Base (about $5 of gas to fund, $0.20 spent;
+  steps in its `docs/BASE.md`). Real money: the team decides, and it has never been rehearsed, so run it early.
 - Can the registered topic move from C to F?
 
 Ready to paste, to fintechathon@ican-x.com (fill in the two brackets):
