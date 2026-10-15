@@ -38,6 +38,32 @@ export async function readState(ctx, d) {
   };
 }
 
+const DAY = 86400n;
+const ZERO = '0x0000000000000000000000000000000000000000';
+
+/**
+ * The most the agent key can move if everything off-chain is hijacked: the model, LEASH's code and the key
+ * itself. It is read from the vault's own limits, so it is also the most any message, from anyone, can make
+ * the agent do. Owner-signed payments are not in it: they need the owner's key, which the agent never holds.
+ */
+export function worstCase(s) {
+  const to = Object.entries(s.payees).filter(([, p]) => p.cap > 0n).map(([n]) => n);
+  const live = !s.paused && s.agent !== ZERO && s.agentExpiry >= s.now;
+  const perDay = to.length ? s.limits.payDaily : 0n;
+  // The vault counts payments per UTC day (block.timestamp / 1 days); a new day starts at each midnight before expiry.
+  const today = live && perDay > s.paidToday ? perDay - s.paidToday : 0n;
+  const newDays = live ? s.agentExpiry / DAY - s.now / DAY : 0n;
+  const total = today + newDays * perDay;
+  return {
+    live, to, perDay: fmtUsd(perDay), today: fmtUsd(today), expiry: Number(s.agentExpiry),
+    // When the vault balance is the bound, a shorter key no longer shows in untilExpiry: days still does.
+    days: live ? Number(newDays) + 1 : 0, byBalance: total > s.usd,
+    untilExpiry: fmtUsd(total < s.usd ? total : s.usd),
+    // A swap can only fail to get the oracle price by the slippage bound, on at most swapDaily a day.
+    swapLossPerDay: fmtUsd((s.limits.swapDaily * BigInt(s.risk.maxSlippageBps)) / 10000n),
+  };
+}
+
 /** Canonical op id: the same obligation always maps to the same id, so it can never run twice. */
 export const opId = (key) => keccak256(toHex(`leash:${key}`));
 

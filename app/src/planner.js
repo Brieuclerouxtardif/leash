@@ -159,8 +159,12 @@ export function propose({ scenario, profile, prompt, mode, schema = SCHEMA, exac
   return { ...rec, recording: file, promptMatches: true };
 }
 
-/** Turn a model response into verdicts. Keys are derived by code so the same document is never paid twice. */
-export function review(response, s, docs, { used = new Set(), week = 'week', instruction = '' } = {}) {
+/** The obligation an intent stands for: same week, source, recipient and amount = same key = paid once. */
+export const keyOf = (week, i) => (i.type === 'pay' ? `${week}:${i.source}:${i.payee || i.to}:${i.amount}` : `${week}:${i.source}:swap:${i.side}:${i.amount}`);
+
+/** Turn a model response into verdicts. Keys are derived by code so the same document is never paid twice.
+ *  `amounts` reads the amounts a source asks for (invoices write "800 tUSD"; chat messages may not). */
+export function review(response, s, docs, { used = new Set(), week = 'week', instruction = '', amounts = amountsIn } = {}) {
   const codeFlags = Object.fromEntries(docs.map((d) => [d.id, scanDocument(d.text, s.payees)]));
   // An unknown address seen in a flagged document is denylisted for the run, whatever route an intent takes
   // to it: a fraudster who also writes to the owner cannot get the owner to relay the address to the agent.
@@ -169,7 +173,7 @@ export function review(response, s, docs, { used = new Set(), week = 'week', ins
     .flatMap((d) => d.text.match(/0x[a-fA-F0-9]{40}/g) ?? []).map((a) => a.toLowerCase()).filter((a) => !known.has(a)));
   const verdicts = (response.intents ?? []).map((intent) => {
     const src = intent.source;
-    const key = intent.type === 'pay' ? `${week}:${src}:${intent.payee || intent.to}:${intent.amount}` : `${week}:${src}:swap:${intent.side}:${intent.amount}`;
+    const key = keyOf(week, intent);
     const docFlags = codeFlags[src] ?? [];
     if (src !== 'owner' && !codeFlags[src]) {
       return { intent, key, decision: 'refuse', tier: 3, opId: opId(key), checks: [{ rule: 'cites a real inbox document', ok: false, detail: `"${src}" is not in the inbox` }] };
@@ -183,8 +187,8 @@ export function review(response, s, docs, { used = new Set(), week = 'week', ins
     }
     const text = src === 'owner' ? instruction : docs.find((d) => d.id === src).text;
     // A model cannot round an 800 rent up to the 900 cap, or pay twice by changing the amount (the key includes it).
-    if ((intent.type === 'pay' || intent.side === 'buy') && !amountsIn(text).includes(Number(intent.amount))) {
-      return { intent, key, decision: 'refuse', tier: 3, opId: opId(key), checks: [{ rule: 'amount is the one the source asks for', ok: false, detail: `${intent.amount} tUSD is not in ${src} (it asks for ${amountsIn(text).join(', ') || 'no tUSD amount'})` }] };
+    if ((intent.type === 'pay' || intent.side === 'buy') && !amounts(text).includes(Number(intent.amount))) {
+      return { intent, key, decision: 'refuse', tier: 3, opId: opId(key), checks: [{ rule: 'amount is the one the source asks for', ok: false, detail: `${intent.amount} tUSD is not in ${src} (it asks for ${amounts(text).join(', ') || 'no tUSD amount'})` }] };
     }
     // A document that names a payee can only pay that payee: the electricity bill cannot fund the landlord.
     const named = Object.keys(s.payees).filter((n) => new RegExp(`\\b${n}\\b`, 'i').test(text));

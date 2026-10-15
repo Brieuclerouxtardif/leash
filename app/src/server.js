@@ -5,11 +5,12 @@ import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { join, extname } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { connect, loadDeployment, ROOT, ABI } from './chain.js';
-import { readState, execute, renderMandate, mandateTypedData, fmtUsd, opId, usedOpIds } from './core.js';
-import { loadInbox, buildPrompt, propose, review, scanDocument, MODEL } from './planner.js';
+import { readState, execute, renderMandate, mandateTypedData, fmtUsd, opId, usedOpIds, worstCase } from './core.js';
+import { loadInbox, buildPrompt, propose, review, scanDocument, keyOf, MODEL } from './planner.js';
 import { makeCampaign, outcomeOf } from './campaign.js';
 import { INSTRUCTION, WEEK } from './routine.js';
 import { compileMandate, diffMandate, replayableSamples } from './compiler.js';
+import { AGENTS, profileOf, chatPrompt, chatSamples, recordedProfiles, judgeChat, rawCall, CHAT_SCHEMA } from './chat.js';
 
 const arg = (k, def) => { const i = process.argv.indexOf(`--${k}`); return i > 0 ? process.argv[i + 1] : def; };
 const NET = arg('network', 'local');
@@ -25,6 +26,9 @@ const campaign = makeCampaign(ctx, d, runId, { lastPaid: () => lastPaid });
 let plan = null; // last proposal + verdicts
 let draft = null; // last compiled mandate: the model's struct, re-diffed against the live state before applying
 const ledger = []; // this session's entries, newest last
+const asks = []; // chat intents that wait for the owner's signature, re-judged before signing
+let pending = null; // the mandate on screen: { from, i, m }
+let msgs = 0;
 
 const big = (_, v) => (typeof v === 'bigint' ? v.toString() : v);
 const json = (res, code, body) => { res.writeHead(code, { 'content-type': 'application/json', 'cache-control': 'no-store' }); res.end(JSON.stringify(body, big)); };
@@ -46,16 +50,65 @@ async function snapshot() {
     limits: Object.fromEntries(Object.entries(s.limits).map(([k, v]) => [k, fmtUsd(v)])), risk: s.risk,
     paidToday: fmtUsd(s.paidToday), swappedToday: fmtUsd(s.swappedToday),
     payees: Object.fromEntries(Object.entries(s.payees).map(([k, v]) => [k, { address: v.address, cap: fmtUsd(v.cap) }])),
+    worst: worstCase(s),
   };
 }
 
-async function rejudge(i) {
+// A proposal is judged again against the chain as it is now, from the routine (`plan`) or from the chat.
+async function rejudge(i, from = 'plan') {
+  const s = await readState(ctx, d);
+  if (from === 'chat') {
+    const a = asks[i];
+    if (!a) throw new Error('no such request');
+    return { v: judgeChat(a.intent, s, a.doc, { used: await usedOpIds(ctx, d, [opId(a.key)]), week: a.week }), s };
+  }
   const v = plan?.verdicts?.[i];
   if (!v) throw new Error('no such proposal');
-  const s = await readState(ctx, d);
   const used = await usedOpIds(ctx, d, [opId(v.key)]);
   const r = review({ intents: [v.intent] }, s, plan.docs, { used, week: WEEK, instruction: INSTRUCTION }).verdicts[0];
   return { v: r, s };
+}
+
+/** One chat message: the model answers, then each intent goes through what is left of LEASH for that agent. */
+async function talk({ text, agent = 'healthy', mode = 'replay' }) {
+  if (!AGENTS.includes(agent) || !['replay', 'live'].includes(mode)) throw new Error('bad agent or mode');
+  if (typeof text !== 'string' || !text.trim() || text.length > 1000) throw new Error('a message is 1–1000 characters');
+  if (mode === 'live' && !ALLOW_LIVE) throw new Error('live model calls are disabled; start the server with --allow-live');
+  const profile = profileOf(agent);
+  const p = propose({ scenario: 'chat', profile, prompt: chatPrompt(profile, text), mode, schema: CHAT_SCHEMA, exactPrompt: true });
+  const doc = { id: `msg-${++msgs}`, text };
+  const week = `chat-${runId}`;
+  const s0 = await readState(ctx, d);
+  const out = {
+    id: doc.id, agent, reply: p.response.reply, modelFlags: p.response.flags ?? [], codeFlags: scanDocument(text, s0.payees),
+    meta: { mode: p.mode, model: p.model, seconds: p.seconds, at: p.at, recording: p.recording }, results: [],
+  };
+  log({ kind: 'plan', label: `chat ${doc.id} (${agent}, ${p.mode}): ${(p.response.intents ?? []).length} intents`, status: 'info' });
+  for (const [k, raw] of (p.response.intents ?? []).slice(0, 5).entries()) {
+    const intent = { ...raw, source: doc.id };
+    if (agent === 'server') {
+      // Model, code and key all in the attacker's hands: the call goes out as asked, and only the vault decides.
+      const call = rawCall(intent, s0, d, `${week}:${doc.id}:${k}`);
+      if (!call) { out.results.push({ intent, sent: false, note: 'nothing the contract could take (no valid address or amount)' }); continue; }
+      const e = await ctx.send('agent', { address: d.vault, abi: ABI.vault, ...call, scene: 'chat', label: `hijacked server: ${call.functionName} (${doc.id})`, force: true });
+      out.results.push({ intent, sent: true, call: call.functionName, tx: log({ kind: 'chat', ...strip(e) }) });
+      continue;
+    }
+    const key = keyOf(week, intent);
+    const s = await readState(ctx, d);
+    const v = judgeChat(intent, s, doc, { used: await usedOpIds(ctx, d, [opId(key)]), week });
+    const r = { intent, decision: v.decision, tier: v.tier, checks: v.checks };
+    // The agent acts alone inside tier 1, as in the routine; above it, the owner is asked; the rest is refused.
+    if (v.decision === 'execute') {
+      const e = await execute(ctx, d, v, { scene: 'chat', label: `${intent.reason} (${doc.id})` });
+      remember(e, v);
+      r.tx = log({ kind: 'chat', ...strip(e) });
+    } else if (v.decision === 'needs_owner') {
+      r.ask = asks.push({ intent, key, doc, week }) - 1;
+    }
+    out.results.push(r);
+  }
+  return out;
 }
 
 function remember(entry, verdict) {
@@ -81,7 +134,7 @@ const routes = {
     const s = await readState(ctx, d);
     const docs = loadInbox(WEEK);
     const p = propose({ scenario: WEEK, profile, prompt: buildPrompt(profile, s, docs, INSTRUCTION), mode });
-    const keys = (p.response.intents ?? []).map((i) => opId(i.type === 'pay' ? `${WEEK}:${i.source}:${i.payee || i.to}:${i.amount}` : `${WEEK}:${i.source}:swap:${i.side}:${i.amount}`));
+    const keys = (p.response.intents ?? []).map((i) => opId(keyOf(WEEK, i)));
     const r = review(p.response, s, docs, { used: await usedOpIds(ctx, d, keys), week: WEEK, instruction: INSTRUCTION });
     plan = { profile, docs, ...r, meta: { mode: p.mode, model: p.model, seconds: p.seconds, recording: p.recording, at: p.at, promptMatches: p.promptMatches } };
     log({ kind: 'plan', label: `${p.mode} · ${profile} · ${r.verdicts.length} intents`, status: 'info' });
@@ -94,24 +147,26 @@ const routes = {
     remember(e, v);
     return log({ kind: 'agent', ...strip(e) });
   },
-  'POST /api/mandate/preview': async ({ i }) => {
-    const { v, s } = await rejudge(i);
+  'POST /api/mandate/preview': async ({ i, from = 'plan' }) => {
+    const { v, s } = await rejudge(i, from);
     if (v.decision !== 'needs_owner') throw new Error(`this proposal is "${v.decision}" now, not awaiting your signature`);
     const m = { to: v.to, amount: v.amount, opId: v.opId, deadline: s.now + 3600n, epoch: s.epoch };
-    plan.pending = { i, m };
+    pending = { from, i, m };
     return { text: renderMandate(m, s.payees), typed: mandateTypedData(ctx, d, m), checks: v.checks };
   },
-  'POST /api/mandate/sign': async ({ i }) => {
-    const pend = plan?.pending;
-    if (!pend || pend.i !== i) throw new Error('preview the mandate first');
+  'POST /api/mandate/sign': async ({ i, from = 'plan' }) => {
+    const pend = pending;
+    if (!pend || pend.i !== i || pend.from !== from) throw new Error('preview the mandate first');
     const s = await readState(ctx, d);
     if (pend.m.epoch !== s.epoch) throw new Error('the vault epoch changed; preview again');
     const sig = await ctx.wallets.owner.signTypedData(mandateTypedData(ctx, d, pend.m));
     const { to, amount, opId: id, deadline } = pend.m;
     const e = await ctx.send('agent', { address: d.vault, abi: ABI.vault, functionName: 'payWithMandate', args: [to, amount, id, deadline, sig], scene: 'console', label: renderMandate(pend.m, s.payees), force: true });
-    plan.pending = null;
+    pending = null;
     return log({ kind: 'mandate', ...strip(e) });
   },
+  'GET /api/chat/samples': async () => chatSamples(ctx.addr.attacker).map((text) => ({ text, recorded: recordedProfiles(text) })),
+  'POST /api/chat': talk,
   'GET /api/mandate/samples': async () => replayableSamples(),
   'POST /api/mandate/compile': async ({ text, mode = 'replay', answers = [] }) => {
     if (!['replay', 'live'].includes(mode)) throw new Error('bad mode');
@@ -120,7 +175,8 @@ const routes = {
     const r = compileMandate(text, s, ctx.addr, { mode, answers });
     draft = { struct: r.struct, now: s.now, shown: JSON.stringify([r.rows, r.calls], big), questions: r.questions };
     log({ kind: 'plan', label: `mandate compiled (${r.meta.mode}): ${r.rows.length} changes, ${r.looser} looser${r.questions.length ? `, ${r.questions.length} question${r.questions.length > 1 ? 's' : ''} to the owner` : ''}`, status: 'info' });
-    return { ...r, calls: r.calls.map((c) => c.label) };
+    const { next, ...rest } = r;
+    return { ...rest, calls: r.calls.map((c) => c.label), worst: { now: worstCase(s), next: worstCase({ ...s, ...next }) } };
   },
   'POST /api/mandate/apply': async () => {
     if (!draft) throw new Error('compile a mandate first');
@@ -161,7 +217,7 @@ const routes = {
 
 // Actions that send transactions run one at a time, in click order. Two at once from the same key read the
 // same pending nonce, and the node rejects the second (Sepolia, A2 and A7 clicked together: "invalid parameters").
-const SENDS = new Set(['POST /api/execute', 'POST /api/mandate/sign', 'POST /api/mandate/apply', 'POST /api/attack', 'POST /api/guardian/pause', 'POST /api/owner/unpause', 'POST /api/task']);
+const SENDS = new Set(['POST /api/execute', 'POST /api/mandate/sign', 'POST /api/mandate/apply', 'POST /api/attack', 'POST /api/guardian/pause', 'POST /api/owner/unpause', 'POST /api/task', 'POST /api/chat']);
 let queue = Promise.resolve();
 function serial(fn) {
   const p = queue.then(fn);
