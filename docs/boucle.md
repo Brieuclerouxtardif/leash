@@ -293,3 +293,21 @@ Ce ne sont pas des promesses du prompt : c'est le contrat qui refuse. Chaque ref
   - **Aussi relevé :** l'adresse des organisateurs (info@ican-x.com), absente du message prêt à coller. La finale a lieu à Shenzhen du 21 au 23 nov., avec au moins un membre présent. Les licences tierces (OpenZeppelin et viem en MIT, forge-std en MIT ou Apache) sont listées dans le README.
   - **Deck v15.** Je l'ai comparé chiffre par chiffre au README : rien ne diverge. J'ai ajouté une phrase dans les notes de la diapo des niveaux (un banquier reconnaît ces contrôles ; ici, le contrat les applique), et « no KYC or sanctions screening yet » sur la ligne mainnet de la diapo d'honnêteté, avec un texte plus court qu'avant pour ne pas risquer de débordement.
   - **Critique.** C'est l'erreur la plus coûteuse du projet, et elle n'a rien de technique. J'ai optimisé pendant deux jours sur ma propre idée de ce que le jury veut (des preuves, de l'honnêteté) sans lire ce qu'il note. La preuve était bien orientée : réalisation et sécurité couvrent 70 %. Mais il manquait un mot qui pèse jusqu'à 15 points, et une règle d'éligibilité que personne n'a vérifiée. **Lire la grille de notation avant d'écrire la première ligne du livrable.**
+- 02:09 (réel, 15/10) — Le site contredit le docx, et je l'avais cru trop vite. Commit 98054f8.
+  - **Le docx était périmé.** La page `#/rule` du site (la version chinoise fait foi) dit deux choses :
+    - la vidéo est **obligatoire** ;
+    - l'inscription et le rendu se font par un seul mail à fintechathon@ican-x.com, pas à info@.
+
+    À 01:51, j'avais écrit l'inverse et assoupli presubmit. Corrigé : presubmit échoue de nouveau sans vidéo, et SUBMISSION cite la page. Il contient aussi le mail de soumission prêt à remplir, avec pour chaque membre passeport et preuve d'inscription.
+  - **Grille → docs.**
+    - SECURITY §5 relie chacune des quatre classes d'attaque du règlement à nos scènes.
+    - « Extraction de données » n'avait aucune scène. Nouveau test : il relit les 10 prompts réellement envoyés au modèle. Il vérifie qu'aucun secret de 32 octets n'y figure, et que chaque adresse vient de la boîte ou du propriétaire (il n'y en a qu'une, celle de l'attaquant). Une clé glissée dans un prompt est bien attrapée (mutation vérifiée). 18 tests Node.
+  - **Interaction.** Le README dit comment l'agent traite le propriétaire, et ce qu'il ne fait pas : dialoguer. Je ne l'ai pas maquillé. Un champ `questions` changerait le schéma et demanderait de nouveaux runs live : c'est listé en TECHNICAL §7, pas fait.
+  - **PDF.** `scripts/doc-pdf.mjs` rend TECHNICAL (6 p.) et SECURITY (8 p.) en PDF par Edge headless ; rien ne sort de la machine. J'ai regardé les 14 pages une à une, et elles ont trouvé quatre défauts que la relecture du Markdown avait laissés :
+    - le schéma d'architecture, décalé dans la source même : le mur droit flottait sur trois colonnes, et GitHub l'aurait montré pareil. Il est reconstruit sur une grille ;
+    - « both models », alors qu'il y a un seul modèle sous deux prompts ;
+    - Slither listé « à faire » en R12 alors qu'il a tourné ;
+    - TECHNICAL §6 annonçait 15 tests hors chaîne, périmé depuis 17.
+  - **Critique.**
+    - Même faute deux fois en une heure : à 01:51, j'ai pris le premier document trouvé pour la règle, sans chercher la source qui fait foi. Le docx avait trois jours et sortait d'un dossier de travail ; le site était à un clic. J'ai même assoupli un contrôle (vidéo ✗ → !) sur cette base. **Une règle externe se lit à la source officielle, et un contrôle ne s'assouplit qu'avec cette source citée.**
+    - Ma relecture croisée deck ↔ README avait laissé passer le 15 de TECHNICAL. **Relire le livrable sous la forme où le jury le lira**, pas seulement sa source.
