@@ -103,6 +103,11 @@ textarea { width: 100%; font: inherit; font-size: 13px; line-height: 1.5; backgr
 .cnotes { list-style: none; margin: 6px 0; padding: 0; display: grid; gap: 4px; font-size: 12.5px; }
 .cnotes li.err { color: var(--bad); } .cnotes li.err::before { content: "✗ "; }
 .cnotes li.unm { color: var(--warn); } .cnotes li.unm::before { content: "not enforceable on-chain: "; font-weight: 600; }
+.ask { border: 1px solid color-mix(in srgb, var(--info) 45%, var(--line)); border-radius: 10px; padding: 10px; margin: 6px 0 10px; background: color-mix(in srgb, var(--info) 6%, transparent); display: grid; gap: 8px; }
+.ask[hidden] { display: none; } /* display: grid would otherwise override the hidden attribute */
+.ask h3 { color: var(--info); margin: 0; }
+.ask label { display: grid; gap: 4px; font-size: 13px; }
+.ask input { font: inherit; font-size: 13px; background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; }
 .row-end { display: flex; justify-content: end; }
 button.danger { background: var(--bad); border-color: var(--bad); color: #fff; font-weight: 600; }
 .attacks { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }

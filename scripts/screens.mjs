@@ -61,6 +61,14 @@ await js(`const sel = document.getElementById('sample'); sel.value = [...sel.opt
 await until(`document.querySelector('#cNotes li.unm')`, 'compile redirect');
 await shot('mandate-editor-redirect', '#editor');
 
+// Mandate editor: a vague value becomes a question, and the owner's answer fills it (two recorded turns).
+await js(`const sel = document.getElementById('sample'); sel.value = [...sel.options].find((o) => o.textContent.startsWith('My rent went up')).value; sel.dispatchEvent(new Event('change')); document.getElementById('compile').click();`);
+await until(`!document.getElementById('cAsk').hidden`, 'compile vague');
+await shot('mandate-editor-ask', '#editor');
+await js(`document.getElementById('answer').click();`);
+await until(`document.getElementById('cMeta').textContent.includes('turn 2')`, 'compile answered');
+await shot('mandate-editor-answered', '#editor');
+
 // Red team: stolen-key attacks and the pumped pool, sent for real.
 for (const id of ['A1', 'A2', 'A3', 'A4', 'A7', 'A9']) {
   await js(`[...document.querySelectorAll('#attacks .atk')].find((c) => c.querySelector('b').textContent === ${JSON.stringify(id)}).querySelector('button').click();`);

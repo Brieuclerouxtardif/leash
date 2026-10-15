@@ -89,6 +89,11 @@
         </div>
         <textarea id="ownerText" rows="3" maxlength="2000" spellcheck="false"></textarea>
         <div id="cMeta" class="meta"></div>
+        <form class="ask" id="cAsk" hidden>
+          <h3>LEASH asks before guessing</h3>
+          <div id="cQuestions"></div>
+          <div class="row-end"><button class="primary" id="answer" type="submit">Answer and compile again</button></div>
+        </form>
         <table class="diff" id="diff" hidden>
           <thead><tr><th>Setting</th><th>Now</th><th>Proposed</th><th></th></tr></thead>
           <tbody id="diffBody"></tbody>

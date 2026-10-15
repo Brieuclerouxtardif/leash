@@ -113,17 +113,19 @@ const routes = {
     return log({ kind: 'mandate', ...strip(e) });
   },
   'GET /api/mandate/samples': async () => replayableSamples(),
-  'POST /api/mandate/compile': async ({ text, mode = 'replay' }) => {
+  'POST /api/mandate/compile': async ({ text, mode = 'replay', answers = [] }) => {
     if (!['replay', 'live'].includes(mode)) throw new Error('bad mode');
     if (mode === 'live' && !ALLOW_LIVE) throw new Error('live model calls are disabled; start the server with --allow-live');
     const s = await readState(ctx, d);
-    const r = compileMandate(text, s, ctx.addr, { mode });
-    draft = { struct: r.struct, now: s.now, shown: JSON.stringify([r.rows, r.calls], big) };
-    log({ kind: 'plan', label: `mandate compiled (${r.meta.mode}): ${r.rows.length} changes, ${r.looser} looser`, status: 'info' });
+    const r = compileMandate(text, s, ctx.addr, { mode, answers });
+    draft = { struct: r.struct, now: s.now, shown: JSON.stringify([r.rows, r.calls], big), questions: r.questions };
+    log({ kind: 'plan', label: `mandate compiled (${r.meta.mode}): ${r.rows.length} changes, ${r.looser} looser${r.questions.length ? `, ${r.questions.length} question${r.questions.length > 1 ? 's' : ''} to the owner` : ''}`, status: 'info' });
     return { ...r, calls: r.calls.map((c) => c.label) };
   },
   'POST /api/mandate/apply': async () => {
     if (!draft) throw new Error('compile a mandate first');
+    // A setting the model asked about is still null in the struct: applying now would silently drop that rule.
+    if (draft.questions.length) throw new Error('answer the questions first, or take that rule out of the text');
     // Re-diff against the chain as it is now; the clock stays at compile time so "valid for N days" keeps the expiry shown.
     const r = diffMandate({ ...(await readState(ctx, d)), now: draft.now }, draft.struct, ctx.addr);
     if (r.errors.length) throw new Error(`not applied: ${r.errors.join('; ')}`);

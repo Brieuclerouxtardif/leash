@@ -208,38 +208,62 @@ async function loadSamples() {
     const own = $('sample').value === 'own';
     $('ownerText').value = own ? '' : samples[Number($('sample').value)] ?? '';
     if (own && S.allowLive) $('cmode').value = 'live';
+    restart();
   };
   $('sample').addEventListener('change', pick);
   pick();
 }
 
-$('compile').addEventListener('click', (e) => busy(e.target, async () => {
+// One exchange per owner text: the answers so far and the number of model turns. Editing the text starts over.
+let qa = [];
+let turns = 0;
+function restart() { qa = []; turns = 0; $('cAsk').hidden = true; }
+$('ownerText').addEventListener('input', restart);
+
+async function compile(answers) {
   $('cMeta').textContent = $('cmode').value === 'live' ? 'Calling the model… (≈10 s)' : 'Loading the recorded run…';
   $('diff').hidden = true;
   $('cNotes').replaceChildren();
   $('applyMandate').hidden = true;
+  $('cAsk').hidden = true;
   let r;
   try {
-    r = await api('/api/mandate/compile', { text: $('ownerText').value, mode: $('cmode').value });
+    r = await api('/api/mandate/compile', { text: $('ownerText').value, mode: $('cmode').value, answers });
   } catch (err) {
     $('cMeta').textContent = `Not compiled: ${err.message}`;
     throw err;
   }
-  $('cMeta').textContent = `${r.meta.mode} · ${r.meta.model}${r.meta.seconds ? ` · ${r.meta.seconds.toFixed(1)} s` : ''} · model: “${r.struct.summary}”`;
-  $('diff').hidden = !r.rows.length;
+  qa = answers;
+  turns += 1;
+  $('cMeta').textContent = `${r.meta.mode} · ${r.meta.model}${r.meta.seconds ? ` · ${r.meta.seconds.toFixed(1)} s` : ''} · turn ${turns} · model: “${r.struct.summary}”`;
+  // The model asks instead of guessing a value; a recorded replay pre-fills the answer it was recorded with.
+  $('cAsk').hidden = !r.questions.length;
+  $('cQuestions').replaceChildren(...r.questions.map((q) => h('label', {}, q,
+    h('input', { 'data-q': q, value: r.replayAnswers.find((x) => x.q === q)?.a ?? '', required: true, maxlength: 300, autocomplete: 'off' }))));
+  // While a question is open the struct is incomplete (live run mandate-compile-20261015T081246003Z: the model asked
+  // for the rent cap and also set it to 0), so no diff is shown until the owner has answered.
+  $('diff').hidden = !r.rows.length || r.questions.length > 0;
   $('diffBody').replaceChildren(...r.rows.map((row) => h('tr', { class: row.direction }, h('td', {}, row.label), h('td', {}, String(row.from)), h('td', {}, String(row.to)),
     h('td', { class: 'dir' }, row.direction === 'looser' ? 'loosens' : 'tightens'))));
   $('cNotes').replaceChildren(
-    ...(r.rows.length ? [] : [h('li', {}, 'No change to the on-chain mandate.')]),
+    ...(r.rows.length || r.questions.length ? [] : [h('li', {}, 'No change to the on-chain mandate.')]),
     ...r.errors.map((x) => h('li', { class: 'err' }, x)),
     ...r.unmapped.map((x) => h('li', { class: 'unm' }, x)));
   const btn = $('applyMandate');
-  btn.hidden = !r.calls.length;
-  btn.disabled = r.errors.length > 0;
+  btn.hidden = !r.calls.length && !r.questions.length;
+  btn.disabled = r.errors.length > 0 || r.questions.length > 0;
   btn.className = r.looser ? 'danger' : 'primary';
-  btn.textContent = r.errors.length ? 'Fix the errors before applying'
-    : `Apply ${r.calls.length} owner transaction${r.calls.length > 1 ? 's' : ''}${r.looser ? ` (${r.looser} loosen the leash)` : ''}`;
-}));
+  btn.textContent = r.questions.length ? 'Answer the questions before applying'
+    : r.errors.length ? 'Fix the errors before applying'
+      : `Apply ${r.calls.length} owner transaction${r.calls.length > 1 ? 's' : ''}${r.looser ? ` (${r.looser} loosen the leash)` : ''}`;
+}
+
+$('compile').addEventListener('click', (e) => { restart(); busy(e.target, () => compile([])); });
+$('cAsk').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const more = [...$('cQuestions').querySelectorAll('input')].map((el) => ({ q: el.dataset.q, a: el.value.trim() }));
+  busy($('answer'), () => compile([...qa, ...more]));
+});
 
 $('applyMandate').addEventListener('click', (e) => busy(e.target, async () => {
   const out = await api('/api/mandate/apply', {});

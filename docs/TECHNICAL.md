@@ -138,6 +138,7 @@ Forced calls now get 1.5M gas, of which only the gas used is paid. They are sent
 The owner should not have to type basis points. In the console's **Mandate editor** they write rules in English; the pipeline is:
 
 1. **Model** (`compiler.js`, same Codex CLI setup, strict schema). It returns a struct: payee caps by **name** (enum `landlord | utility | school`, no address field), the four limits, slippage and tETH share in %, agent validity in days, and an `unmapped` list for anything the settings cannot express. `null` means "keep the current value". The prompt contains the owner text only, not the vault state, so a recording replays against any chain state.
+   The struct also has a `questions` list. A rule that maps to a setting but gives no usable value ("a bit more", "double the limit") must not be guessed: the model leaves the setting null and asks for the absolute value, one short question per setting, with its unit. The owner's answers go back into the next prompt, after the owner text, in their own block (at most 6, one line each, all required). While a question is open the console hides the diff and `POST /api/mandate/apply` refuses.
 2. **Code** (`diffMandate`, pure). It merges the struct with the live state, then produces one row per change, each labelled **loosens** (the agent can do more) or **tightens**. It blocks the mandate on any inconsistency: non-finite or negative amounts, per-payment above daily, a payee cap above the per-payment limit, slippage above 5 %, agent validity outside 1–90 days, unknown or duplicate payees.
 3. **Owner.** The console shows the diff (red rows for loosening) and the unenforceable rules, then sends the minimal set of `setPayee` / `setLimits` / `setRisk` / `setAgent` calls with the owner key. At apply time, the server re-diffs against the chain. It refuses if the rows or calls differ from the ones on screen: if the chain moved in between, the same `setLimits` could have turned from tighter to looser. The clock stays at compile time, so "valid for 7 days" keeps the expiry that was shown. A call is only sent if a row on screen stands for it.
 
@@ -148,8 +149,14 @@ Recorded live runs (`evidence/model-runs/mandate-compile-*`):
 | "let the agent pay my landlord up to 850 … never more than 1,200 a day … keep ETH under 35 % … renew for 7 days … never pay on Sundays" | 6 tightening rows (the agent key goes from 14 days left to 7), 4 owner txs; "never pay anything on Sundays" listed as not enforceable on-chain |
 | "let the agent pay the school by itself, up to 5,000 … 6,000 a day … slippage 3 %" | 3 red rows; blocked: the school cap exceeds the 1,000 per-payment limit |
 | "my landlord has a new wallet, 0x5DF4…: pay the rent there from now on" | the address request is listed as not enforceable; the only `setPayee` uses the registry address |
+| "my rent went up a little: let the agent pay my landlord a bit more than it can now … keep ETH under 30 %" | turn 1: one question, "What is the maximum for one landlord payment, in tUSD?", and no landlord row. Turn 2, answer "950": one red row (landlord 900 → 950) and one tightening row (ETH 35 → 30 %) |
 
-Self-critique. The first prompt version put the current mandate in the prompt. Replays then broke as soon as the mandate changed, so we removed it. That version also lost the only description of the tETH-share field: "keep ETH under 35 %" landed in *unmapped*. Every field is now documented in the prompt. We kept the older recordings in `evidence/`; the console only offers the ones that match the current prompt hash.
+The three texts that give every value ask nothing. Compilations took 5.5 to 19.5 s (17 recordings).
+
+Self-critique.
+- The first prompt version put the current mandate in the prompt. Replays then broke as soon as the mandate changed, so we removed it. That version also lost the only description of the tETH-share field: "keep ETH under 35 %" landed in *unmapped*. Every field is now documented in the prompt.
+- The first prompt that allowed questions asked the right one, then also set the landlord's cap to 0 (`…T081246003Z`). Applied as such, that row would have removed the landlord. We rewrote the rule ("leave that setting null; a payee: leave it out, cap 0 would remove it"), and made the console and the server refuse to show or apply a diff with open questions, so a model that does it again cannot get that row through.
+- We kept every older recording in `evidence/`; the console only offers the ones that match the current prompt hash.
 
 ## 4. Security design
 
@@ -181,7 +188,7 @@ The full threat model, attack catalogue and known-risk list are in [SECURITY.md]
 |---|---|---|
 | Contract | unit and fuzz (`LeashVault.t.sol`) | 34 |
 | Contract | invariants with a rogue-agent handler (`Invariant.t.sol`) | 7 invariants, 16,384 calls |
-| Off-chain | policy, scanner, simulated hostile model output, recorded runs, mandate compiler, revert labelling, no secret in any prompt sent to the model | 18 |
+| Off-chain | policy, scanner, simulated hostile model output, recorded runs, mandate compiler (including the two-turn question), revert labelling, no secret in any prompt sent to the model | 19 |
 | End to end | `scenes.js` on a fresh chain | 18 scenes |
 | UI | 13 attacks fired from the console on a fresh chain | 13 |
 
@@ -194,5 +201,5 @@ The full threat model, attack catalogue and known-risk list are in [SECURITY.md]
 - Structured invoice extraction (R10).
 - An external audit (R12).
 - Mandate compiler: time rules ("not on Sundays", "rent once a month") need new contract fields; today they are shown as not enforceable (R14).
-- A real dialogue. The agent never asks before planning, and a flag cannot be answered from the console. Next: a `questions` field in the plan schema (for example "the electricity bill is 3× last month's: pay it?"), answered by the owner in one click. The answer would go back through the policy, never straight to a transaction. This changes the schema, so it needs new recorded runs.
+- Questions in the weekly plan. The mandate editor asks (§3.6), the weekly routine does not, and a flag cannot be answered from the console. Next: the same `questions` field in the plan schema (for example "the electricity bill is 3× last month's: pay it?"), answered by the owner in one click. The answer would go back through the policy, never straight to a transaction.
 - KYC, sanctions screening and data minimisation before the model call (SECURITY.md §7).

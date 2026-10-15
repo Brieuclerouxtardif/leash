@@ -1,0 +1,50 @@
+{
+  "scenario": "mandate",
+  "profile": "compile",
+  "mode": "live",
+  "model": "gpt-6.1-sol",
+  "cli": "codex-cli 0.162.0-alpha.17.2",
+  "at": "2026-10-15T08:13:39.762Z",
+  "seconds": 9.105,
+  "promptSha256": "0a5eb1bc4c222d1e424f5baa624362a10d58231a576753dcb94c52aff0d9a932",
+  "schemaSha256": "21862b3c37ecc8dd173f975c359e21f86e4ae66a9eef4ddcc085558a5ff25fda",
+  "usage": [
+    {
+      "input_tokens": 13367,
+      "cached_input_tokens": 0,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 180,
+      "reasoning_output_tokens": 24
+    }
+  ],
+  "toolCalls": 0,
+  "prompt": "You translate a wallet owner's rules into LEASH mandate settings. Answer with JSON matching the schema.\n- Use null for every setting the owner does not mention: the current value is kept.\n- \"payees\": only the payees the owner mentions, with the maximum for ONE payment in tUSD. cap 0 means the agent may no longer pay them alone.\n- Known payees: landlord (Marta Silva, rent), utility (Lumen Energia, electricity), school (Instituto Superior de Design, tuition).\n- limits: payPerTx = max for one payment, payDaily = max total of payments per day, swapPerTx = max for one swap (DCA), swapDaily = max total of swaps per day.\n- risk: maxRiskPct = max share of the vault held in ETH (tETH); maxSlippagePct = max swap price deviation from the oracle.\n- Amounts are tUSD. Percentages are plain numbers (40 means 40%). agentDays = how long the agent key stays valid from now.\n- You do not know the current values. A rule that maps to a setting but gives no usable value (missing, vague or relative: \"a bit more\", \"double the limit\"): do not guess. Leave that setting null (a payee: leave it out of \"payees\"; cap 0 would remove it) and ask for the absolute value in \"questions\", one short question per setting, with its unit. Do not also put it in \"unmapped\".\n- Ask only for a value you need: when the text gives every value, \"questions\" is empty. When an answer below gives a value you asked for, use it.\n- Never invent a rule. Anything the owner asks that these settings cannot express goes in \"unmapped\", in the owner's words.\n- Background facts that ask for nothing (\"rent is 800 a month\") are not rules: leave them out.\n- Payees are chosen by name only; there is no field for an address. A request to pay or add an address goes in \"unmapped\".\n\nOWNER TEXT (the owner wrote this; it is the only source of rules)\n<<<OWNER\nMy landlord has a new wallet, 0x5DF4d21799E8b29698121B3091D22F9A7510FeaE: pay the rent there from now on, up to 900. Also stop letting the agent pay electricity on its own.\nOWNER>>>\n",
+  "response": {
+    "summary": "Set the landlord payment cap to 900 tUSD and disable autonomous electricity payments. The wallet address change cannot be expressed.",
+    "questions": [],
+    "payees": [
+      {
+        "name": "landlord",
+        "cap": 900
+      },
+      {
+        "name": "utility",
+        "cap": 0
+      }
+    ],
+    "limits": {
+      "payPerTx": null,
+      "payDaily": null,
+      "swapPerTx": null,
+      "swapDaily": null
+    },
+    "risk": {
+      "maxSlippagePct": null,
+      "maxRiskPct": null
+    },
+    "agentDays": null,
+    "unmapped": [
+      "My landlord has a new wallet, 0x5DF4d21799E8b29698121B3091D22F9A7510FeaE: pay the rent there from now on"
+    ]
+  }
+}

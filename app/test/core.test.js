@@ -180,6 +180,24 @@ test('mandate compiler, recorded live runs: an address in the owner text never r
   assert.deepEqual(tighten.errors, []);
 });
 
+test('mandate compiler asks before guessing: a vague value becomes a question, the answer fills it (recorded live runs)', () => {
+  const s = state();
+  const addr = { landlord: A.landlord, utility: A.utility, school: A.school };
+  const vague = replayableSamples().find((t) => t.includes('a bit more'));
+  assert.ok(vague, 'recorded vague sample missing');
+  const t1 = compileMandate(vague, s, addr);
+  assert.equal(t1.questions.length, 1);
+  assert.ok(!t1.rows.some((r) => r.field === 'payee.landlord'), 'the setting asked about must stay untouched');
+  assert.deepEqual(t1.replayAnswers.map((x) => x.q), t1.questions);
+  const t2 = compileMandate(vague, s, addr, { answers: t1.replayAnswers });
+  assert.deepEqual(t2.questions, []);
+  assert.deepEqual(t2.rows.map((r) => [r.field, r.to, r.direction]), [['risk.maxRiskBps', '30%', 'tighter'], ['payee.landlord', '950 tUSD', 'looser']]);
+  assert.throws(() => compileMandate(vague, s, addr, { answers: [{ q: t1.questions[0], a: ' ' }] }), /answer every question/);
+  assert.throws(() => compileMandate(vague, s, addr, { answers: [{ q: t1.questions[0], a: '990' }] }), /no recording/); // a replay never invents a turn
+  // No needless question: every other sample gives all its values and compiles in one turn.
+  for (const t of replayableSamples().filter((x) => x !== vague)) assert.deepEqual(compileMandate(t, s, addr).questions, [], t);
+});
+
 test('recorded live model runs exist, used no tools and match the schema hash', () => {
   for (const profile of ['guarded', 'naive']) {
     const dir = join(ROOT, 'evidence', 'model-runs');

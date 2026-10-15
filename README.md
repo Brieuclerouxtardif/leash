@@ -41,16 +41,20 @@ The owner does not type basis points. In the console's Mandate editor they write
 
 ![Mandate editor: three loosening rows in red, blocked by an inconsistency](docs/screens/mandate-editor-loosen.png)
 
+When a value is vague (*"let the agent pay my landlord a bit more"*), the model does not guess. It leaves that setting unchanged and asks for the number, with its unit. The owner answers in the console and the text compiles again with the answer. Until every question is answered, the diff stays hidden and the server refuses to apply.
+
+![Mandate editor: the model asks for the landlord's new cap instead of guessing](docs/screens/mandate-editor-ask.png)
+
 ## How the agent deals with the owner
 
 | | What LEASH does |
 |---|---|
-| Few turns | one instruction from the owner, plus the inbox, gives the whole week's plan in one model call |
-| Asking the owner | only when the contract requires it: a payment above the agent's limits becomes a signature request, with text written by code. A suspicious document is reported with the reason |
+| Few turns | one instruction from the owner, plus the inbox, gives the whole week's plan in one model call. A mandate text that gives every value compiles in one turn |
+| Asking the owner | when a mandate value is missing or vague, the editor asks for it instead of guessing, and nothing can be applied until it is answered. A payment above the agent's limits becomes a signature request, with text written by code. A suspicious document is reported with the reason |
 | Correcting | a mandate error says how to fix it ("raise max per payment too, or keep these payments owner-signed"). The owner edits the text and compiles again. Apply refuses if the chain changed since the diff was shown |
-| Out of scope | what the contract cannot express ("double it", "pay this new address") is listed as *not enforceable on-chain*, in the owner's words. A payment the policy cannot justify is refused, never guessed. A stale oracle stops swaps |
+| Out of scope | what the contract cannot express ("never pay on Sundays", "pay this new address") is listed as *not enforceable on-chain*, in the owner's words. A payment the policy cannot justify is refused, never guessed. A stale oracle stops swaps |
 
-What it does not do: hold a conversation. The agent never asks a question before planning, and the owner cannot answer a flag in the console; they change the mandate or sign.
+What it does not do: the weekly plan asks nothing before planning, and the owner cannot answer a flag in the console; they change the mandate or sign. Only the mandate editor asks questions.
 
 ## Measured on week 42
 
@@ -62,7 +66,8 @@ Week 42 is five documents: two bills, a tuition invoice and two hostile emails. 
 | Fraud stopped | 9,800 tUSD asked for by the two hostile documents (800 to a "new wallet", 9,000 by prompt injection): nothing moved, both reported with the reason | A1; recorded guarded run |
 | Worst case, stolen agent key | 1,500 tUSD per UTC day (3,000 across a midnight, R2), only to the two registered payees, out of 12,000 tUSD and 1.2 tETH in the vault; swaps at most 1 % below the oracle price (R3) | A2–A5, A9 |
 | Stopping it | one guardian transaction pauses everything (A10, 29,050 gas); one owner transaction voids every pending signature (A8, 29,152 gas) | run 4 |
-| Planning time | 18.7 s for the week's plan (13,813 input tokens, 586 output); 5.5–9.5 s per mandate compilation | `evidence/model-runs/` |
+| Planning time | 18.7 s for the week's plan (13,813 input tokens, 586 output); 5.5–19.5 s per mandate compilation | `evidence/model-runs/` |
+| Questions to the owner | none for the three mandate texts that give every value. One for *"pay my landlord a bit more"*: the landlord's cap in tUSD. The answer (950) compiles in a second turn into one red row | `evidence/model-runs/` (current prompt) |
 | On-chain cost | a tier-1 payment uses 80–114k gas on anvil and 184–380k on Sepolia. The gap is storage creation: each new slot adds about 98k gas on Sepolia against 17k on anvil (T1 − T2, T2 − A5; an `approve` creating one slot: 46,376 vs 128,296). A payment creates up to three: its opId, the day's counter (first payment of the day), the payee's token balance (first payment ever). A call that creates no storage costs 1,200 gas more on Sepolia (A8, A10, T5's mandate changes: +4.0 to 4.3 %) | run 4 vs local campaign |
 
 ## What works today
@@ -71,10 +76,10 @@ Week 42 is five documents: two bills, a tuition invoice and two hostile emails. 
 |---|---|---|
 | Contract unit + fuzz tests | 34 / 34 (fuzz: 2,000 runs each) | `forge test` |
 | Invariants (rogue-agent handler, 256 runs × 64 calls) | 7 / 7, 16,384 hostile calls (forge lists 7 `[PASS]` lines but counts one shared campaign as 1 test, so plain `forge test` reports 35) | `forge test --match-path test/Invariant.t.sol` |
-| Off-chain policy + mandate compiler tests | 18 / 18 | `npm test` |
+| Off-chain policy + mandate compiler tests | 19 / 19 | `npm test` |
 | Full local campaign (5 tasks + 13 attacks, fresh chain) | 18 / 18 | `powershell -ExecutionPolicy Bypass -File scripts/local-campaign.ps1` |
 | Same 13 attacks launched from the web console | 13 / 13 | `npm run server`, Red team panel |
-| Live LLM runs (gpt-6.1-sol via Codex CLI, no tools) | 2 routine plans + 3 mandate compilations, recorded and replayable | `evidence/model-runs/` |
+| Live LLM runs (gpt-6.1-sol via Codex CLI, no tools) | 2 routine plans + 17 mandate compilations, all recorded; the 5 made with the current prompt replay in the console (4 texts, one of them answered in a second turn) | `evidence/model-runs/` |
 | Ethereum Sepolia campaign (run 4), vault [`0x8237…cE80`](https://sepolia.etherscan.io/address/0x8237d47a29e49d8f60fde0ca900df86ae2c7ce80) | 18 / 18, 29 transactions, 12 mined refusals, re-derived from the chain by `audit-chain.mjs`; Blockscout decodes 11 of the 12 refusals identically and has not indexed the 12th (A2); 4 contracts verified on Sourcify (exact match). Runs 1–3 were 17/18 (see Honesty notes) | [docs/evidence-sepolia.md](docs/evidence-sepolia.md) |
 
 Every attack is sent for real with a fixed gas limit, so the refusal is **mined as a reverted transaction**. Every refusal has a public hash. We call this *proof of refusal*.
