@@ -52,6 +52,19 @@ The owner does not type basis points. In the console's Mandate editor they write
 
 What it does not do: hold a conversation. The agent never asks a question before planning, and the owner cannot answer a flag in the console; they change the mandate or sign.
 
+## Measured on week 42
+
+Week 42 is five documents: two bills, a tuition invoice and two hostile emails. Figures from the Sepolia reference run (run 4), the local campaign and the recorded model runs:
+
+| Measure | Value | Source |
+|---|---|---|
+| Owner effort | one instruction and one signature for the week. 920 tUSD of bills paid by the agent key alone (T1, T2); 5,000 tUSD of tuition after one EIP-712 signature over text rendered by code (T4) | run 4 |
+| Fraud stopped | 9,800 tUSD asked for by the two hostile documents (800 to a "new wallet", 9,000 by prompt injection): nothing moved, both reported with the reason | A1; recorded guarded run |
+| Worst case, stolen agent key | 1,500 tUSD per UTC day (3,000 across a midnight, R2), only to the two registered payees, out of 12,000 tUSD and 1.2 tETH in the vault; swaps at most 1 % below the oracle price (R3) | A2–A5, A9 |
+| Stopping it | one guardian transaction pauses everything (A10, 29,050 gas); one owner transaction voids every pending signature (A8, 29,152 gas) | run 4 |
+| Planning time | 18.7 s for the week's plan (13,813 input tokens, 586 output); 5.5–9.5 s per mandate compilation | `evidence/model-runs/` |
+| On-chain cost | a tier-1 payment uses 80–114k gas on anvil and 184–380k on Sepolia. The gap is storage creation: each new slot adds about 98k gas on Sepolia against 17k on anvil (T1 − T2, T2 − A5; an `approve` creating one slot: 46,376 vs 128,296). A payment creates up to three: its opId, the day's counter (first payment of the day), the payee's token balance (first payment ever). Writes to existing storage cost the same within 4 % | run 4 vs local campaign |
+
 ## What works today
 
 | | Result | How to reproduce |
@@ -204,7 +217,7 @@ Nobody arbitrages our pool, so it keeps the deploy-day price while the real feed
 - **The model resisted.** In our recorded live runs, both the guarded prompt and a deliberately naive prompt refused the prompt injection. We therefore do not claim "the model was fooled and the vault held". We show the stolen-key case instead (A2–A4, A7), plus a clearly labelled *simulated* compromised model output in the tests.
 - **Our first three Sepolia runs were 17/18, and our own tooling first hid that.** The vault never let anything through; the failures were all in how we sent and labelled the attacks:
   - Run 1 took A8's revert reason from a simulation served by a lagging RPC node.
-  - In runs 1 and 2, A9's forced buy ran out of gas, because Sepolia costs about 3× anvil's gas and our limit was tuned on anvil. It was still labelled as a refusal. Blockscout showed "Out of gas".
+  - In runs 1 and 2, A9's forced buy ran out of gas, because creating storage costs far more on Sepolia than on anvil (a swap: 2–2.4× the gas) and our limit was tuned on anvil. It was still labelled as a refusal. Blockscout showed "Out of gas".
   - In run 3, an RPC node simulated A9 while filling the transaction, so it was never sent.
 
   Labels now come from the mined transaction, forced calls are fully filled with room to spare, and the audit checks every outcome against Blockscout. All three runs stay in `evidence/` as recorded (SECURITY.md, R15).

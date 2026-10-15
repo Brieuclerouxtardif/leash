@@ -125,7 +125,7 @@ An address outside the registry is labelled "UNKNOWN recipient, never paid befor
 
 The recorded reason is the mined one (`minedRevert`). If the transaction burnt its whole gas limit, it is labelled `OutOfGas` and proves nothing. Otherwise the same call, with the same gas limit, is replayed at its block and decoded. The pre-send simulation is never trusted for the label. Two Sepolia runs taught us this:
 - In run 1, the simulation was served by an RPC node one block behind. It said "ok", and A8 came out as `reverted:undefined`.
-- In runs 1 and 2, A9's forced buy had 300k gas, tuned on anvil. Sepolia charges about 3× more for the same swap, so the call died out of gas before the vault's check. A replay without the gas limit had wrongly confirmed `slippage`.
+- In runs 1 and 2, A9's forced buy had 300k gas, tuned on anvil. Sepolia charges far more for creating storage: in run 4, each new slot added about 98k gas against 17k on anvil, and a successful swap used 2–2.4× its anvil gas. The call died out of gas before the vault's check. A replay without the gas limit had wrongly confirmed `slippage`.
 
 - In run 3, viem asked the RPC to fill the forced transaction (`eth_fillTransaction`). A node behind the load balancer simulated it at that point and viem threw, so A9 was never sent.
 
