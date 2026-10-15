@@ -128,7 +128,14 @@ export function diffMandate(s, m, addr) {
   // No row on screen, no transaction: a renewal a few seconds off the current expiry shows no row, so it is not sent.
   if (agentUntil !== null && rows.some((r) => r.field === 'agent.expiry')) calls.push({ functionName: 'setAgent', args: [s.agent, agentUntil], label: 'setAgent (renew)' });
 
-  return { rows, errors, unmapped: m.unmapped ?? [], calls, looser: rows.filter((r) => r.direction === 'looser').length };
+  // The mandate as it would be once applied, for the worst case before and after.
+  const next = {
+    limits: Object.fromEntries(Object.entries(s.limits).map(([k, v]) => [k, L[k] === fmtUsd(v) ? v : usd(L[k])])),
+    risk: { ...s.risk, ...R },
+    payees: Object.fromEntries(Object.entries(s.payees).map(([n, p]) => [n, { ...p, cap: n in payees ? usd(payees[n]) : p.cap }])),
+    agentExpiry: agentUntil ?? s.agentExpiry,
+  };
+  return { rows, errors, unmapped: m.unmapped ?? [], calls, looser: rows.filter((r) => r.direction === 'looser').length, next };
 }
 
 /** Recorded mandate compilations made with the current prompt: owner text, answers, file (older prompt versions are kept as evidence, not offered). */

@@ -92,6 +92,24 @@ function renderState(s) {
   g('swapBar', 'swapTxt', s.swappedToday, L.swapDaily);
   $('agentAddr').textContent = short(s.agent);
   $('epoch').textContent = s.epoch;
+  renderWorst(s.worst, s);
+}
+
+// The worst case is computed by code from the vault's limits (core.js worstCase), never by the model.
+const tile = (n, label, cls) => h('div', { class: `wtile ${cls}` }, h('b', {}, n), h('span', {}, label));
+function renderWorst(w, s) {
+  const until = new Date(w.expiry * 1000).toISOString().slice(0, 10);
+  const off = s.paused ? 'the vault is paused' : 'the agent key is not active';
+  $('worst').replaceChildren(
+    h('p', { class: 'wlead' }, 'If the model, LEASH\'s code and the agent key were all hijacked right now, the most that could leave the vault:'),
+    h('div', { class: 'wgrid' },
+      tile('0', 'tUSD to any address you did not register', 'ok'),
+      tile(w.live ? `≤ ${money(w.today, 0)}` : '0', w.live ? `tUSD more today, only to ${w.to.join(' and ') || 'nobody'}` : `tUSD today: ${off}`, w.live && w.today > 0 ? 'warn' : 'ok'),
+      tile(w.live ? `≤ ${money(w.untilExpiry, 0)}` : '0', w.live
+        ? `tUSD until the key expires on ${until} (${w.days} paying day${w.days > 1 ? 's' : ''}${w.byBalance ? ': all the tUSD in the vault' : ''}), if nobody pulls the kill switch`
+        : 'tUSD until the owner acts', w.live ? 'warn' : 'ok'),
+      tile(w.live ? `≤ ${money(w.swapLossPerDay, 0)}` : '0', 'tUSD a day lost on swaps against the oracle price', w.live ? 'warn' : 'ok')),
+    h('p', { class: 'wfoot' }, 'Adding a payee, raising a limit, withdrawing: impossible for the agent. Nothing written below can raise these numbers; only an owner transaction can.'));
 }
 
 // ------------------------------------------------------------------ inbox and plan
@@ -122,7 +140,11 @@ function renderInbox(modelFlags) {
 
 function describe(i) {
   if (i.type === 'swap') return `${i.side === 'buy' ? 'Buy tETH with' : 'Sell'} ${i.amount} ${i.side === 'buy' ? 'tUSD' : 'tETH'}`;
-  return `Pay ${money(i.amount)} tUSD to ${i.payee || short(i.to)}`;
+  if (i.type === 'add_payee') return `Add ${i.to ? short(i.to) : i.payee} as a payee, cap ${money(i.amount, 0)} tUSD`;
+  if (i.type === 'raise_daily_limit') return `Raise the daily payment limit to ${money(i.amount, 0)} tUSD`;
+  if (i.type === 'withdraw') return `Withdraw ${money(i.amount)} tUSD to ${short(i.to)}`;
+  // An address beats a name: it is where the money would go, whatever name the message gave it.
+  return `Pay ${money(i.amount)} tUSD to ${i.to ? `${short(i.to)}${i.payee ? ` (called "${i.payee}")` : ''}` : i.payee}`;
 }
 
 function renderPlan(p) {
@@ -160,10 +182,12 @@ async function doExecute(i, btn) {
 
 let pendingIdx = null;
 let pendingBtn = null;
-async function openMandate(i, btn) {
-  const m = await api('/api/mandate/preview', { i });
+let pendingFrom = 'plan';
+async function openMandate(i, btn, from = 'plan') {
+  const m = await api('/api/mandate/preview', { i, from });
   pendingIdx = i;
   pendingBtn = btn;
+  pendingFrom = from;
   $('mText').textContent = m.text;
   const msg = m.typed.message;
   $('mTyped').replaceChildren(...[['domain', `${m.typed.domain.name} v${m.typed.domain.version} · chain ${m.typed.domain.chainId}`], ['contract', m.typed.domain.verifyingContract],
@@ -183,7 +207,7 @@ $('mSign').addEventListener('click', async (ev) => {
   const label = btn?.textContent;
   if (btn) { btn.disabled = true; btn.textContent = 'Signed · waiting for the block…'; }
   try {
-    const e = await api('/api/mandate/sign', { i: pendingIdx });
+    const e = await api('/api/mandate/sign', { i: pendingIdx, from: pendingFrom });
     toast(e.status === 'success' ? 'Signed and executed: tier 2 payment done.' : `Refused on-chain: ${reasonOf(e) ?? e.status}`);
     if (btn?.isConnected) settle(btn, e, 'signed by the owner, executed');
   } catch (err) {
@@ -223,6 +247,7 @@ $('ownerText').addEventListener('input', restart);
 async function compile(answers) {
   $('cMeta').textContent = $('cmode').value === 'live' ? 'Calling the model… (≈10 s)' : 'Loading the recorded run…';
   $('diff').hidden = true;
+  $('worstDiff').hidden = true;
   $('cNotes').replaceChildren();
   $('applyMandate').hidden = true;
   $('cAsk').hidden = true;
@@ -253,6 +278,7 @@ async function compile(answers) {
     ...(r.rows.length || r.questions.length ? [] : [h('li', {}, 'No change to the on-chain mandate.')]),
     ...r.errors.map((x) => h('li', { class: 'err' }, x)),
     ...r.unmapped.map((x) => h('li', { class: 'unm' }, x)));
+  renderWorstDiff(r.worst, r.rows.length > 0 && !r.questions.length);
   const btn = $('applyMandate');
   btn.hidden = !r.calls.length && !r.questions.length;
   btn.disabled = r.errors.length > 0 || r.questions.length > 0;
@@ -260,6 +286,24 @@ async function compile(answers) {
   btn.textContent = r.questions.length ? 'Answer the questions before applying'
     : r.errors.length ? 'Fix the errors before applying'
       : `Apply ${r.calls.length} owner transaction${r.calls.length > 1 ? 's' : ''}${r.looser ? ` (${r.looser} loosen the leash)` : ''}`;
+}
+
+// What the change does to the worst case, before the owner signs it: the price of a longer leash.
+function renderWorstDiff(w, show) {
+  $('worstDiff').hidden = !show;
+  if (!show) return;
+  const n = (a, b) => (b > a ? 'looser' : b < a ? 'tighter' : '');
+  const names = (x) => x.to.join(', ') || 'nobody';
+  const rows = [
+    ['tUSD that can leave per day', money(w.now.perDay, 0), money(w.next.perDay, 0), n(w.now.perDay, w.next.perDay)],
+    ['…only to', names(w.now), names(w.next), n(w.now.to.length, w.next.to.length)],
+    ['UTC days the agent key can still pay', w.now.days, w.next.days, n(w.now.days, w.next.days)],
+    ['tUSD until the agent key expires', money(w.now.untilExpiry, 0) + (w.now.byBalance ? ' (whole balance)' : ''),
+      money(w.next.untilExpiry, 0) + (w.next.byBalance ? ' (whole balance)' : ''), n(w.now.untilExpiry, w.next.untilExpiry)],
+    ['tUSD lost on swaps per day', money(w.now.swapLossPerDay, 0), money(w.next.swapLossPerDay, 0), n(w.now.swapLossPerDay, w.next.swapLossPerDay)],
+  ];
+  $('worstBody').replaceChildren(...rows.map(([label, a, b, dir]) => h('tr', { class: dir }, h('td', {}, label), h('td', {}, a), h('td', {}, b),
+    h('td', { class: 'dir' }, dir === 'looser' ? 'riskier' : dir === 'tighter' ? 'safer' : ''))));
 }
 
 $('compile').addEventListener('click', (e) => { restart(); busy(e.target, () => compile([])); });
@@ -276,6 +320,71 @@ $('applyMandate').addEventListener('click', (e) => busy(e.target, async () => {
   e.target.hidden = true;
   refresh();
 }, 'Sending…'));
+
+// ------------------------------------------------------------------ chat
+const AGENT = {
+  healthy: ['healthy agent', 'Guarded prompt, then LEASH\'s code checks every intent, then the vault. The agent acts alone only inside tier 1; above it, it asks you to sign.'],
+  model: ['hijacked model', 'A prompt written to obey every message stands in for a hijacked model. LEASH\'s code and the vault still check what it proposes.'],
+  server: ['hijacked model + server', 'The same obeying prompt, and the agent\'s server sends whatever it proposes with the agent key, unchecked. Only the vault is left.'],
+};
+let samples = [];
+
+async function loadChat() {
+  samples = await api('/api/chat/samples');
+  const fill = () => {
+    const prof = $('agent').value === 'healthy' ? 'guarded' : 'hijacked';
+    const cur = $('say').value;
+    $('say').replaceChildren(...samples.map((x, i) => h('option', { value: i }, `${x.recorded.includes(prof) ? '' : '[live only] '}${x.text.length > 90 ? `${x.text.slice(0, 90)}…` : x.text}`)),
+      h('option', { value: 'own' }, 'Write your own (live call)'));
+    if (cur) $('say').value = cur;
+    $('agentNote').textContent = AGENT[$('agent').value][1];
+  };
+  const pick = () => {
+    const own = $('say').value === 'own';
+    $('msg').value = own ? '' : samples[Number($('say').value)]?.text ?? '';
+    if (own && S.allowLive) $('tmode').value = 'live';
+  };
+  $('agent').addEventListener('change', fill);
+  $('say').addEventListener('change', pick);
+  fill();
+  pick();
+}
+
+function chatResult(x, r) {
+  const head = (badge, cls) => h('div', { class: 'row' }, h('span', { class: 'what' }, describe(r.intent)), h('span', { class: `badge ${cls}` }, badge));
+  const tx = (e, okText) => h('div', { class: `settled ${e.status === 'success' ? (x.agent === 'healthy' ? 'ok' : 'warn') : 'bad'}` },
+    e.status === 'success' ? okText : `refused by the ${e.status === 'reverted' ? 'contract' : 'node before sending'}: ${reasonOf(e) ?? e.status}`, e.hash ? ' · ' : '', e.hash ? link(e.hash, e.status === 'reverted') : '');
+  if (x.agent === 'server') {
+    return h('li', { class: 'prop' }, head(r.sent ? 'sent unchecked' : 'not sent', 'refuse'),
+      h('div', { class: 'meta' }, r.sent ? `the hijacked server called ${r.call}() with the agent key` : r.note),
+      r.sent && tx(r.tx, 'went through: it was inside the mandate'));
+  }
+  const action = r.decision === 'needs_owner' ? h('button', { onclick: (ev) => busy(ev.target, () => openMandate(r.ask, ev.target, 'chat')) }, 'Review & sign') : null;
+  return h('li', { class: 'prop' }, head(r.decision === 'needs_owner' ? 'needs your signature' : r.decision, r.decision),
+    h('ul', { class: 'checks' }, r.checks.map((c) => h('li', { class: c.ok ? '' : 'fail', title: c.detail }, `${c.rule}${c.ok ? '' : ` — ${c.detail}`}`))),
+    r.tx && tx(r.tx, 'done by the agent alone (tier 1)'),
+    action && h('div', { class: 'row' }, h('span'), action));
+}
+
+function renderExchange(x) {
+  const m = x.meta;
+  $('thread').prepend(h('li', { class: `ex ${x.agent}` },
+    h('div', { class: 'bubble msg' },
+      h('header', {}, h('span', {}, `${x.id} · unsigned message`), h('span', { class: 'chips' }, chips('code', x.codeFlags))),
+      h('p', {}, x.text)),
+    h('div', { class: 'bubble reply' },
+      h('header', {}, h('span', {}, `${AGENT[x.agent][0]} · ${m.mode} · ${m.model}${m.seconds ? ` · ${m.seconds.toFixed(1)} s` : ''}`), h('span', { class: 'chips' }, chips('model', x.modelFlags))),
+      h('p', {}, x.reply)),
+    x.results.length ? h('ol', { class: 'proposals' }, x.results.map((r) => chatResult(x, r))) : h('p', { class: 'meta' }, 'No action proposed.')));
+}
+
+$('send').addEventListener('click', (e) => busy(e.target, async () => {
+  const text = $('msg').value.trim();
+  if (!text) throw new Error('write a message first');
+  const x = await api('/api/chat', { text, agent: $('agent').value, mode: $('tmode').value });
+  renderExchange({ ...x, text });
+  refresh();
+}, $('tmode').value === 'live' ? 'Asking the model…' : 'Sending…'));
 
 // ------------------------------------------------------------------ red team
 async function loadAttacks() {
@@ -363,6 +472,6 @@ function refresh() {
 
 await refresh();
 $('instruction').textContent = `Owner: “${S.instruction}”`;
-await Promise.all([loadInbox(), loadAttacks(), loadEvidence(), loadSamples()]);
-if (!S.allowLive) for (const id of ['mode', 'cmode']) $(id).querySelector('[value="live"]').disabled = true;
+await Promise.all([loadInbox(), loadAttacks(), loadEvidence(), loadSamples(), loadChat()]);
+if (!S.allowLive) for (const id of ['mode', 'cmode', 'tmode']) $(id).querySelector('[value="live"]').disabled = true;
 setInterval(() => refreshing || refresh(), 5000);

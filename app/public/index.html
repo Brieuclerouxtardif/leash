@@ -54,6 +54,24 @@
         </article>
       </div>
 
+      <section class="card" id="talk">
+        <h2>Talk to the agent <span class="sub">anyone can write here and claim to be anyone; nothing written here has authority</span></h2>
+        <div class="worst" id="worst"></div>
+        <div class="controls compile-controls">
+          <label>Agent <select id="agent">
+            <option value="healthy">healthy: guarded prompt</option>
+            <option value="model">hijacked model: LEASH's code still checks</option>
+            <option value="server">hijacked model + server: only the contract is left</option>
+          </select></label>
+          <label class="grow">Message <select id="say"></select></label>
+          <label>Model <select id="tmode"><option value="replay">recorded replay</option><option value="live">live call</option></select></label>
+        </div>
+        <p class="meta" id="agentNote"></p>
+        <textarea id="msg" rows="2" maxlength="1000" spellcheck="false"></textarea>
+        <div class="row-end"><button class="primary" id="send">Send</button></div>
+        <ol class="thread" id="thread"></ol>
+      </section>
+
       <section class="card routine">
         <div class="routine-head">
           <div>
@@ -97,6 +115,10 @@
         <table class="diff" id="diff" hidden>
           <thead><tr><th>Setting</th><th>Now</th><th>Proposed</th><th></th></tr></thead>
           <tbody id="diffBody"></tbody>
+        </table>
+        <table class="diff" id="worstDiff" hidden>
+          <thead><tr><th>Worst case if the agent is hijacked</th><th>Now</th><th>After</th><th></th></tr></thead>
+          <tbody id="worstBody"></tbody>
         </table>
         <ul class="cnotes" id="cNotes"></ul>
         <div class="row-end"><button id="applyMandate" hidden>Apply as owner (demo key)</button></div>
