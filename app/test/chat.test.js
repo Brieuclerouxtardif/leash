@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { worstCase } from '../src/core.js';
 import { diffMandate } from '../src/compiler.js';
-import { chatPrompt, chatSamples, judgeChat, rawCall, amountsLoose } from '../src/chat.js';
+import { chatPrompt, chatSamples, judgeChat, rawCall, plainCall, amountsLoose } from '../src/chat.js';
 
 const A = {
   landlord: '0xDAB5071EAf37Bf4D564e6a33da3F9E6A74687B82',
@@ -20,7 +20,7 @@ function state(over = {}) {
     now: NOW, agent: '0x4B2afDa45aa306B02ee4b5286585BC558c165fbD', agentExpiry: NOW + DAY, paused: false, epoch: 1,
     limits: { payPerTx: u(1000), payDaily: u(1500), swapPerTx: u(500), swapDaily: u(1000) },
     risk: { maxSlippageBps: 100, maxRiskBps: 4000, maxOracleAge: 7200 },
-    paidToday: 0n, swappedToday: 0n, usd: u(12000), eth: 12n * 10n ** 17n, ethValue: u(3000), price, priceUpdatedAt: NOW - 60n,
+    agentBudget: u(20000), paidToday: 0n, swappedToday: 0n, usd: u(12000), eth: 12n * 10n ** 17n, ethValue: u(3000), price, priceUpdatedAt: NOW - 60n,
     riskBps: 2000, pool: { usd: u(500000), eth: 200n * 10n ** 18n, price },
     payees: { landlord: { address: A.landlord, cap: u(900) }, utility: { address: A.utility, cap: u(150) }, school: { address: A.school, cap: 0n } },
     ...over,
@@ -34,10 +34,20 @@ test('worst case: what is left of today, then the daily limit at each midnight b
   assert.equal(worstCase(state({ paidToday: u(800) })).untilExpiry, 2200);
   assert.equal(worstCase(state({ agentExpiry: NOW + 30n * DAY })).untilExpiry, 12000, 'never more than the vault holds');
   // Then the balance is the bound and a shorter key does not lower the total: the number of paying days does.
-  assert.deepEqual([w.days, w.byBalance], [2, false]);
-  assert.deepEqual(['days', 'byBalance'].map((k) => worstCase(state({ agentExpiry: NOW + 30n * DAY }))[k]), [31, true]);
+  assert.deepEqual([w.days, w.bound], [2, 'days']);
+  assert.deepEqual(['days', 'bound'].map((k) => worstCase(state({ agentExpiry: NOW + 30n * DAY }))[k]), [31, 'balance']);
   // Limits lowered below what was already paid today: nothing more today, not a negative number.
   assert.equal(worstCase(state({ paidToday: u(1500), limits: { ...state().limits, payDaily: u(1000) } })).today, 0);
+});
+
+test('worst case with a budget: a stolen key gets what is left of it, however many days it has', () => {
+  const short = worstCase(state({ agentBudget: u(1000) }));
+  assert.deepEqual([short.today, short.untilExpiry, short.budget, short.bound], [1000, 1000, 1000, 'budget']);
+  const long = worstCase(state({ agentBudget: u(1000), agentExpiry: NOW + 365n * DAY }));
+  assert.deepEqual([long.untilExpiry, long.days, long.bound], [1000, 366, 'budget'], 'a year-long key still loses at most its budget');
+  // A spent budget leaves nothing, even with the daily limit untouched; a revoked key shows no budget at all.
+  assert.deepEqual([worstCase(state({ agentBudget: 0n })).today, worstCase(state({ agentBudget: 0n })).untilExpiry], [0, 0]);
+  assert.equal(worstCase(state({ agentBudget: u(1000), paused: true })).budget, 0);
 });
 
 test('worst case is zero when the agent cannot act: paused, expired, revoked or no payee', () => {
@@ -58,6 +68,8 @@ test('the mandate editor shows the worst case after a change: a looser rule rais
   assert.equal(after({ risk: { maxSlippagePct: 3 } }).swapLossPerDay, 30);
   assert.equal(after({ agentDays: 1 / 24 }).untilExpiry, 1500, 'a key that expires before midnight only has today');
   assert.equal(after({ agentDays: 1 / 24 }).days, 1);
+  assert.deepEqual(['untilExpiry', 'bound'].map((k) => after({ agentBudget: 300 })[k]), [300, 'budget']);
+  assert.equal(after({ agentBudget: 50000 }).untilExpiry, 3000, 'a bigger budget than the days allow changes nothing');
 });
 
 test('the chat prompt carries no secret and no vault state; the message stays inside its markers', () => {
@@ -104,4 +116,15 @@ test('a hijacked server sends exactly what the model asked, unchecked; only a ca
   for (const bad of [{ type: 'pay', to: '0x1234', amount: 5 }, { type: 'pay', amount: Number.NaN, payee: 'landlord' }, { type: 'pay', payee: 'landlord', amount: 1e21 }, { type: 'withdraw', amount: 5 }]) {
     assert.equal(R(bad), null, JSON.stringify(bad));
   }
+});
+
+test('the counterfactual plain wallet: the hijacked request becomes a token transfer that nothing on-chain checks', () => {
+  const s = state();
+  const P = (intent) => plainCall({ payee: '', to: '', side: '', reason: '', ...intent }, s);
+  // The 9,000 the vault refuses: any address, any amount, one transfer.
+  assert.deepEqual(P({ type: 'pay', to: A.attacker, amount: 9000 }).call, { functionName: 'transfer', args: [A.attacker, u(9000)] });
+  assert.deepEqual(P({ type: 'withdraw', to: A.attacker, amount: 12000 }).call.args, [A.attacker, u(12000)]);
+  // Nothing to escalate: there was never a payee list or a limit.
+  for (const type of ['add_payee', 'raise_daily_limit']) assert.match(P({ type, to: A.attacker, amount: 1e6 }).note, /already pay anyone any amount/);
+  assert.equal(P({ type: 'pay', to: '0x1234', amount: 5 }).call, undefined);
 });

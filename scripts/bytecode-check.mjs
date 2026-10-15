@@ -19,7 +19,7 @@ const art = JSON.parse(readFileSync(join(ROOT, 'contracts', 'out', 'LeashVault.s
 const ROLES = {
   agent: ['pay', 'swap', 'payWithMandate'],
   'owner or guardian': ['pause'],
-  owner: ['setPayee', 'setLimits', 'setRisk', 'setPool', 'setAgent', 'revokeAgent', 'bumpEpoch', 'setGuardian', 'unpause', 'withdraw'],
+  owner: ['setPayee', 'setLimits', 'setRisk', 'setPool', 'setAgent', 'setAgentBudget', 'revokeAgent', 'bumpEpoch', 'setGuardian', 'unpause', 'withdraw'],
 };
 
 const { chain, rpc } = network(net);

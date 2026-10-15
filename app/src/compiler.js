@@ -12,7 +12,7 @@ const NAMES = ['landlord', 'utility', 'school'];
 const num = { type: ['number', 'null'] };
 
 export const MANDATE_SCHEMA = {
-  type: 'object', additionalProperties: false, required: ['summary', 'payees', 'limits', 'risk', 'agentDays', 'unmapped', 'questions'],
+  type: 'object', additionalProperties: false, required: ['summary', 'payees', 'limits', 'risk', 'agentDays', 'agentBudget', 'unmapped', 'questions'],
   properties: {
     summary: { type: 'string' },
     questions: { type: 'array', items: { type: 'string' } },
@@ -23,6 +23,7 @@ export const MANDATE_SCHEMA = {
     limits: { type: 'object', additionalProperties: false, required: ['payPerTx', 'payDaily', 'swapPerTx', 'swapDaily'], properties: { payPerTx: num, payDaily: num, swapPerTx: num, swapDaily: num } },
     risk: { type: 'object', additionalProperties: false, required: ['maxSlippagePct', 'maxRiskPct'], properties: { maxSlippagePct: num, maxRiskPct: num } },
     agentDays: num,
+    agentBudget: num,
     unmapped: { type: 'array', items: { type: 'string' } },
   },
 };
@@ -41,6 +42,7 @@ export function compilePrompt(text, answers = []) {
 - limits: payPerTx = max for one payment, payDaily = max total of payments per day, swapPerTx = max for one swap (DCA), swapDaily = max total of swaps per day.
 - risk: maxRiskPct = max share of the vault held in ETH (tETH); maxSlippagePct = max swap price deviation from the oracle.
 - Amounts are tUSD. Percentages are plain numbers (40 means 40%). agentDays = how long the agent key stays valid from now.
+- agentBudget = the total the agent may pay on its own from now on, all payments and all days together, until the owner sets it again ("give the agent 600 for the next two weeks" gives 600). It is not a daily limit.
 - You do not know the current values. A rule that maps to a setting but gives no usable value (missing, vague or relative: "a bit more", "double the limit"): do not guess. Leave that setting null (a payee: leave it out of "payees"; cap 0 would remove it) and ask for the absolute value in "questions", one short question per setting, with its unit. Do not also put it in "unmapped".
 - Ask only for a value you need: when the text gives every value, "questions" is empty. When an answer below gives a value you asked for, use it.
 - Never invent a rule. Anything the owner asks that these settings cannot express goes in "unmapped", in the owner's words.
@@ -115,6 +117,16 @@ export function diffMandate(s, m, addr) {
     }
   }
 
+  // Setting the budget replaces what is left of it, it does not add to it: 300 with 80 left loosens the leash, 300 with 800 left tightens it.
+  let budget = fmtUsd(s.agentBudget);
+  if (m.agentBudget !== null && m.agentBudget !== undefined) {
+    if (!fin(m.agentBudget)) errors.push(`agent budget: ${m.agentBudget} is not a valid amount`);
+    else {
+      budget = m.agentBudget;
+      row('agent.budget', 'agent key budget (all its payments, every day, until you reload it)', fmtUsd(s.agentBudget), budget, budget > fmtUsd(s.agentBudget), usdOf);
+    }
+  }
+
   const calls = [];
   for (const [name, cap] of Object.entries(payees)) {
     if (usd(cap) !== (s.payees[name]?.cap ?? 0n)) calls.push({ functionName: 'setPayee', args: [addr[name], usd(cap)], label: `setPayee ${name} ${cap}` });
@@ -127,6 +139,8 @@ export function diffMandate(s, m, addr) {
   }
   // No row on screen, no transaction: a renewal a few seconds off the current expiry shows no row, so it is not sent.
   if (agentUntil !== null && rows.some((r) => r.field === 'agent.expiry')) calls.push({ functionName: 'setAgent', args: [s.agent, agentUntil], label: 'setAgent (renew)' });
+  // Compare-and-set: the vault refuses the reload if the agent spent since this diff was read (SECURITY.md R16).
+  if (rows.some((r) => r.field === 'agent.budget')) calls.push({ functionName: 'setAgentBudget', args: [s.agentBudget, usd(budget)], label: `setAgentBudget ${budget}` });
 
   // The mandate as it would be once applied, for the worst case before and after.
   const next = {
@@ -134,6 +148,7 @@ export function diffMandate(s, m, addr) {
     risk: { ...s.risk, ...R },
     payees: Object.fromEntries(Object.entries(s.payees).map(([n, p]) => [n, { ...p, cap: n in payees ? usd(payees[n]) : p.cap }])),
     agentExpiry: agentUntil ?? s.agentExpiry,
+    agentBudget: budget === fmtUsd(s.agentBudget) ? s.agentBudget : usd(budget),
   };
   return { rows, errors, unmapped: m.unmapped ?? [], calls, looser: rows.filter((r) => r.direction === 'looser').length, next };
 }

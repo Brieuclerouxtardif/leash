@@ -28,7 +28,7 @@ if (net === 'local' || ctx.net.fork) {
 const gasPrice = await pub.getGasPrice();
 const perRole = [parseEther(ctx.net.minRoleEth ?? '0.002'), gasPrice * 2n * 2_000_000n].reduce((a, b) => (a > b ? a : b));
 if (net !== 'local' && !ctx.net.fork) {
-  const need = gasPrice * 2n * 10_000_000n + perRole * 3n;
+  const need = gasPrice * 2n * 10_000_000n + perRole * (addr.hot ? 4n : 3n);
   const have = await pub.getBalance({ address: addr.owner });
   if (have < need) {
     console.error(`owner ${addr.owner} has ${Number(have) / 1e18} ETH; at ${Number(gasPrice) / 1e9} gwei this deploy needs ~${Number(need) / 1e18} ETH. Fund it, or wait for cheaper gas.`);
@@ -81,6 +81,7 @@ const vault = await deploy('vault', 'LeashVault.sol', 'LeashVault', [addr.owner,
 const now = (await pub.getBlock()).timestamp;
 const L = MANDATE.limits;
 await call('setAgent', vault, ABI.vault, 'setAgent', [addr.agent, now + BigInt(MANDATE.agentDays * 86400)]);
+await call('setAgentBudget', vault, ABI.vault, 'setAgentBudget', [0n, usd6(MANDATE.agentBudget)]); // a new key starts at 0
 await call('setGuardian', vault, ABI.vault, 'setGuardian', [addr.guardian]);
 await call('setPool', vault, ABI.vault, 'setPool', [pool]);
 await call('setLimits', vault, ABI.vault, 'setLimits', [{ payPerTx: usd6(L.payPerTx), payDaily: usd6(L.payDaily), swapPerTx: usd6(L.swapPerTx), swapDaily: usd6(L.swapDaily) }]);
@@ -89,10 +90,12 @@ for (const [who, cap] of Object.entries(MANDATE.payees)) await call(`setPayee:${
 await call('fund:usd', usd, ABI.token, 'mint', [vault, usd6(MANDATE.funding.usd)]);
 await call('fund:eth', eth, ABI.token, 'mint', [vault, parseEther(String(MANDATE.funding.eth))]);
 await call('mint:attacker', usd, ABI.token, 'mint', [addr.attacker, usd6(200000)]); // the pool manipulator's war chest
+// The counterfactual: the same tUSD in a plain wallet whose key a server holds, the usual way to give an agent money.
+if (addr.hot) await call('fund:hot', usd, ABI.token, 'mint', [addr.hot, usd6(MANDATE.funding.usd)]);
 
 if (net !== 'local') {
   // The role keys are the same on every deploy: top them up rather than pay them again.
-  for (const role of ['agent', 'guardian', 'attacker']) {
+  for (const role of ['agent', 'guardian', 'attacker', ...(addr.hot ? ['hot'] : [])]) {
     const has = await pub.getBalance({ address: addr[role] });
     if (has >= perRole) { console.log(`gas:${role} already has ${Number(has) / 1e18} ETH`); continue; }
     const hash = await owner.sendTransaction({ to: addr[role], value: perRole - has });

@@ -50,6 +50,8 @@ export const REAL_FUNDS_CHAIN_IDS = new Set([8453]);
 // The mandate written into the vault at deployment (human units).
 export const MANDATE = {
   agentDays: 14,
+  // The key's whole-life budget for tier-1 payments: two weeks of bills (rent 800, electricity 120), 8 % of the vault.
+  agentBudget: 1000,
   limits: { payPerTx: 1000, payDaily: 1500, swapPerTx: 500, swapDaily: 1000 },
   risk: { maxSlippageBps: 100, maxRiskBps: 4000, maxOracleAge: 7200 },
   payees: { landlord: 900, utility: 150 },

@@ -23,6 +23,7 @@ abstract contract LeashBase is Test {
     address utility = makeAddr("utility");
 
     uint256 constant PRICE = 2500e8; // ETH/USD, 8 decimals like Chainlink
+    uint128 constant BUDGET = 5000e6; // half the vault's tUSD: the daily cap alone would let 30 days take it all
 
     function setUp() public virtual {
         vm.warp(1_790_000_000);
@@ -47,6 +48,7 @@ abstract contract LeashBase is Test {
 
         vm.startPrank(owner);
         vault.setAgent(agent, uint64(vm.getBlockTimestamp() + 30 days));
+        vault.setAgentBudget(0, BUDGET);
         vault.setGuardian(guardian);
         vault.setPool(ILeashPool(address(pool)));
         vault.setLimits(LeashVault.Limits({payPerTx: 1000e6, payDaily: 1500e6, swapPerTx: 500e6, swapDaily: 1000e6}));

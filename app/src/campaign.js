@@ -72,22 +72,24 @@ export function makeCampaign(ctx, d, runId, { lastPaid } = {}) {
       run: (id) => send('agent', { functionName: 'setPayee', args: [addr.attacker, usd6(1e6)] }, { scene: id, label: 'privilege escalation', force: true }) },
     { id: 'A4', title: 'Stolen agent key: attacker withdraws to their own address', expect: 'reverted:NotOwner',
       run: (id) => send('agent', { functionName: 'withdraw', args: [d.usd, addr.attacker, usd6(9000)] }, { scene: id, label: 'withdraw attempt', force: true }) },
-    { id: 'A5', title: 'Salami: stolen key slices payments to a trusted payee until the daily cap stops it', expect: 'reverted:AboveDailyLimit',
+    { id: 'A5', title: 'Salami: stolen key slices payments to a trusted payee until the key\'s budget runs out', expect: 'reverted:AboveAgentBudget',
       run: async (id) => {
-        // Residual risk, shown on purpose: what is left of today's cap does leave, but only to a registered payee.
+        // Residual risk, shown on purpose: what is left of the key's budget does leave, but only to a registered payee.
+        // The daily cap would allow more today, and again every day until the key expires; the budget allows it once.
         const s = await state();
         const tag = `${runId}:salami:${Date.now()}`;
-        let left = s.limits.payDaily - s.paidToday;
+        const today = s.limits.payDaily - s.paidToday;
+        let left = s.agentBudget < today ? s.agentBudget : today;
         let leaked = 0n;
         for (let n = 0; left > 0n; n++) {
           const slice = left > s.payees.landlord.cap ? s.payees.landlord.cap : left;
           const e = await send('agent', { functionName: 'pay', args: [addr.landlord, slice, opId(`${tag}:${n}`)] }, { scene: id, label: `salami slice ${fmtUsd(slice)} to the landlord` });
-          if (e.status !== 'success') return { ...e, note: `slice ${n} failed before the cap` };
+          if (e.status !== 'success') return { ...e, note: `slice ${n} failed before the budget ran out` };
           left -= slice;
           leaked += slice;
         }
-        const e = await send('agent', { functionName: 'pay', args: [addr.landlord, 1_000_000n, opId(`${tag}:over`)] }, { scene: id, label: 'salami: 1 tUSD over the daily cap', force: true });
-        return { ...e, note: `${fmtUsd(leaked)} tUSD went to the landlord before the cap (already paid today: ${fmtUsd(s.paidToday)}); the attacker received nothing` };
+        const e = await send('agent', { functionName: 'pay', args: [addr.landlord, 1_000_000n, opId(`${tag}:over`)] }, { scene: id, label: 'salami: 1 tUSD over the key\'s budget', force: true });
+        return { ...e, note: `${fmtUsd(leaked)} tUSD went to the landlord: all that was left of the key's budget. The daily cap alone would have let ${fmtUsd(today)} go today and ${fmtUsd(s.limits.payDaily)} again each day until the key expires. The attacker received nothing` };
       } },
     { id: 'A6', title: 'Replay: execute the October rent a second time', expect: 'reverted:OpAlreadyUsed',
       run: (id) => {

@@ -55,7 +55,8 @@ export async function connect(netName, { journal } = {}) {
   }
   const k = keys(net.keyFile);
   const wallets = {};
-  for (const role of ['owner', 'agent', 'guardian', 'attacker']) {
+  for (const role of ['owner', 'agent', 'guardian', 'attacker', 'hot']) {
+    if (!k[role]) continue; // hot came later: `node app/src/keys.js` adds it
     wallets[role] = createWalletClient({ account: privateKeyToAccount(k[role].privateKey), chain: net.chain, transport: http(net.rpc) });
   }
   const journalFile = journal ?? join(ROOT, 'evidence', `${netName}-journal.jsonl`);

@@ -124,6 +124,11 @@ contract LeashInvariants is LeashBase {
         }
     }
 
+    function invariant_agent_never_spends_beyond_its_budget() public view {
+        assertLe(handler.paidTotal(), BUDGET);
+        assertEq(handler.paidTotal() + vault.agentBudget(), BUDGET);
+    }
+
     function invariant_payees_got_exactly_what_was_paid() public view {
         assertEq(usd.balanceOf(landlord) + usd.balanceOf(utility), handler.paidTotal());
     }

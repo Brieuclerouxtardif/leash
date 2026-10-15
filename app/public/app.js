@@ -76,7 +76,7 @@ function renderState(s) {
   const payees = Object.entries(s.payees).filter(([, p]) => p.cap > 0).map(([n, p]) => `${n} ≤ ${money(p.cap, 0)}`).join(', ');
   $('mandate').replaceChildren(
     h('li', {}, `Pays only registered payees: ${payees}`),
-    h('li', {}, `≤ ${money(L.payPerTx, 0)} tUSD per payment, ≤ ${money(L.payDaily, 0)} per day`),
+    h('li', {}, `≤ ${money(L.payPerTx, 0)} tUSD per payment, ≤ ${money(L.payDaily, 0)} per day, and ${money(s.agentBudget, 0)} left in the key's budget: all its payments, every day, until the owner reloads it`),
     h('li', {}, `Swaps ≤ ${money(L.swapPerTx, 0)} each, ≤ ${money(L.swapDaily, 0)} per day, never below ${(100 - s.risk.maxSlippageBps / 100).toFixed(0)}% of the oracle price`),
     h('li', {}, `tETH share ≤ ${s.risk.maxRiskBps / 100}% after any buy`),
     h('li', {}, `Above that: owner's EIP-712 signature for that exact payment`),
@@ -106,10 +106,13 @@ function renderWorst(w, s) {
       tile('0', 'tUSD to any address you did not register', 'ok'),
       tile(w.live ? `≤ ${money(w.today, 0)}` : '0', w.live ? `tUSD more today, only to ${w.to.join(' and ') || 'nobody'}` : `tUSD today: ${off}`, w.live && w.today > 0 ? 'warn' : 'ok'),
       tile(w.live ? `≤ ${money(w.untilExpiry, 0)}` : '0', w.live
-        ? `tUSD until the key expires on ${until} (${w.days} paying day${w.days > 1 ? 's' : ''}${w.byBalance ? ': all the tUSD in the vault' : ''}), if nobody pulls the kill switch`
-        : 'tUSD until the owner acts', w.live ? 'warn' : 'ok'),
+        ? `tUSD until the key expires on ${until}, ${{ budget: 'all that is left of its budget: only the owner can reload it', balance: 'all the tUSD in the vault', days: `${w.days} paying day${w.days > 1 ? 's' : ''} at the daily limit` }[w.bound]}`
+        : 'tUSD until the owner acts', w.live && w.untilExpiry > 0 ? 'warn' : 'ok'),
       tile(w.live ? `≤ ${money(w.swapLossPerDay, 0)}` : '0', 'tUSD a day lost on swaps against the oracle price', w.live ? 'warn' : 'ok')),
-    h('p', { class: 'wfoot' }, 'Adding a payee, raising a limit, withdrawing: impossible for the agent. Nothing written below can raise these numbers; only an owner transaction can.'));
+    h('p', { class: 'wfoot' }, 'Adding a payee, raising a limit, withdrawing: impossible for the agent. Nothing written below can raise these numbers; only an owner transaction can.'),
+    // The counterfactual wallet (agent "no LEASH" below): the same hijack, the usual setup.
+    s.hot && h('p', { class: 'wplain' }, 'Without LEASH, the usual setup: a plain wallet whose key the agent\'s server holds (', h('span', { class: 'mono' }, short(s.hot.address)),
+      ', funded like the vault). The same hijack takes ', h('b', {}, 'all of it'), ', to any address, in one transaction. It holds ', h('b', {}, `${money(s.hot.usd, 0)} tUSD`), ' now.'));
 }
 
 // ------------------------------------------------------------------ inbox and plan
@@ -289,6 +292,7 @@ async function compile(answers) {
 }
 
 // What the change does to the worst case, before the owner signs it: the price of a longer leash.
+const BOUND = { budget: ' (budget)', balance: ' (whole balance)', days: '' };
 function renderWorstDiff(w, show) {
   $('worstDiff').hidden = !show;
   if (!show) return;
@@ -298,8 +302,9 @@ function renderWorstDiff(w, show) {
     ['tUSD that can leave per day', money(w.now.perDay, 0), money(w.next.perDay, 0), n(w.now.perDay, w.next.perDay)],
     ['…only to', names(w.now), names(w.next), n(w.now.to.length, w.next.to.length)],
     ['UTC days the agent key can still pay', w.now.days, w.next.days, n(w.now.days, w.next.days)],
-    ['tUSD until the agent key expires', money(w.now.untilExpiry, 0) + (w.now.byBalance ? ' (whole balance)' : ''),
-      money(w.next.untilExpiry, 0) + (w.next.byBalance ? ' (whole balance)' : ''), n(w.now.untilExpiry, w.next.untilExpiry)],
+    ['tUSD left in the agent key\'s budget', money(w.now.budget, 0), money(w.next.budget, 0), n(w.now.budget, w.next.budget)],
+    ['tUSD until the agent key expires', money(w.now.untilExpiry, 0) + BOUND[w.now.bound],
+      money(w.next.untilExpiry, 0) + BOUND[w.next.bound], n(w.now.untilExpiry, w.next.untilExpiry)],
     ['tUSD lost on swaps per day', money(w.now.swapLossPerDay, 0), money(w.next.swapLossPerDay, 0), n(w.now.swapLossPerDay, w.next.swapLossPerDay)],
   ];
   $('worstBody').replaceChildren(...rows.map(([label, a, b, dir]) => h('tr', { class: dir }, h('td', {}, label), h('td', {}, a), h('td', {}, b),
@@ -326,6 +331,7 @@ const AGENT = {
   healthy: ['healthy agent', 'Guarded prompt, then LEASH\'s code checks every intent, then the vault. The agent acts alone only inside tier 1; above it, it asks you to sign.'],
   model: ['hijacked model', 'A prompt written to obey every message stands in for a hijacked model. LEASH\'s code and the vault still check what it proposes.'],
   server: ['hijacked model + server', 'The same obeying prompt, and the agent\'s server sends whatever it proposes with the agent key, unchecked. Only the vault is left.'],
+  plain: ['no LEASH: plain wallet', 'The counterfactual: the usual way to give an agent money. The same hijacked server holds the key of a plain wallet funded like the vault, and signs a token transfer for whatever the model proposes. No vault, so nothing is left to refuse.'],
 };
 let samples = [];
 
@@ -358,6 +364,12 @@ function chatResult(x, r) {
     return h('li', { class: 'prop' }, head(r.sent ? 'sent unchecked' : 'not sent', 'refuse'),
       h('div', { class: 'meta' }, r.sent ? `the hijacked server called ${r.call}() with the agent key` : r.note),
       r.sent && tx(r.tx, 'went through: it was inside the mandate'));
+  }
+  if (x.agent === 'plain') {
+    return h('li', { class: 'prop' }, head(r.sent ? 'sent unchecked' : 'not sent', 'refuse'),
+      h('div', { class: 'meta' }, r.sent ? 'the hijacked server signed a tUSD transfer from the plain wallet' : r.note),
+      r.sent && h('div', { class: `settled ${r.tx.status === 'success' ? 'bad' : 'warn'}` },
+        r.tx.status === 'success' ? 'GONE: nothing on-chain checked it' : `failed: ${reasonOf(r.tx) ?? r.tx.status}`, r.tx.hash ? ' · ' : '', r.tx.hash ? link(r.tx.hash, false) : ''));
   }
   const action = r.decision === 'needs_owner' ? h('button', { onclick: (ev) => busy(ev.target, () => openMandate(r.ask, ev.target, 'chat')) }, 'Review & sign') : null;
   return h('li', { class: 'prop' }, head(r.decision === 'needs_owner' ? 'needs your signature' : r.decision, r.decision),

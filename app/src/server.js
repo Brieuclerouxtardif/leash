@@ -10,7 +10,7 @@ import { loadInbox, buildPrompt, propose, review, scanDocument, keyOf, MODEL } f
 import { makeCampaign, outcomeOf } from './campaign.js';
 import { INSTRUCTION, WEEK } from './routine.js';
 import { compileMandate, diffMandate, replayableSamples } from './compiler.js';
-import { AGENTS, profileOf, chatPrompt, chatSamples, recordedProfiles, judgeChat, rawCall, CHAT_SCHEMA } from './chat.js';
+import { AGENTS, profileOf, chatPrompt, chatSamples, recordedProfiles, judgeChat, rawCall, plainCall, CHAT_SCHEMA } from './chat.js';
 
 const arg = (k, def) => { const i = process.argv.indexOf(`--${k}`); return i > 0 ? process.argv[i + 1] : def; };
 const NET = arg('network', 'local');
@@ -41,10 +41,15 @@ function log(entry) {
 
 async function snapshot() {
   const s = await readState(ctx, d);
+  // The plain wallet of the counterfactual, funded at deploy with what the vault got.
+  const hot = ctx.addr.hot
+    ? { address: ctx.addr.hot, usd: fmtUsd(await ctx.pub.readContract({ address: d.usd, abi: ABI.token, functionName: 'balanceOf', args: [ctx.addr.hot] })) }
+    : null;
   return {
+    hot,
     network: NET, chainId: ctx.net.chain.id, explorer: ctx.net.explorer, decoder: ctx.net.decoder ?? null, vault: d.vault, oracle: d.oracle, pool: d.pool, model: MODEL, allowLive: ALLOW_LIVE,
     instruction: INSTRUCTION, roles: ctx.addr,
-    now: Number(s.now), agent: s.agent, agentExpiry: Number(s.agentExpiry), paused: s.paused, epoch: s.epoch,
+    now: Number(s.now), agent: s.agent, agentExpiry: Number(s.agentExpiry), agentBudget: fmtUsd(s.agentBudget), paused: s.paused, epoch: s.epoch,
     usd: fmtUsd(s.usd), eth: Number(s.eth) / 1e18, ethValue: fmtUsd(s.ethValue), price: Number(s.price) / 1e8, priceAge: Number(s.now - s.priceUpdatedAt),
     poolPrice: Number(s.pool.price) / 1e8, riskBps: s.riskBps,
     limits: Object.fromEntries(Object.entries(s.limits).map(([k, v]) => [k, fmtUsd(v)])), risk: s.risk,
@@ -74,6 +79,7 @@ async function talk({ text, agent = 'healthy', mode = 'replay' }) {
   if (!AGENTS.includes(agent) || !['replay', 'live'].includes(mode)) throw new Error('bad agent or mode');
   if (typeof text !== 'string' || !text.trim() || text.length > 1000) throw new Error('a message is 1–1000 characters');
   if (mode === 'live' && !ALLOW_LIVE) throw new Error('live model calls are disabled; start the server with --allow-live');
+  if (agent === 'plain' && !ctx.wallets.hot) throw new Error('no plain wallet: run `node app/src/keys.js`, then deploy again');
   const profile = profileOf(agent);
   const p = propose({ scenario: 'chat', profile, prompt: chatPrompt(profile, text), mode, schema: CHAT_SCHEMA, exactPrompt: true });
   const doc = { id: `msg-${++msgs}`, text };
@@ -86,6 +92,14 @@ async function talk({ text, agent = 'healthy', mode = 'replay' }) {
   log({ kind: 'plan', label: `chat ${doc.id} (${agent}, ${p.mode}): ${(p.response.intents ?? []).length} intents`, status: 'info' });
   for (const [k, raw] of (p.response.intents ?? []).slice(0, 5).entries()) {
     const intent = { ...raw, source: doc.id };
+    if (agent === 'plain') {
+      // No LEASH: the server holds a plain wallet's key, and a transfer it signs is all the chain sees.
+      const { call, note } = plainCall(intent, s0);
+      if (!call) { out.results.push({ intent, sent: false, note }); continue; }
+      const e = await ctx.send('hot', { address: d.usd, abi: ABI.token, ...call, scene: 'chat', label: `plain wallet, hijacked server: transfer (${doc.id})`, force: true });
+      out.results.push({ intent, sent: true, call: 'transfer', tx: log({ kind: 'chat', ...strip(e) }) });
+      continue;
+    }
     if (agent === 'server') {
       // Model, code and key all in the attacker's hands: the call goes out as asked, and only the vault decides.
       const call = rawCall(intent, s0, d, `${week}:${doc.id}:${k}`);

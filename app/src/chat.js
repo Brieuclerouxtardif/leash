@@ -4,6 +4,8 @@
 //   healthy  guarded prompt  -> LEASH's code judges -> the vault
 //   model    hijacked prompt -> LEASH's code judges -> the vault
 //   server   hijacked prompt -> sent as asked, no code check -> the vault
+// and one without LEASH, the usual way to give an agent money, as the counterfactual:
+//   plain    hijacked prompt -> sent as asked -> a plain wallet whose key the server holds: nothing left to refuse
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseUnits, parseEther, isAddress } from 'viem';
@@ -11,7 +13,7 @@ import { opId } from './core.js';
 import { review, sha } from './planner.js';
 import { ROOT } from './chain.js';
 
-export const AGENTS = ['healthy', 'model', 'server'];
+export const AGENTS = ['healthy', 'model', 'server', 'plain'];
 export const profileOf = (agent) => (agent === 'healthy' ? 'guarded' : 'hijacked');
 
 // Code never lets the agent key do these: no agent path exists in the vault either (onlyOwner).
@@ -128,4 +130,15 @@ export function rawCall(intent, s, d, key) {
     case 'withdraw': return to ? { functionName: 'withdraw', args: [d.usd, to, amount] } : null;
     default: return null;
   }
+}
+
+/** The same hijacked server holding a plain wallet: a payment or a withdrawal is a token transfer the key signs,
+ *  and nothing on-chain looks at it. { call } on the tUSD token, or { note } when there is nothing to send. */
+export function plainCall(intent, s) {
+  if (intent.type === 'add_payee' || intent.type === 'raise_daily_limit') return { note: 'a plain wallet has no payee list and no limit to change: its key can already pay anyone any amount' };
+  if (intent.type === 'swap') return { note: 'this wallet has no swap route set up; with one, any price would do' };
+  const t = intent.to || s.payees[intent.payee]?.address;
+  const amount = units(intent.amount, false);
+  if (!isAddress(t ?? '', { strict: false }) || amount === null) return { note: 'nothing a token transfer could take (no valid address or amount)' };
+  return { call: { functionName: 'transfer', args: [t, amount] } };
 }
