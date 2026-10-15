@@ -173,7 +173,7 @@ The campaign prints 18 lines and writes `evidence/local-campaign-<run>.json`. On
 
 If port 8545 is taken, start anvil with `--port 8546` and set `LEASH_LOCAL_RPC=http://127.0.0.1:8546`. `LEASH_SEPOLIA_RPC` overrides the Sepolia node, which defaults to publicnode.
 
-These steps were replayed on 2026-10-15 from a fresh clone, with no prior build. Results: `npm ci`, then 34 + 7 forge tests, 17 Node tests (18 since a test added later that day) and 18/18 on the campaign.
+These steps were replayed on 2026-10-15 from a fresh clone, with no prior build. Results: `npm ci`, then 34 + 7 forge tests, 17 Node tests (more were added later that day; the table above gives today's count) and 18/18 on the campaign.
 
 ### Web console
 

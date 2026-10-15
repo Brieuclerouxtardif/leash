@@ -450,3 +450,22 @@ Ce ne sont pas des promesses du prompt : c'est le contrat qui refuse. Chaque ref
   - A5 a bien tourné avec le nouveau code : 900, puis 600, puis `AboveDailyLimit`, décodé par le nouveau `replayRevert` sur un vrai revert. C'est en fait le chemin modifié, donc la vérification tient, mais pas pour la raison que j'avais donnée. Journal `evidence/local-console-20261015T121738.jsonl`.
   - Effet de bord : le plafond du jour du coffre local est consommé (1 500 tUSD) jusqu'à 00:00 UTC. Un paiement de tier 1 en local sera refusé aujourd'hui ; le redéployer avec `--fresh` règle ça.
   - **Critique.** **Un clic se vérifie par son effet (le journal), pas par ce qu'affiche l'écran juste après.**
+- 17:45 (réel, 15/10) — Licence et e-mail des commits : les deux décisions d'avant push sont prises, et le push est outillé.
+  - **Décisions de Brieuc.** Licence MIT, déjà annoncée par le `SPDX` des contrats ; le fichier `LICENSE` est commité (17:36). Son e-mail perso est masqué dans les commits. Il n'a pas encore de compte GitHub.
+  - **Masquage.**
+    - `work/masquer-email.mjs` (hors du repo) réécrit l'auteur et le committer de tous les commits, sur toutes les branches, vers l'adresse noreply GitHub du compte. L'adresse est construite avec l'id public de l'API GitHub.
+    - Il vérifie que les fichiers sont identiques sur chaque branche et que chaque commit a un nouveau hash. Il remplace ensuite les hashes cités dans les `.md`/`.txt` suivis de chaque worktree, puis commite.
+    - Il refuse s'il existe un remote, si un worktree n'est pas propre, ou si `user.name` manque.
+  - **`work/4-publier.cmd` refait.**
+    - Arrêt si un secret est suivi ou si quelque chose n'est pas commité ; avant, il affichait seulement.
+    - Il demande l'URL et en tire le pseudo. Il masque l'e-mail si une adresse perso reste, revérifie, puis pousse `main` et `base-mainnet`.
+  - **Test de bout en bout.** Clone neuf, worktree `base-mainnet`, push redirigé vers un dépôt nu local (`url.insteadOf`), pseudo `octocat`.
+    - 70 commits réécrits, 0 adresse perso dans les auteurs, messages et diffs poussés.
+    - Seuls des hashes changent dans les fichiers : 16 lignes, 2 fichiers.
+    - Les 17 hashes cités dans `boucle.md` se résolvent.
+  - **Branche plan B.** `base-mainnet` a reçu `main` (LICENSE). Elle sera poussée aussi. Aucune des 7 clés de `secrets/` n'apparaît dans l'historique des deux branches (scan qui ne fait que compter).
+  - **Critique.**
+    - Premier jet du script : il comptait 584 « commits », parce que les blobs portent aussi des marks. Ma regex `^commit` attrapait aussi `committer`. Il ne corrigeait les hashes que dans un worktree, et ne vérifiait la propreté des worktrees qu'après la réécriture, quand il est trop tard pour s'arrêter. Il aurait signé « unknown » sans `user.name`. Tout a été trouvé en le faisant tourner sur une copie, rien en le relisant. **Un script qui réécrit l'historique ne tourne sur le vrai repo qu'après un test complet sur un clone.**
+    - Le test du `.cmd` a d'abord échoué : `chcp 65001` avale l'entrée redirigée, et les deux `set /p` lisaient du vide. Ça ne gênait pas un double-clic, mais ça empêchait tout test automatique. Corrigé par `chcp 65001 >nul <nul`.
+    - Sans ce test, `4-publier` n'aurait poussé que `main`. Le journal aurait cité deux commits de `base-mainnet` absents de GitHub. Je ne l'ai vu qu'en résolvant chaque hash cité contre le dépôt poussé.
+    - Le README annonçait encore « 17 Node tests (18 since…) » dans le récit du clone neuf ; il y en a 21. presubmit ne vérifie que la ligne du tableau. La phrase renvoie maintenant au tableau au lieu de répéter un chiffre qui vieillit.
