@@ -311,3 +311,10 @@ Ce ne sont pas des promesses du prompt : c'est le contrat qui refuse. Chaque ref
   - **Critique.**
     - Même faute deux fois en une heure : à 01:51, j'ai pris le premier document trouvé pour la règle, sans chercher la source qui fait foi. Le docx avait trois jours et sortait d'un dossier de travail ; le site était à un clic. J'ai même assoupli un contrôle (vidéo ✗ → !) sur cette base. **Une règle externe se lit à la source officielle, et un contrôle ne s'assouplit qu'avec cette source citée.**
     - Ma relecture croisée deck ↔ README avait laissé passer le 15 de TECHNICAL. **Relire le livrable sous la forme où le jury le lira**, pas seulement sa source.
+- 02:17 (réel, 15/10) — Même lecture pour le README, la première page qu'un juré ouvre. Commit 306132b.
+  - **Ce que les 7 pages ont montré :**
+    - le schéma de tête avait les murs d'un caractère à droite des coins ;
+    - l'arborescence alignait ses descriptions sur trois colonnes différentes, et omettait `scripts/`, `deployments/`, `app/test/`, `routine.js` et `plan.js`. C'est là qu'un juré cherche l'audit de la chaîne.
+  - **Le tableau des livrables n'avait ni la vidéo ni le deck**, alors que le règlement les exige. Je n'ai pas mis de ligne vide « à venir » qu'un juré pourrait lire : presubmit avertit tant que le README ne les lie pas, et l'étape 9 de SUBMISSION dit quand les ajouter.
+  - `2-video.cmd` rend aussi les PDF avec l'URL du repo, une seule saisie. Je l'ai testé par cmd avec une fausse URL. Les PDF de `work/pdf` pointaient alors vers ce faux repo : je les ai re-rendus aussitôt, et il ne reste aucun lien faux. LISEZ-MOI dit maintenant que la vidéo est obligatoire et comment soumettre.
+  - **Critique.** Ces deux schémas étaient faux depuis le premier jour. Je les ai relus des dizaines de fois en Markdown, où l'œil complète les colonnes. Seul un rendu les a montrés. Le test qui aurait dû exister : mesurer les colonnes des caractères de cadre, ce qui prend 10 lignes de script.

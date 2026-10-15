@@ -48,6 +48,27 @@ for (const f of ['README.md', 'docs/TECHNICAL.md', 'docs/SECURITY.md', 'docs/evi
   const hits = readFileSync(join(ROOT, f), 'utf8').split('\n').map((l, i) => [i + 1, l]).filter(([, l]) => /\[team name\]|<url>|<user>|\bTODO\b|\bTBD\b|XXX/.test(l));
   if (hits.length) fail(`${f} still has placeholders: ${hits.map(([n]) => `line ${n}`).join(', ')}`);
 }
+// Box diagrams: every wall under its corner. Markdown source hides a one-column drift; GitHub shows it.
+function misalignedBoxes(md) {
+  const bad = [];
+  const lines = md.replace(/\r/g, '').split('\n').map((l) => [...l]);
+  for (let i = 0; i < lines.length; i++) {
+    lines[i].forEach((ch, c) => {
+      const [wall, end] = ch === '┌' ? ['│├', '└'] : ch === '┐' ? ['│┤', '┘'] : [];
+      if (!wall) return;
+      for (let j = i + 1; j < lines.length; j++) {
+        const at = lines[j][c];
+        if (at === end) return;
+        if (!at || !wall.includes(at)) { bad.push(`line ${j + 1}, column ${c + 1}`); return; }
+      }
+    });
+  }
+  return bad;
+}
+for (const f of ['README.md', 'docs/TECHNICAL.md', 'docs/SECURITY.md']) {
+  const bad = misalignedBoxes(readFileSync(join(ROOT, f), 'utf8'));
+  if (bad.length) fail(`${f}: a box diagram is misaligned at ${bad.slice(0, 3).join('; ')}`);
+}
 const deliverables = readFileSync(join(ROOT, 'README.md'), 'utf8').split('\n').filter((l) => l.startsWith('|'));
 for (const [name, re] of [['demo video', /video/i], ['presentation deck', /deck|slides/i]]) {
   if (deliverables.some((l) => re.test(l.split('|')[1] ?? '') && /https?:\/\/|\]\([^)]+\.(pdf|pptx)\)/.test(l))) ok(`the README links the ${name}`);
