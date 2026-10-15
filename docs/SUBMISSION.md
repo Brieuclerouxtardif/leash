@@ -59,7 +59,7 @@ Steps 1 to 5 were done on 2026-10-14. Runs 1–3 were 17/18 because of three har
 
 ## The submission email
 
-Registration and submission are one email to fintechathon@ican-x.com. The 1080p video cannot be attached (65 MB; Gmail stops at 25 MB): send links, and attach only the PDFs and the proofs of enrolment. Put the video in a GitHub release of the repo (2 GB per file) and link it from the README. Not YouTube or Google Drive alone: both are blocked in mainland China, and the organizers are there. GitHub opens from China but can be slow, so the 720p copy (`--preview`, about 25 MB) is worth a second link in the same release.
+Registration and submission are one email to fintechathon@ican-x.com. The site opens on the domestic track, whose footer shows fintechathon@g-ican.com: that address is not ours. The international tab shows ican-x.com (checked on 2026-10-15 at 11:20). The 1080p video cannot be attached (65 MB; Gmail stops at 25 MB): send links, and attach only the PDFs and the proofs of enrolment. Put the video in a GitHub release of the repo (2 GB per file) and link it from the README. Not YouTube or Google Drive alone: both are blocked in mainland China, and the organizers are there. GitHub opens from China but can be slow, so the 720p copy (`--preview`, about 25 MB) is worth a second link in the same release.
 
 > **Subject:** FinTechathon 2026 International Track: registration and submission, Topic F, [team name]
 >
