@@ -43,10 +43,15 @@ try {
 if (existsSync(join(ROOT, 'LICENSE'))) ok('LICENSE file present');
 else warn('no LICENSE file: only the contracts carry a license (SPDX MIT); SUBMISSION.md, step 8');
 
-// ---- Judge-facing documents: no placeholder left.
+// ---- Judge-facing documents: no placeholder left, and the README links every required deliverable.
 for (const f of ['README.md', 'docs/TECHNICAL.md', 'docs/SECURITY.md', 'docs/evidence-sepolia.md']) {
   const hits = readFileSync(join(ROOT, f), 'utf8').split('\n').map((l, i) => [i + 1, l]).filter(([, l]) => /\[team name\]|<url>|<user>|\bTODO\b|\bTBD\b|XXX/.test(l));
   if (hits.length) fail(`${f} still has placeholders: ${hits.map(([n]) => `line ${n}`).join(', ')}`);
+}
+const deliverables = readFileSync(join(ROOT, 'README.md'), 'utf8').split('\n').filter((l) => l.startsWith('|'));
+for (const [name, re] of [['demo video', /video/i], ['presentation deck', /deck|slides/i]]) {
+  if (deliverables.some((l) => re.test(l.split('|')[1] ?? '') && /https?:\/\/|\]\([^)]+\.(pdf|pptx)\)/.test(l))) ok(`the README links the ${name}`);
+  else warn(`the README's deliverables table does not link the ${name} (required by the rules): add a row once it is published (SUBMISSION.md, step 9)`);
 }
 
 // ---- The video: the newest full-size render of compose-video.mjs (it leaves a .json next to each one).

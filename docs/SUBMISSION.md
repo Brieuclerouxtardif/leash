@@ -49,7 +49,7 @@ Steps 1 to 5 were done on 2026-10-14. Runs 1–3 were 17/18 because of three har
    - Then create an empty repo on github.com (no README, no license; `gh` is not installed here), and push:
      - `git remote add origin https://github.com/<user>/leash.git`
      - `git push -u origin main`
-9. Export the deck (PDF or PPTX) from the Slides artifact. Then `node scripts/doc-pdf.mjs --repo <url>` writes `work/pdf/LEASH-TECHNICAL.pdf` and `LEASH-SECURITY.pdf` for the email, their links pointing to the repo. They were rendered and checked page by page on 2026-10-15 without `--repo`: render them again after the push, or their links are dead.
+9. Export the deck (PDF or PPTX) from the Slides artifact. Then `node scripts/doc-pdf.mjs --repo <url>` writes `work/pdf/LEASH-TECHNICAL.pdf` and `LEASH-SECURITY.pdf` for the email, their links pointing to the repo. They were rendered and checked page by page on 2026-10-15 without `--repo`: render them again after the push, or their links are dead. Then add two rows to the README's "Where each required deliverable is" table, since the rules require both: the demo video (its link) and the deck (`docs/LEASH-deck.pdf`, committed, or its link). presubmit warns until both are there.
 10. `node scripts/presubmit.mjs --forge` (it sends nothing). It checks what is easy to get wrong on the last day:
     - nothing is left uncommitted or unpushed, the repo is public, and no secret file is tracked;
     - the newest video renders with a voice, under 5 minutes, and with this repo's URL on its closing card;

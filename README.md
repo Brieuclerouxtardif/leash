@@ -12,16 +12,16 @@ An AI agent that pays your bills and manages a small portfolio needs a key. A ke
  owner instruction + inbox (untrusted)
               │
    ┌──────────▼──────────┐   proposes intents (JSON, strict schema, no tools, no keys)
-   │   LLM planner        │
+   │   LLM planner       │
    └──────────┬──────────┘
    ┌──────────▼──────────┐   deterministic: registry, limits, oracle floor, exposure,
-   │   policy engine      │   document scanner, replay check → execute | needs_owner | refuse
+   │   policy engine     │   document scanner, replay check → execute | needs_owner | refuse
    └──────────┬──────────┘
    ┌──────────▼──────────┐   simulate → sign with the AGENT key → send
-   │   agent signer       │
+   │   agent signer      │
    └──────────┬──────────┘
    ┌──────────▼──────────┐   enforces the same mandate on-chain, whoever holds the key
-   │   LeashVault.sol     │
+   │   LeashVault.sol    │
    └─────────────────────┘
 ```
 
@@ -96,26 +96,31 @@ Third-party code: OpenZeppelin Contracts 5.6.1 and viem 2.57.5 (MIT, installed b
 ## Repository
 
 ```
-contracts/           Foundry project
+contracts/             Foundry project
   src/LeashVault.sol   the mandate: tiers, limits, oracle floor, exposure cap, epochs, kill switch
   src/LeashPool.sol    minimal x·y=k pool (testnets have no real liquidity; see SECURITY.md)
   src/Mocks.sol        test tokens and a local-only price feed
   test/                unit, fuzz and invariant tests
 app/src/
-  config.js           networks (local, sepolia) and the default mandate
-  chain.js            chain-id guard, wallets, send-and-record (every tx goes to a JSONL journal)
-  core.js             policy engine (judge), EIP-712 typed data, deterministic mandate text
-  planner.js          LLM adapter, document scanner, review of model output
-  compiler.js         owner text → mandate struct → deterministic on-chain diff (CLI: compile.js)
-  campaign.js         the 5 tasks and 13 attacks, shared by the CLI and the console
-  scenes.js           CLI campaign runner → evidence/<net>-campaign-<run>.json
-  server.js           local web console (127.0.0.1 only)
-  deploy.js, keys.js  deployment and throwaway key generation
-  repeg.js            keeps our testnet pool at the oracle price (the arbitrageur's job)
-app/public/          console front-end (vanilla JS, no build step)
-inbox/week42/        the documents the agent reads, two of them hostile
-evidence/            campaign results, transaction journals, recorded model runs
-docs/                TECHNICAL.md, SECURITY.md, boucle.md (our self-critical build log)
+  config.js            networks (local, sepolia) and the default mandate
+  chain.js             chain-id guard, wallets, send-and-record (every tx goes to a JSONL journal)
+  core.js              policy engine (judge), EIP-712 typed data, deterministic mandate text
+  planner.js           LLM adapter, document scanner, review of model output
+  routine.js, plan.js  the owner's weekly instruction; CLI: one routine, model live or replayed
+  compiler.js          owner text → mandate struct → deterministic on-chain diff (CLI: compile.js)
+  campaign.js          the 5 tasks and 13 attacks, shared by the CLI and the console
+  scenes.js            CLI campaign runner → evidence/<net>-campaign-<run>.json
+  server.js            local web console (127.0.0.1 only)
+  deploy.js, keys.js   deployment and throwaway key generation
+  repeg.js             keeps our testnet pool at the oracle price (the arbitrageur's job)
+app/public/            console front-end (vanilla JS, no build step)
+app/test/              Node tests: policy, swaps, scanner, compiler, recorded runs, revert labels
+inbox/week42/          the documents the agent reads, two of them hostile
+deployments/           deployed addresses; Sepolia runs, rehearsals and video takes kept by name
+evidence/              campaign results, transaction journals, recorded model runs
+scripts/               chain audit, Sourcify verification, evidence doc, screenshots, demo video, PDFs
+docs/                  TECHNICAL, SECURITY, evidence-sepolia, VIDEO script, SUBMISSION checklist
+  boucle.md            our self-critical build log (in French)
 ```
 
 ## Run it locally
