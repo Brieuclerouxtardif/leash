@@ -55,6 +55,7 @@ In Chinese, with a transfer to "my friend" at the attacker's address slipped in:
 |---|---|
 | Few turns | one instruction from the owner, plus the inbox, gives the whole week's plan in one model call. A mandate text that gives every value compiles in one turn |
 | Asking the owner | when a mandate value is missing or vague, the editor asks for it instead of guessing, and nothing can be applied until it is answered. A payment above the agent's limits becomes a signature request, with text written by code. A suspicious document is reported with the reason |
+| Everyday words | the owner can write casually or in Chinese. *"no more than 1k a day in payments tho. and dont let eth go over a third of the vault pls"* gives 1,000 tUSD a day and a 33.33 % tETH share. The casual and the Chinese texts are recorded live runs, and a test pins their exact rows |
 | Correcting | a mandate error says how to fix it ("raise max per payment too, or keep these payments owner-signed"). The owner edits the text and compiles again. Apply refuses if the chain changed since the diff was shown |
 | Out of scope | what the contract cannot express ("never pay on Sundays", "pay this new address") is listed as *not enforceable on-chain*, in the owner's words. A payment the policy cannot justify is refused, never guessed. A stale oracle stops swaps |
 
