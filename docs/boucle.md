@@ -474,3 +474,21 @@ Ce ne sont pas des promesses du prompt : c'est le contrat qui refuse. Chaque ref
   - README, SECURITY, SUBMISSION, le document d'évidence et le deck (version de l'artifact 25) disent maintenant « au mieux 12 sur 12 (les 12 le 15/10 à 15:47 UTC) », et gardent le 7 sur 12 de midi.
   - presubmit : l'e-mail perso devient un échec s'il reste après le push (la décision est de le masquer), et un avertissement avant.
   - **Critique.** J'avais écrit « never A2 » dans trois documents. C'était vrai à chaque lecture, mais c'était une prédiction sur un service tiers, déguisée en constat. La règle de 14:20 (« avec sa date, ou comme une borne ») n'était appliquée qu'à moitié : la borne y était, la date manquait sur « never ». Le contrôle automatique (presubmit compare le compte annoncé au compte réel) l'a attrapé, pas ma relecture.
+- 17:55 (réel, 15/10) — La fin du parcours, après le push, tient en un double-clic : `work/5-finir.cmd`.
+  - **Pourquoi.** Brieuc fera la fin seul, sans node ni git dans son PATH, sans doute le dernier jour. Après le push, il restait cinq gestes manuels où une erreur passe inaperçue : la release, l'export du deck, deux lignes du README, le commit et le push, puis le mail avec six liens à recopier.
+  - **Ce qu'il fait.**
+    - Il vérifie que la vidéo finale porte l'URL du repo sur sa carte de fin, et que GitHub sert publiquement ce même fichier (même taille) dans une release. Sinon, il donne les fichiers exacts à glisser et la page à ouvrir.
+    - Il exige le deck exporté dans `work\LEASH-deck.pdf`.
+    - Il écrit les lignes vidéo et deck du README, commite et pousse.
+    - Il remplit `MAIL-SOUMISSION.txt` à partir du modèle de SUBMISSION, avec tous les liens et les pièces jointes avec leur taille (Gmail plafonne à 25 Mo). Il ne reste que l'équipe à écrire.
+    - Il finit par presubmit.
+  - **presubmit** échoue maintenant si le lien vidéo du README ne sert pas, sans connexion, le dernier rendu, ou si le deck lié n'est pas commité. Avant, une ligne contenant « https:// » lui suffisait.
+  - **Test.** Clone neuf, push vers un dépôt nu local, liste de releases simulée.
+    - Les trois arrêts tombent dans l'ordre et donnent la bonne consigne : pas de rendu avec l'URL, pas de release, pas de deck.
+    - Le passage complet pousse un commit.
+    - Un second passage ne change rien : un seul rang vidéo, aucun nouveau commit.
+    - presubmit, qui interroge le vrai GitHub, déclare mort le lien de la fausse release. C'est le comportement voulu.
+  - **Critique.**
+    - Premier essai : « pas de remote GitHub ». `git remote get-url` applique `url.insteadOf`, donc il renvoyait le chemin du dépôt nu de mon test. Ce n'est pas un bug en vrai, mais lire l'URL telle que tapée (`config --get remote.origin.url`) est plus juste. presubmit la lit maintenant pareil.
+    - Ce que le test ne couvre pas : le vrai GitHub (création de la release, noms d'assets réécrits si un nom contient des espaces, API limitée à 60 requêtes par heure sans compte) et un vrai PDF du deck. Le contrôle par la taille du fichier, plutôt que par son nom, rend le renommage sans effet. Le reste ne se vérifiera qu'au premier vrai passage.
+    - Je n'ai pas vérifié non plus que le PDF du deck montre le nom d'équipe et l'URL : le script le demande, mais ne le lit pas.

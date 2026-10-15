@@ -27,7 +27,7 @@ try {
   if (dirty) fail(`uncommitted changes, which the judges will not see:\n  ${dirty.split('\n').join('\n  ')}`); else ok('everything is committed');
   const leaks = git('ls-files').split('\n').filter((f) => /^secrets\/|(^|\/)\.env|local-access\.json$|\.(pem|key)$/.test(f));
   if (leaks.length) fail(`tracked files that must never be public: ${leaks.join(', ')}`); else ok('no secrets/, .env or key file is tracked');
-  remote = git('remote', 'get-url', 'origin').replace(/\.git$/, '');
+  remote = git('config', '--get', 'remote.origin.url').replace(/\.git$/, ''); // as typed: get-url applies url.insteadOf
   if (!remote) fail('no GitHub remote yet (SUBMISSION.md, step 8)');
   else if (git('rev-parse', 'HEAD') !== git('rev-parse', '--verify', '--quiet', 'refs/remotes/origin/main')) fail(`the last commit is not on ${remote}: git push`);
   else ok(`the last commit is on ${remote}`);
