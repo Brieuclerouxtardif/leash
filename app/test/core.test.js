@@ -8,6 +8,7 @@ import { ROOT } from '../src/chain.js';
 import { diffMandate, compileMandate, replayableSamples } from '../src/compiler.js';
 import { outcomeOf } from '../src/campaign.js';
 import { minedRevert } from '../src/chain.js';
+import { network } from '../src/config.js';
 
 const A = {
   landlord: '0xDAB5071EAf37Bf4D564e6a33da3F9E6A74687B82',
@@ -267,4 +268,22 @@ test('a mined revert that burnt its whole gas limit is out of gas; otherwise it 
   assert.equal((await minedRevert(stub(124135n), '0xh', [])).name, 'slippage');
   assert.equal(calls[0].gas, 300000n);
   assert.equal(calls[0].blockNumber, 10n);
+});
+
+test('Base mainnet holds real funds: refused unless LEASH_REAL_FUNDS=8453, and never with the testnet keys', () => {
+  const saved = process.env.LEASH_REAL_FUNDS;
+  try {
+    for (const v of [undefined, '1', 'base', '84530']) {
+      if (v === undefined) delete process.env.LEASH_REAL_FUNDS; else process.env.LEASH_REAL_FUNDS = v;
+      assert.throws(() => network('base'), /holds real funds/, `LEASH_REAL_FUNDS=${v}`);
+    }
+    process.env.LEASH_REAL_FUNDS = '8453';
+    const b = network('base');
+    assert.equal(b.chain.id, 8453);
+    assert.equal(b.keyFile, 'base-keys.json');
+    for (const name of ['local', 'sepolia', 'basefork']) assert.equal(network(name).keyFile, undefined, `${name} must sign with the testnet keys`);
+    assert.throws(() => network('mainnet'), /Unknown network/);
+  } finally {
+    if (saved === undefined) delete process.env.LEASH_REAL_FUNDS; else process.env.LEASH_REAL_FUNDS = saved;
+  }
 });

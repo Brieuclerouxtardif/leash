@@ -7,7 +7,7 @@ import {
   createPublicClient, createWalletClient, http, decodeErrorResult, encodeFunctionData, BaseError,
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import { ALLOWED_CHAIN_IDS, network } from './config.js';
+import { ALLOWED_CHAIN_IDS, REAL_FUNDS_CHAIN_IDS, network } from './config.js';
 
 export const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const OUT = join(ROOT, 'contracts', 'out');
@@ -24,14 +24,14 @@ export const ABI = {
   feed: artifact('Mocks.sol', 'MockAggregator').abi,
 };
 
-function keys() {
-  const file = join(ROOT, 'secrets', 'testnet-keys.json');
-  if (!existsSync(file)) throw new Error('secrets/testnet-keys.json is missing.');
+function keys(name = 'testnet-keys.json') {
+  const file = join(ROOT, 'secrets', name);
+  if (!existsSync(file)) throw new Error(`secrets/${name} is missing.`);
   return JSON.parse(readFileSync(file, 'utf8'));
 }
 
-export function addresses() {
-  const k = keys();
+export function addresses(keyFile) {
+  const k = keys(keyFile);
   return Object.fromEntries(Object.entries(k).filter(([, v]) => v?.address).map(([r, v]) => [r, v.address]));
 }
 
@@ -49,17 +49,18 @@ export async function connect(netName, { journal } = {}) {
   const net = network(netName);
   const pub = createPublicClient({ chain: net.chain, transport: http(net.rpc), pollingInterval: net.pollMs });
   const live = await pub.getChainId();
-  if (live !== net.chain.id || !ALLOWED_CHAIN_IDS.has(live)) {
-    throw new Error(`RPC answered chain ${live}, expected test chain ${net.chain.id}. Refusing to sign anything.`);
+  // network() has already refused a real-funds chain without LEASH_REAL_FUNDS; here the RPC must agree.
+  if (live !== net.chain.id || !(ALLOWED_CHAIN_IDS.has(live) || (net.realFunds && REAL_FUNDS_CHAIN_IDS.has(live)))) {
+    throw new Error(`RPC answered chain ${live}, expected ${net.realFunds ? '' : 'test '}chain ${net.chain.id}. Refusing to sign anything.`);
   }
-  const k = keys();
+  const k = keys(net.keyFile);
   const wallets = {};
   for (const role of ['owner', 'agent', 'guardian', 'attacker']) {
     wallets[role] = createWalletClient({ account: privateKeyToAccount(k[role].privateKey), chain: net.chain, transport: http(net.rpc) });
   }
   const journalFile = journal ?? join(ROOT, 'evidence', `${netName}-journal.jsonl`);
   mkdirSync(dirname(journalFile), { recursive: true });
-  const ctx = { net, pub, wallets, journalFile, addr: addresses() };
+  const ctx = { net, pub, wallets, journalFile, addr: addresses(net.keyFile) };
 
   /** Send a contract call as `role`. With force=true the gas is fixed so a doomed call is still
    *  mined: the reverted transaction becomes public proof that the vault refused it. */

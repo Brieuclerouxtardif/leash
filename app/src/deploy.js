@@ -1,4 +1,4 @@
-// Deploys and configures a LEASH vault. Usage: node app/src/deploy.js <local|sepolia> [--fresh]
+// Deploys and configures a LEASH vault. Usage: node app/src/deploy.js <local|sepolia|basefork|base> [--fresh]
 import { writeFileSync, readFileSync, readdirSync, copyFileSync, existsSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { parseUnits, parseEther, toHex } from 'viem';
@@ -19,15 +19,15 @@ const owner = wallets.owner;
 const usd6 = (n) => parseUnits(String(n), 6);
 const out = { network: net, chainId: ctx.net.chain.id, deployedAt: new Date().toISOString(), owner: addr.owner, txs: {} };
 
-if (net === 'local') {
+if (net === 'local' || ctx.net.fork) {
   for (const a of Object.values(addr)) await pub.request({ method: 'anvil_setBalance', params: [a, toHex(parseEther('100'))] });
 }
 
 // Each forwarded key must afford ~2 M gas of campaign at twice today's gas price (the local campaign
 // used 1.2 M for the agent). Deploy (~6 M gas) plus the owner's share fit in 10 M.
 const gasPrice = await pub.getGasPrice();
-const perRole = [parseEther('0.002'), gasPrice * 2n * 2_000_000n].reduce((a, b) => (a > b ? a : b));
-if (net !== 'local') {
+const perRole = [parseEther(ctx.net.minRoleEth ?? '0.002'), gasPrice * 2n * 2_000_000n].reduce((a, b) => (a > b ? a : b));
+if (net !== 'local' && !ctx.net.fork) {
   const need = gasPrice * 2n * 10_000_000n + perRole * 3n;
   const have = await pub.getBalance({ address: addr.owner });
   if (have < need) {
