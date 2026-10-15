@@ -114,8 +114,8 @@ function record(ctx, entry) {
 }
 
 /** Gas for a forced call. It must leave room to reach the vault's own check: a call that dies out of gas
- *  proves nothing. Sepolia charges ~3x anvil for the same swap (T3: 384k vs 130k), and the 300k we had
- *  tuned locally made Sepolia's A9 run out of gas in runs 1 and 2. Only the gas used is paid. */
+ *  proves nothing. The same swap uses 2.4x the gas on Sepolia (T3: 384k vs 160k), mostly from creating
+ *  storage, and the 300k we had tuned locally made Sepolia's A9 run out of gas in runs 1 and 2. Only the gas used is paid. */
 export const FORCED_GAS = 1_500_000n;
 
 const sleep = (ms) => new Promise((res) => setTimeout(res, ms));

@@ -217,7 +217,7 @@ Nobody arbitrages our pool, so it keeps the deploy-day price while the real feed
 - **The model resisted.** In our recorded live runs, both the guarded prompt and a deliberately naive prompt refused the prompt injection. We therefore do not claim "the model was fooled and the vault held". We show the stolen-key case instead (A2–A4, A7), plus a clearly labelled *simulated* compromised model output in the tests.
 - **Our first three Sepolia runs were 17/18, and our own tooling first hid that.** The vault never let anything through; the failures were all in how we sent and labelled the attacks:
   - Run 1 took A8's revert reason from a simulation served by a lagging RPC node.
-  - In runs 1 and 2, A9's forced buy ran out of gas, because creating storage costs far more on Sepolia than on anvil (a swap: 2–2.4× the gas) and our limit was tuned on anvil. It was still labelled as a refusal. Blockscout showed "Out of gas".
+  - In runs 1 and 2, A9's forced buy ran out of gas, because creating storage costs far more on Sepolia than on anvil (the vault's weekly swap, T3: 384,184 gas against 159,560) and our limit was tuned on anvil. It was still labelled as a refusal. Blockscout showed "Out of gas".
   - In run 3, an RPC node simulated A9 while filling the transaction, so it was never sent.
 
   Labels now come from the mined transaction, forced calls are fully filled with room to spare, and the audit checks every outcome against Blockscout. All three runs stay in `evidence/` as recorded (SECURITY.md, R15).

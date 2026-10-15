@@ -40,7 +40,7 @@ T3   confirmed   block 11913408  gas 384184/508487  success
 T4   confirmed   block 11913409  gas 271384/1500000  success
 T5   confirmed   block 11913411  gas 283969/412254  success
 A1   off-chain   refused before signing (refused:address matches registry); nothing was sent, nothing to audit
-A2   confirmed   block 11913413  gas 48260/1500000  reverted:PayeeNotAllowed  blockscout: not decoded ("awaiting_internal_transactions" 11.4 h after the block)
+A2   confirmed   block 11913413  gas 48260/1500000  reverted:PayeeNotAllowed  blockscout: not decoded ("awaiting_internal_transactions" 11.6 h after the block)
 A3   confirmed   block 11913414  gas 19352/1500000  reverted:NotOwner  blockscout: NotOwner
 A4   confirmed   block 11913415  gas 28892/1500000  reverted:NotOwner  blockscout: NotOwner
 A5   confirmed   block 11913417  gas 53045/1500000  reverted:AboveDailyLimit  blockscout: AboveDailyLimit
@@ -167,7 +167,7 @@ A13  confirmed   block 11913218  gas 31339/300000  reverted:AgentInactive  block
 
 ## Run 1 (kept as recorded): 17/18 after audit
 
-Two harness bugs. A8 was labelled `reverted:undefined`: the simulation before sending had hit an RPC node one block behind, said "ok", and no reason was recorded; the mined transaction reverts with `BadMandateSignature`. A9 ran out of gas: its forced buy had a 300,000 limit tuned on anvil, and creating storage costs far more on Sepolia (a swap: 2–2.4× its anvil gas), so it never reached the slippage check. The campaign file still called it a slippage refusal.
+Two harness bugs. A8 was labelled `reverted:undefined`: the simulation before sending had hit an RPC node one block behind, said "ok", and no reason was recorded; the mined transaction reverts with `BadMandateSignature`. A9 ran out of gas: its forced buy had a 300,000 limit tuned on anvil, and creating storage costs far more on Sepolia (the vault's weekly swap used 384,184 gas there against 159,560 on anvil), so it never reached the slippage check. The campaign file still called it a slippage refusal.
 
 Campaign `sepolia-campaign-20261014T120236.json`: **17/18** as expected according to the harness · vault [0xa65341d0b522cd1d0a9d40a726df79c796bd4c0a](https://sepolia.etherscan.io/address/0xa65341d0b522cd1d0a9d40a726df79c796bd4c0a) · 28 transactions (12 mined refusals)
 
@@ -212,7 +212,7 @@ A7   confirmed   block 11913137  gas 52766/300000  reverted:BadMandateSignature 
 A8   confirmed   block 11913139  gas 52754/300000  reverted:BadMandateSignature (campaign file said reverted:undefined)  blockscout: BadMandateSignature
 A9   MISMATCH    block 11913142  gas 300000/300000  reverted:OutOfGas (campaign file said reverted:slippage)  blockscout: Out of gas
 A10  confirmed   block 11913145  gas 33482/300000  reverted:VaultPaused  blockscout: VaultPaused
-A11  confirmed   block 11913146  gas 15400/300000  reverted:NotOwner  blockscout: not decoded ("awaiting_internal_transactions" 12.3 h after the block)
+A11  confirmed   block 11913146  gas 15400/300000  reverted:NotOwner  blockscout: not decoded ("awaiting_internal_transactions" 12.5 h after the block)
 A12  confirmed   block 11913148  gas 31053/300000  reverted:NotAgent  blockscout: NotAgent
 A13  confirmed   block 11913150  gas 31327/300000  reverted:AgentInactive  blockscout: AgentInactive
 
