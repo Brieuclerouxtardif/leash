@@ -44,7 +44,7 @@ Steps 1 to 5 were done on 2026-10-14. Runs 1–3 were 17/18 because of three har
 8. Create the GitHub repo, push, make it public. Check that `secrets/` is not in it: `git ls-files secrets` must print nothing.
    - Checked on 2026-10-15. None of the 24 commits contains `secrets/`, a `.env` file or any of the 7 real keys. A fresh clone passes the whole README (forge, npm, campaign 18/18, console).
    - Two decisions before pushing:
-     - **License.** The contracts already say `SPDX-License-Identifier: MIT`, but there is no LICENSE file, so the rest of the code has no license. If MIT is fine, add a root `LICENSE` file.
+     - **License.** Decided on 2026-10-15: MIT, like the contracts' `SPDX-License-Identifier`. The root `LICENSE` file is in.
      - **Commit email.** The commits carry the author's personal email. GitHub shows it publicly. To hide it, rewrite the author to the GitHub noreply address before the first push. A rewrite gives every commit a new hash, and boucle.md cites three of them (54d833b, 04948f3, 9c382c2); they would have to be replaced with the new hashes, or the citations would point nowhere.
    - Then create an empty repo on github.com (no README, no license; `gh` is not installed here), and push:
      - `git remote add origin https://github.com/<user>/leash.git`

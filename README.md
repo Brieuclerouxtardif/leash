@@ -115,7 +115,7 @@ All 29 transactions of this run, and the three earlier runs that failed, are in 
 | Execution evidence: on-chain transaction hashes | [evidence-sepolia.md](docs/evidence-sepolia.md), `evidence/sepolia-campaign-*.json` |
 | Topic F: asset management, transaction execution, risk control | a weekly tETH purchase under an exposure cap; bill payments; the vault's limits, oracle floor and kill switch |
 
-Third-party code: OpenZeppelin Contracts 5.6.1 and viem 2.57.5 (MIT, installed by `npm ci`), forge-std (MIT or Apache-2.0, vendored in `contracts/lib/` with its license files).
+LEASH is MIT-licensed ([LICENSE](LICENSE)). Third-party code: OpenZeppelin Contracts 5.6.1 and viem 2.57.5 (MIT, installed by `npm ci`), forge-std (MIT or Apache-2.0, vendored in `contracts/lib/` with its license files).
 
 ## Repository
 
