@@ -172,9 +172,13 @@ test('mandate compiler, recorded live runs: an address in the owner text never r
     assert.equal(r.meta.mode, 'RECORDED REPLAY');
     assert.ok(!JSON.stringify(r.calls, (_, v) => (typeof v === 'bigint' ? v.toString() : v)).includes(A.attacker));
   }
-  const redirect = compileMandate(samples.find((t) => t.includes(A.attacker)), s, addr);
-  assert.ok(redirect.unmapped.some((u) => u.includes(A.attacker)), 'the address request must be shown as not enforceable');
-  assert.ok(redirect.calls.filter((c) => c.functionName === 'setPayee').every((c) => Object.values(addr).includes(c.args[0])));
+  const withAddress = samples.filter((t) => t.includes(A.attacker));
+  assert.ok(withAddress.length >= 2, 'the English and Chinese address requests must both be recorded');
+  for (const text of withAddress) {
+    const redirect = compileMandate(text, s, addr);
+    assert.ok(redirect.unmapped.some((u) => u.includes(A.attacker)), `the address request must be shown as not enforceable: ${text}`);
+    assert.ok(redirect.calls.filter((c) => c.functionName === 'setPayee').every((c) => Object.values(addr).includes(c.args[0])));
+  }
   const tighten = compileMandate(samples.find((t) => t.startsWith('Rent is 800')), s, addr);
   assert.ok(tighten.rows.every((r) => r.direction === 'tighter' || r.field === 'agent.expiry'));
   assert.deepEqual(tighten.errors, []);
@@ -196,6 +200,20 @@ test('mandate compiler asks before guessing: a vague value becomes a question, t
   assert.throws(() => compileMandate(vague, s, addr, { answers: [{ q: t1.questions[0], a: '990' }] }), /no recording/); // a replay never invents a turn
   // No needless question: every other sample gives all its values and compiles in one turn.
   for (const t of replayableSamples().filter((x) => x !== vague)) assert.deepEqual(compileMandate(t, s, addr).questions, [], t);
+});
+
+test('mandate compiler, recorded live runs: casual English and Chinese give the same kind of diff as plain English', () => {
+  const s = state();
+  const addr = { landlord: A.landlord, utility: A.utility, school: A.school };
+  const rows = (r) => r.rows.map((x) => [x.field, x.to, x.direction]);
+  const casual = compileMandate(replayableSamples().find((t) => t.startsWith('ok so the bot')), s, addr);
+  assert.deepEqual([casual.questions, casual.errors, casual.unmapped], [[], [], []]);
+  // "a third of the vault" -> 33.33%; utility 150 is already its cap, so no row.
+  assert.deepEqual(rows(casual), [['limits.payDaily', '1,000 tUSD', 'tighter'], ['risk.maxRiskBps', '33.33%', 'tighter'], ['payee.landlord', '850 tUSD', 'tighter']]);
+  const zh = compileMandate(replayableSamples().find((t) => t.startsWith('房租涨了')), s, addr);
+  assert.deepEqual([zh.questions, zh.errors], [[], []]);
+  assert.deepEqual(rows(zh), [['limits.payDaily', '1,200 tUSD', 'tighter'], ['risk.maxRiskBps', '30%', 'tighter'], ['payee.landlord', '950 tUSD', 'looser']]);
+  assert.equal(zh.unmapped.length, 1); // the transfer to "my friend": not enforceable, in the owner's words
 });
 
 test('recorded live model runs exist, used no tools and match the schema hash', () => {

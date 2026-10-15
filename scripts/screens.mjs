@@ -69,6 +69,11 @@ await js(`document.getElementById('answer').click();`);
 await until(`document.getElementById('cMeta').textContent.includes('turn 2')`, 'compile answered');
 await shot('mandate-editor-answered', '#editor');
 
+// Mandate editor: a Chinese owner text with a transfer to an address slipped in.
+await js(`const sel = document.getElementById('sample'); sel.value = [...sel.options].find((o) => o.textContent.startsWith('房租涨了')).value; sel.dispatchEvent(new Event('change')); document.getElementById('compile').click();`);
+await until(`document.querySelector('#cNotes li.unm')`, 'compile zh');
+await shot('mandate-editor-zh', '#editor');
+
 // Red team: stolen-key attacks and the pumped pool, sent for real.
 for (const id of ['A1', 'A2', 'A3', 'A4', 'A7', 'A9']) {
   await js(`[...document.querySelectorAll('#attacks .atk')].find((c) => c.querySelector('b').textContent === ${JSON.stringify(id)}).querySelector('button').click();`);
