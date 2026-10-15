@@ -27,7 +27,7 @@ try {
   if (dirty) fail(`uncommitted changes, which the judges will not see:\n  ${dirty.split('\n').join('\n  ')}`); else ok('everything is committed');
   const leaks = git('ls-files').split('\n').filter((f) => /^secrets\/|(^|\/)\.env|local-access\.json$|\.(pem|key)$/.test(f));
   if (leaks.length) fail(`tracked files that must never be public: ${leaks.join(', ')}`); else ok('no secrets/, .env or key file is tracked');
-  remote = git('remote', 'get-url', 'origin').replace(/\.git$/, '');
+  remote = git('config', '--get', 'remote.origin.url').replace(/\.git$/, ''); // as typed: get-url applies url.insteadOf
   if (!remote) fail('no GitHub remote yet (SUBMISSION.md, step 8)');
   else if (git('rev-parse', 'HEAD') !== git('rev-parse', '--verify', '--quiet', 'refs/remotes/origin/main')) fail(`the last commit is not on ${remote}: git push`);
   else ok(`the last commit is on ${remote}`);
@@ -123,6 +123,21 @@ else {
   if (!video.repo) fail('the closing card shows no repo URL: render again with --repo <url>');
   else if (remote && video.repo.replace(/\/$/, '').replace(/\.git$/, '') !== remote.replace(/^git@github\.com:/, 'https://github.com/')) fail(`the closing card shows ${video.repo}, but the repo is ${remote}`);
   else ok(`the closing card shows ${video.repo}`);
+}
+// The README's video link must serve, without logging in, the very file rendered: a dead link or an older cut is
+// the worst mistake to find after the deadline.
+const videoRow = deliverables.find((l) => /video/i.test(l.split('|')[1] ?? ''));
+const link = videoRow?.match(/https:\/\/github\.com\/([^/]+\/[^/]+)\/releases\/download\/([^/]+)\/([^)\s]+)/);
+if (link) {
+  const r = await get(`https://api.github.com/repos/${link[1]}/releases/tags/${link[2]}`).catch((e) => ({ status: e.message }));
+  const asset = r.body?.assets?.find((a) => a.name === decodeURIComponent(link[3]));
+  if (!asset) fail(`the README's video link is dead: no ${link[3]} in the public release ${link[2]} of ${link[1]} (GitHub answered ${r.status})`);
+  else if (video && asset.size !== video.bytes) fail(`the release's ${asset.name} is ${asset.size} bytes, the newest render ${video.bytes}: upload the new cut (work/finir.mjs)`);
+  else ok(`the README's video link serves ${asset.name} (${(asset.size / 1e6).toFixed(0)} MB)${video ? ', the newest render' : ''}`);
+} else if (videoRow) warn('the README links the video outside a GitHub release: unchecked');
+const deckLink = deliverables.find((l) => /deck|slides/i.test(l.split('|')[1] ?? ''))?.match(/\]\(([^)]+\.(?:pdf|pptx))\)/)?.[1];
+if (deckLink && !/^https?:/.test(deckLink)) {
+  try { if (git('ls-files', deckLink)) ok(`the README's deck link, ${deckLink}, is committed`); else fail(`the README links ${deckLink}, which is not committed`); } catch {}
 }
 
 // ---- Blockscout: does the README's "at best N of M" still hold? Its indexer drops decoded transactions back to
