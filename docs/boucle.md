@@ -401,3 +401,12 @@ Ce ne sont pas des promesses du prompt : c'est le contrat qui refuse. Chaque ref
   - **Critique.**
     - J'ai relu le diff Markdown de 10:28 ligne par ligne sans voir la ligne vide. Une ligne vide ne se voit pas dans un diff ; elle se voit sur la page rendue. **Ce que le juré lit, c'est le rendu : relire le rendu.**
     - Mon premier contrôle de liens disait « tout résout » sans dire combien il en avait vérifié. J'ai ajouté le compte (25) avant d'y croire. **Un contrôle qui passe doit dire ce qu'il a contrôlé.**
+- 11:36 (réel, 15/10) — Grille d'interaction contre le README, critère par critère. Commit 0fb3c6f.
+  - Peu de tours, demande de précision, langage courant et hors périmètre avaient chacun leur ligne. Pour « 错误恢复 » (reprise sur erreur), seule la ligne « Correcting » répondait, et seulement du côté du propriétaire qui corrige son texte.
+  - Ce que fait le code côté agent, vérifié dans le code avant de l'écrire :
+    - chaque proposition est rejugée contre la chaîne au moment du clic (`rejudge`, `server.js:52`) ;
+    - une relance après un crash ne peut pas payer deux fois : `used[opId]` dans le coffre, et la règle « operation not already executed » dans la politique, testée à `core.test.js:62` ;
+    - une action en échec ne bloque pas la file (`serial`).
+  - La ligne s'appelle maintenant « Recovering from errors », le terme de la grille.
+  - REA : il n'est pas chargé dans cette session (aucun outil `rea` à la recherche d'outils). Il n'y a de toute façon aucun binaire dans le projet.
+  - **Critique.** J'avais ajouté la ligne « Everyday words » à 11:22 en relisant la grille, sans vérifier les autres critères un par un. La reprise sur erreur était couverte à moitié depuis le début. **Une grille se vérifie critère par critère, pas en cherchant celui qui manque à vue d'œil.**
