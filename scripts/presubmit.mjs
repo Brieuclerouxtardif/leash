@@ -37,7 +37,10 @@ try {
     if (r.status === 200 && !r.body.private) ok(`${repo} is public`); else fail(`${repo} is not visible without logging in (GitHub answered ${r.status}): make it public`);
   }
   const emails = [...new Set(git('log', '--format=%ae').split('\n'))].filter((e) => e && !e.endsWith('@users.noreply.github.com'));
-  if (emails.length) warn(`the commits show ${emails.join(', ')} to anyone once pushed (SUBMISSION.md, step 8: your decision)`);
+  // Decided on 2026-10-15: hidden. work/4-publier.cmd rewrites them to the GitHub noreply address before the first push.
+  if (emails.length && remote) fail(`the commits show ${emails.join(', ')} although the decision was to hide it (SUBMISSION.md, step 8)`);
+  else if (emails.length) warn(`the commits still carry ${emails.join(', ')}: work/4-publier.cmd hides it before the first push (SUBMISSION.md, step 8)`);
+  else ok('every commit uses a GitHub noreply address');
 } catch (e) { fail(`git did not run (${e.message}): set GIT to the path of git.exe`); }
 
 if (existsSync(join(ROOT, 'LICENSE'))) ok('LICENSE file present');
@@ -123,7 +126,7 @@ else {
 }
 
 // ---- Blockscout: does the README's "at best N of M" still hold? Its indexer drops decoded transactions back to
-// "awaiting_internal_transactions" (2026-10-15: 11 of 12, then 7), so fewer is a warning; more means update the docs.
+// "awaiting_internal_transactions" (2026-10-15: 11 of 12, then 7, then 12), so fewer is a warning; more means update the docs.
 const readme = readFileSync(join(ROOT, 'README.md'), 'utf8');
 const claim = readme.match(/at best (\d+) of the (\d+)/);
 const vault = readme.match(/sepolia\.etherscan\.io\/address\/(0x[0-9a-fA-F]{40})/)?.[1]?.toLowerCase();
