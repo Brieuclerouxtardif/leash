@@ -2,7 +2,7 @@
 pragma solidity 0.8.30;
 
 import {LeashBase} from "./Base.t.sol";
-import {LeashVault, IAggregatorV3} from "../src/LeashVault.sol";
+import {LeashVault, IAggregatorV3, ILeashPool} from "../src/LeashVault.sol";
 
 contract PayTest is LeashBase {
     function test_pay_ok() public {
@@ -95,19 +95,40 @@ contract PayTest is LeashBase {
         vault.pay(utility, 10e6, "x");
     }
 
+    /// All ten onlyOwner functions listed in SECURITY.md (tier 3), from the agent key and from the guardian.
     function test_admin_is_owner_only() public {
-        vm.startPrank(agent);
-        vm.expectRevert(LeashVault.NotOwner.selector);
-        vault.setPayee(attacker, 1e12);
-        vm.expectRevert(LeashVault.NotOwner.selector);
-        vault.setLimits(LeashVault.Limits(type(uint128).max, type(uint128).max, 0, 0));
-        vm.expectRevert(LeashVault.NotOwner.selector);
-        vault.setAgent(attacker, type(uint64).max);
-        vm.expectRevert(LeashVault.NotOwner.selector);
-        vault.withdraw(usd, attacker, 1);
-        vm.expectRevert(LeashVault.NotOwner.selector);
-        vault.setRisk(LeashVault.Risk(10_000, 10_000, type(uint32).max));
-        vm.stopPrank();
+        address[2] memory callers = [agent, guardian];
+        uint256 epoch = vault.epoch();
+        for (uint256 i; i < callers.length; i++) {
+            vm.startPrank(callers[i]);
+            vm.expectRevert(LeashVault.NotOwner.selector);
+            vault.setPayee(attacker, 1e12);
+            vm.expectRevert(LeashVault.NotOwner.selector);
+            vault.setLimits(LeashVault.Limits(type(uint128).max, type(uint128).max, 0, 0));
+            vm.expectRevert(LeashVault.NotOwner.selector);
+            vault.setRisk(LeashVault.Risk(10_000, 10_000, type(uint32).max));
+            vm.expectRevert(LeashVault.NotOwner.selector);
+            vault.setPool(ILeashPool(attacker));
+            vm.expectRevert(LeashVault.NotOwner.selector);
+            vault.setAgent(attacker, type(uint64).max);
+            vm.expectRevert(LeashVault.NotOwner.selector);
+            vault.revokeAgent();
+            vm.expectRevert(LeashVault.NotOwner.selector);
+            vault.bumpEpoch();
+            vm.expectRevert(LeashVault.NotOwner.selector);
+            vault.setGuardian(attacker);
+            vm.expectRevert(LeashVault.NotOwner.selector);
+            vault.unpause();
+            vm.expectRevert(LeashVault.NotOwner.selector);
+            vault.withdraw(usd, attacker, 1);
+            vm.stopPrank();
+        }
+        assertEq(vault.agent(), agent);
+        assertEq(vault.guardian(), guardian);
+        assertEq(address(vault.pool()), address(pool));
+        assertEq(vault.payeeCap(attacker), 0);
+        assertEq(vault.epoch(), epoch);
+        assertFalse(vault.paused());
     }
 
     function test_owner_withdraw() public {

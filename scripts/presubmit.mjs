@@ -65,14 +65,33 @@ function misalignedBoxes(md) {
   }
   return bad;
 }
-for (const f of ['README.md', 'docs/TECHNICAL.md', 'docs/SECURITY.md']) {
-  const bad = misalignedBoxes(readFileSync(join(ROOT, f), 'utf8'));
+// A table row after a blank line starts no table: GitHub shows it as text with its pipes (TECHNICAL.md, 2026-10-15).
+function orphanRows(md) {
+  const l = md.replace(/\r/g, '').split('\n');
+  const inFence = l.map(((open) => (x) => (/^```/.test(x) ? (open = !open, true) : open))(false));
+  return l.flatMap((x, i) => (/^\s*\|/.test(x) && !inFence[i] && !(l[i - 1] ?? '').trim() && !/^\s*\|[\s:|-]+\|\s*$/.test(l[i + 1] ?? '') ? [i + 1] : []));
+}
+for (const f of ['README.md', 'docs/TECHNICAL.md', 'docs/SECURITY.md', 'docs/evidence-sepolia.md']) {
+  const md = readFileSync(join(ROOT, f), 'utf8');
+  const bad = misalignedBoxes(md);
   if (bad.length) fail(`${f}: a box diagram is misaligned at ${bad.slice(0, 3).join('; ')}`);
+  const orphans = orphanRows(md);
+  if (orphans.length) fail(`${f}: table rows after a blank line, shown as plain text: line ${orphans.join(', ')}`);
 }
 const deliverables = readFileSync(join(ROOT, 'README.md'), 'utf8').split('\n').filter((l) => l.startsWith('|'));
 for (const [name, re] of [['demo video', /video/i], ['presentation deck', /deck|slides/i]]) {
   if (deliverables.some((l) => re.test(l.split('|')[1] ?? '') && /https?:\/\/|\]\([^)]+\.(pdf|pptx)\)/.test(l))) ok(`the README links the ${name}`);
   else warn(`the README's deliverables table does not link the ${name} (required by the rules): add a row once it is published (SUBMISSION.md, step 9)`);
+}
+
+// ---- The PDFs attached to the email: newer than their Markdown, and links pointing to the repo (relative ones are dead in a PDF).
+const repoUrl = remote.replace(/^git@github\.com:/, 'https://github.com/');
+for (const name of ['TECHNICAL', 'SECURITY']) {
+  const md = join(ROOT, 'docs', `${name}.md`), pdf = join(ROOT, 'work', 'pdf', `LEASH-${name}.pdf`), html = join(ROOT, 'work', 'pdf', `${name}.html`);
+  if (!existsSync(pdf)) fail(`no work/pdf/LEASH-${name}.pdf to attach: node scripts/doc-pdf.mjs --repo <url>`);
+  else if (statSync(pdf).mtimeMs < statSync(md).mtimeMs) fail(`work/pdf/LEASH-${name}.pdf is older than docs/${name}.md: node scripts/doc-pdf.mjs --repo <url>`);
+  else if (repoUrl && !(existsSync(html) && readFileSync(html, 'utf8').includes(`${repoUrl}/blob/main/`))) fail(`work/pdf/LEASH-${name}.pdf links nowhere: node scripts/doc-pdf.mjs --repo ${repoUrl}`);
+  else ok(`work/pdf/LEASH-${name}.pdf is up to date${repoUrl ? ' and links to the repo' : ''}`);
 }
 
 // ---- The video: the newest full-size render of compose-video.mjs (it leaves a .json next to each one).
@@ -103,16 +122,17 @@ else {
   else ok(`the closing card shows ${video.repo}`);
 }
 
-// ---- Blockscout: does the README's "decodes N of M" still match, now that its indexer has had time?
+// ---- Blockscout: does the README's "at best N of M" still hold? Its indexer drops decoded transactions back to
+// "awaiting_internal_transactions" (2026-10-15: 11 of 12, then 7), so fewer is a warning; more means update the docs.
 const readme = readFileSync(join(ROOT, 'README.md'), 'utf8');
-const claim = readme.match(/Blockscout decodes (\d+) of the (\d+) refusals|Blockscout decodes (\d+) of (\d+)/);
+const claim = readme.match(/at best (\d+) of the (\d+)/);
 const vault = readme.match(/sepolia\.etherscan\.io\/address\/(0x[0-9a-fA-F]{40})/)?.[1]?.toLowerCase();
 const evidence = (f) => join(ROOT, 'evidence', f);
 const runFile = readdirSync(join(ROOT, 'evidence')).filter((f) => /^sepolia-campaign-.*\.json$/.test(f))
   .find((f) => JSON.parse(readFileSync(evidence(f), 'utf8')).vault?.toLowerCase() === vault);
 const run = runFile && JSON.parse(readFileSync(evidence(runFile), 'utf8'));
 if (claim && run) {
-  const said = Number(claim[1] ?? claim[3]);
+  const said = Number(claim[1]);
   const refusals = run.results.filter((r) => r.hash && r.outcome.startsWith('reverted'));
   try {
     const decoded = [];
@@ -122,7 +142,7 @@ if (claim && run) {
     }
     if (decoded.length === said) ok(`Blockscout decodes ${decoded.length} of ${refusals.length} refusals, as the README says`);
     else if (decoded.length > said) warn(`Blockscout now decodes ${decoded.length} of ${refusals.length} refusals (the README says ${said}): run node scripts/evidence-doc.mjs and update README, SECURITY.md, SUBMISSION.md and the deck`);
-    else fail(`Blockscout decodes only ${decoded.length} of ${refusals.length} refusals, fewer than the README's ${said}: check before claiming it`);
+    else warn(`Blockscout decodes ${decoded.length} of ${refusals.length} refusals right now, the README says at best ${said}: its indexer has fallen back again (the README says so); node scripts/audit-chain.mjs sepolia --blockscout checks that the decoded ones still agree`);
   } catch (e) { warn(`Blockscout did not answer (${e.message}); the README's "${said} of ${refusals.length}" is unchecked`); }
 } else warn('could not find the Blockscout claim or the reference run in the README; unchecked');
 
@@ -163,6 +183,12 @@ if (runFile && localFile && models.length) {
 const node = spawnSync(process.execPath, ['--test', 'app/test/*.test.js'], { cwd: ROOT, encoding: 'utf8' });
 const pass = node.stdout.match(/^(?:# |ℹ )pass (\d+)/m)?.[1]; // tap or spec reporter
 if (node.status === 0) ok(`npm test: ${pass} passed`); else fail(`npm test failed:\n${node.stdout.slice(-1500)}`);
+// A test added without touching the README leaves a stale count where a judge reads it.
+for (const [label, re] of [['README', /mandate compiler tests \| (\d+) \/ \d+/], ['SECURITY.md', /Off-chain policy \| (\d+) Node tests/]]) {
+  const said = readFileSync(join(ROOT, label === 'README' ? 'README.md' : join('docs', label)), 'utf8').match(re)?.[1];
+  if (said !== pass) fail(`${label} says ${said ?? 'no number of'} Node tests, npm test ran ${pass}`);
+  else ok(`${label} states the ${pass} Node tests that ran`);
+}
 if (process.argv.includes('--forge')) {
   const forge = spawnSync(process.env.FORGE ?? 'forge', ['test'], { cwd: join(ROOT, 'contracts'), encoding: 'utf8' });
   if (forge.error) fail(`forge did not run (${forge.error.message}): set FORGE to the path of forge.exe`);

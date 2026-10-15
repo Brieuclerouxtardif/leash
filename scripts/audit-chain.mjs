@@ -66,7 +66,7 @@ for (const r of c.results) {
   }
   const [tx, rc] = await Promise.all([pub.getTransaction({ hash: r.hash }), pub.getTransactionReceipt({ hash: r.hash })]);
   let chainOutcome = rc.status;
-  if (rc.status === 'reverted') chainOutcome = `reverted:${(await minedRevert(pub, r.hash, ABI.vault))?.name ?? 'unknown'}`;
+  if (rc.status === 'reverted') chainOutcome = `reverted:${(await minedRevert(pub, r.hash, ABI.vault))?.name ?? 'unknown (the RPC never answered the replay with a revert; run the audit again)'}`;
   const toVault = tx.to?.toLowerCase() === c.vault.toLowerCase();
   let third = '';
   let thirdOk = true;
