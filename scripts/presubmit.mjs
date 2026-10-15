@@ -107,8 +107,10 @@ else {
 const readme = readFileSync(join(ROOT, 'README.md'), 'utf8');
 const claim = readme.match(/Blockscout decodes (\d+) of the (\d+) refusals|Blockscout decodes (\d+) of (\d+)/);
 const vault = readme.match(/sepolia\.etherscan\.io\/address\/(0x[0-9a-fA-F]{40})/)?.[1]?.toLowerCase();
-const run = readdirSync(join(ROOT, 'evidence')).filter((f) => /^sepolia-campaign-.*\.json$/.test(f))
-  .map((f) => JSON.parse(readFileSync(join(ROOT, 'evidence', f), 'utf8'))).find((c) => c.vault?.toLowerCase() === vault);
+const evidence = (f) => join(ROOT, 'evidence', f);
+const runFile = readdirSync(join(ROOT, 'evidence')).filter((f) => /^sepolia-campaign-.*\.json$/.test(f))
+  .find((f) => JSON.parse(readFileSync(evidence(f), 'utf8')).vault?.toLowerCase() === vault);
+const run = runFile && JSON.parse(readFileSync(evidence(runFile), 'utf8'));
 if (claim && run) {
   const said = Number(claim[1] ?? claim[3]);
   const refusals = run.results.filter((r) => r.hash && r.outcome.startsWith('reverted'));
@@ -123,6 +125,39 @@ if (claim && run) {
     else fail(`Blockscout decodes only ${decoded.length} of ${refusals.length} refusals, fewer than the README's ${said}: check before claiming it`);
   } catch (e) { warn(`Blockscout did not answer (${e.message}); the README's "${said} of ${refusals.length}" is unchecked`); }
 } else warn('could not find the Blockscout claim or the reference run in the README; unchecked');
+
+// ---- The README's measured figures, recomputed from evidence/: a figure typed by hand drifts (boucle.md, 02:37).
+const localFile = readdirSync(join(ROOT, 'evidence')).filter((f) => /^local-campaign-.*\.jsonl$/.test(f)).sort().at(-1);
+const models = readdirSync(evidence('model-runs')).filter((f) => f.endsWith('.json')).sort();
+if (runFile && localFile && models.length) {
+  const journal = (f) => readFileSync(evidence(f), 'utf8').split('\n').flatMap((l) => { try { return [JSON.parse(l)]; } catch { return []; } });
+  const gasIn = (rows) => (scene, label) => rows.find((r) => r.scene === scene && r.status === 'success' && r.label?.startsWith(label))?.gasUsed ?? NaN;
+  const sep = gasIn(journal(runFile.replace(/\.json$/, '.jsonl'))), loc = gasIn(journal(localFile));
+  const n = (x) => x.toLocaleString('en-US'), k = (x) => Math.round(x / 1000);
+  const tier1 = (g) => [g('T1', 'rent'), g('T2', 'electricity'), g('A5', 'salami slice')];
+  const range = (g) => `${k(Math.min(...tier1(g)))}–${k(Math.max(...tier1(g)))}k`;
+  const slot = (g) => { const [t1, t2, a5] = tier1(g); return k((t1 - a5) / 2); }; // T1 − T2 and T2 − A5: one new slot each
+  const flat = [['A8', 'owner voids'], ['A10', 'guardian pause'], ['T5', 'owner:']].map(([s, l]) => sep(s, l) - loc(s, l));
+  const model = (f) => JSON.parse(readFileSync(evidence(join('model-runs', f)), 'utf8'));
+  const week = model(models.filter((f) => f.startsWith('week42-guarded-')).at(-1));
+  const compile = models.filter((f) => f.startsWith('mandate-compile-')).map((f) => model(f).seconds);
+  const funding = readFileSync(join(ROOT, 'app/src/config.js'), 'utf8').match(/funding: \{ usd: (\d+), eth: ([\d.]+) \}/);
+  const want = [
+    `${n(sep('A10', 'guardian pause'))} gas`,
+    `${n(sep('A8', 'owner voids'))} gas`,
+    `${range(loc)} gas on anvil and ${range(sep)} on Sepolia`,
+    `about ${slot(sep)}k gas on Sepolia against ${slot(loc)}k on anvil`,
+    `${n(loc('A9', 'attacker approves'))} vs ${n(sep('A9', 'attacker approves'))}`,
+    `T3: ${n(sep('T3', 'weekly DCA'))} gas against ${n(loc('T3', 'weekly DCA'))}`,
+    new Set(flat).size === 1 ? `costs ${n(flat[0])} gas more on Sepolia` : `(no single offset: ${flat.join(', ')})`,
+    `${week.seconds.toFixed(1)} s for the week's plan (${n(week.usage[0].input_tokens)} input tokens, ${n(week.usage[0].output_tokens)} output)`,
+    `${Math.min(...compile).toFixed(1)}–${Math.max(...compile).toFixed(1)} s per mandate compilation`,
+    funding ? `${n(Number(funding[1]))} tUSD and ${funding[2]} tETH in the vault` : '(no funding in app/src/config.js)',
+  ];
+  const missing = want.filter((w) => !readme.includes(w));
+  if (missing.length) fail(`the README's measured figures do not match evidence/ (${runFile}, ${localFile}, model-runs/); expected:\n  ${missing.join('\n  ')}`);
+  else ok(`the README's ${want.length} measured figures match evidence/ (${runFile}, ${localFile}, model-runs/)`);
+} else warn('reference run, local campaign or model runs not found in evidence/: measured figures unchecked');
 
 // ---- Tests, as a judge would run them.
 const node = spawnSync(process.execPath, ['--test', 'app/test/*.test.js'], { cwd: ROOT, encoding: 'utf8' });
