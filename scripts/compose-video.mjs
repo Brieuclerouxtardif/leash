@@ -49,7 +49,9 @@ const ANCHORS = {
   'The model turns them': beat('diff'),
   'Red means': beat('loosen'),
   'This one is blocked': beat('blocked'),
-  'And when the text': beat('redirect'),
+  'When a value is vague': beat('ask'),
+  'The answer comes back': beat('answered'),
+  'It reads Chinese too': beat('redirect'),
   'Now we attack': beat('attacks'),
   'A stolen agent key': click('Launch A2'),
   'It forges': click('Launch A7'),
@@ -388,7 +390,7 @@ render(0);
 const mime = ['video/mp4;codecs=avc1.640028,mp4a.40.2', 'video/webm;codecs=vp9,opus'].find((t) => MediaRecorder.isTypeSupported(t));
 await fetch('start', { method: 'POST', body: mime });
 const stream = new MediaStream([...cv.captureStream(30).getVideoTracks(), ...dest.stream.getAudioTracks()]);
-const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: ${PREVIEW ? '1.1e6' : '10e6'}, audioBitsPerSecond: ${PREVIEW ? '96e3' : '160e3'} });
+const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: ${PREVIEW ? '1.1e6' : '3e6'}, audioBitsPerSecond: ${PREVIEW ? '96e3' : '160e3'} });
 let chain = Promise.resolve();
 rec.ondataavailable = (e) => { if (e.data.size) { const b = e.data; chain = chain.then(() => fetch('chunk', { method: 'POST', body: b })); } };
 rec.onstop = () => chain.then(() => fetch('done', { method: 'POST' })).then(() => { window.__done = true; });
