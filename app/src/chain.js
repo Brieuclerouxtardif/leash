@@ -136,25 +136,30 @@ export async function minedRevert(pub, hash, abi) {
   return replayRevert(pub, { account: tx.from, to: tx.to, data: tx.input, gas: tx.gas }, r.blockNumber, abi);
 }
 
-/** Decoded reason of a call that reverted in `blockNumber`, or null after a few tries (a lagging node can
- *  lack the block, or answer from an older state and not revert at all). */
+/** Decoded reason of a call that reverted in `blockNumber`, or null after a few tries. Only a revert is an
+ *  answer: a lagging node can lack the block or answer from an older state and not revert at all, and a public
+ *  RPC can fail the call itself (Sepolia, 2026-10-15: A2 came back once as "Missing or invalid parameters."). */
 export async function replayRevert(pub, call, blockNumber, abi, tries = 5) {
   for (let i = 0; i < tries; i++) {
     try {
       await pub.call({ ...call, blockNumber });
     } catch (e) {
-      const d = decodeRevert(e, abi);
-      if (!/block|header/i.test(d.name)) return d;
+      if (revertData(e) || /revert/i.test(e?.shortMessage ?? e?.message ?? '')) return decodeRevert(e, abi);
     }
     await sleep(2000);
   }
   return null;
 }
 
-export function decodeRevert(err, abi) {
+function revertData(err) {
   const raw = err instanceof BaseError ? err.walk((e) => e?.data !== undefined)?.data : undefined;
   const data = typeof raw === 'string' ? raw : raw?.data;
-  if (typeof data === 'string' && data.startsWith('0x') && data.length >= 10) {
+  return typeof data === 'string' && data.startsWith('0x') && data.length >= 10 ? data : null;
+}
+
+export function decodeRevert(err, abi) {
+  const data = revertData(err);
+  if (data) {
     try {
       const d = decodeErrorResult({ abi, data });
       const args = (d.args ?? []).map(String);

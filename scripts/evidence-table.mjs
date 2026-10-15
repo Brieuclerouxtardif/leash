@@ -16,7 +16,7 @@ const short = (h) => `${h.slice(0, 10)}…${h.slice(-4)}`;
 // Blockscout decodes the vault's error, so refusals get a second link.
 const blockscout = net === 'sepolia' ? 'https://eth-sepolia.blockscout.com' : null;
 const link = (h, refused) => (!h ? '(refused before signing)' : explorer
-  ? `[${short(h)}](${explorer}/tx/${h})${refused && blockscout ? ` · [decoded](${blockscout}/tx/${h})` : ''}` : `\`${short(h)}\``);
+  ? `[${short(h)}](${explorer}/tx/${h})${refused && blockscout ? ` · [Blockscout](${blockscout}/tx/${h})` : ''}` : `\`${short(h)}\``);
 
 // Every transaction of the run, not only the scene's final one, so [N] in the deck is a real count.
 const journal = join(dir, file.replace(/\.json$/, '.jsonl'));

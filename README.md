@@ -81,11 +81,12 @@ Week 42 is five documents: two bills, a tuition invoice and two hostile emails. 
 |---|---|---|
 | Contract unit + fuzz tests | 34 / 34 (fuzz: 2,000 runs each) | `forge test` |
 | Invariants (rogue-agent handler, 256 runs × 64 calls) | 7 / 7, 16,384 hostile calls (forge lists 7 `[PASS]` lines but counts one shared campaign as 1 test, so plain `forge test` reports 35) | `forge test --match-path test/Invariant.t.sol` |
-| Off-chain policy + mandate compiler tests | 20 / 20 | `npm test` |
+| Off-chain policy + mandate compiler tests | 21 / 21 | `npm test` |
 | Full local campaign (5 tasks + 13 attacks, fresh chain) | 18 / 18 | `powershell -ExecutionPolicy Bypass -File scripts/local-campaign.ps1` |
 | Same 13 attacks launched from the web console | 13 / 13 | `npm run server`, Red team panel |
 | Live LLM runs (gpt-6.1-sol via Codex CLI, no tools) | 2 routine plans + 19 mandate compilations, all recorded; the 7 made with the current prompt replay in the console (6 texts, one of them answered in a second turn) | `evidence/model-runs/` |
-| Ethereum Sepolia campaign (run 4), vault [`0x8237…cE80`](https://sepolia.etherscan.io/address/0x8237d47a29e49d8f60fde0ca900df86ae2c7ce80) | 18 / 18, 29 transactions, 12 mined refusals, re-derived from the chain by `audit-chain.mjs`; Blockscout decodes 11 of the 12 refusals identically and has not indexed the 12th (A2); 4 contracts verified on Sourcify (exact match). Runs 1–3 were 17/18 (see Honesty notes) | [docs/evidence-sepolia.md](docs/evidence-sepolia.md) |
+| Ethereum Sepolia campaign (run 4), vault [`0x8237…cE80`](https://sepolia.etherscan.io/address/0x8237d47a29e49d8f60fde0ca900df86ae2c7ce80) | 18 / 18, 29 transactions, 12 mined refusals, re-derived from the chain by `audit-chain.mjs`; Blockscout's own decoding agrees on every refusal it has indexed, at best 11 of the 12 (never A2). Its indexer sometimes falls back to "awaiting_internal_transactions" (7 of 12 on 2026-10-15 at 12:00 UTC), so a Blockscout link can show no reason; `audit-chain.mjs` reads it from the chain; 4 contracts verified on Sourcify (exact match). Runs 1–3 were 17/18 (see Honesty notes) | [docs/evidence-sepolia.md](docs/evidence-sepolia.md) |
+| No hidden entry point in the deployed vault | the vault's code, read from Sepolia: 36 selectors in its dispatcher, the same as the ABI; 14 change state, each in a reviewed role (3 agent, `pause`, 10 owner); no `DELEGATECALL`, `CALLCODE` or `SELFDESTRUCT` opcode; same code as our build, immutables masked | `node scripts/bytecode-check.mjs sepolia 0x8237d47a29E49D8F60FDE0CA900dF86AE2C7cE80` |
 
 Every attack is sent for real with a fixed gas limit, so the refusal is **mined as a reverted transaction**. Every refusal has a public hash. We call this *proof of refusal*.
 
@@ -208,12 +209,13 @@ node app/src/deploy.js sepolia
 node app/src/scenes.js sepolia
 node scripts/verify.mjs sepolia
 node scripts/audit-chain.mjs sepolia --blockscout
+node scripts/bytecode-check.mjs sepolia
 node scripts/evidence-doc.mjs
 ```
 
 `verify.mjs` verifies the four contracts on Sourcify with `forge verify-contract`; no API key is needed. Its constructor arguments were checked byte for byte against the local deployment transactions.
 
-`audit-chain.mjs` does not trust our JSON. For every scene it fetches the receipt and checks that the transaction went to the vault. It flags out-of-gas, and it replays each refusal at its block, with its own gas limit, to read the revert reason from the chain. `--blockscout` adds a third opinion: Blockscout's own decoding of each failed transaction. It needs no keys, only `forge build` for the ABI. Etherscan shows our refusals only as "execution reverted", because the sources are verified on Sourcify, not Etherscan. The evidence table therefore also links each refusal to Blockscout, where the vault's error is decoded. `evidence-doc.mjs` rewrites [docs/evidence-sepolia.md](docs/evidence-sepolia.md) from every Sepolia run in `evidence/`, failed ones included, each with a fresh audit.
+`audit-chain.mjs` does not trust our JSON. For every scene it fetches the receipt and checks that the transaction went to the vault. It flags out-of-gas, and it replays each refusal at its block, with its own gas limit, to read the revert reason from the chain. `--blockscout` adds a third opinion: Blockscout's own decoding of each failed transaction. It needs no keys, only `forge build` for the ABI. Etherscan shows our refusals only as "execution reverted", because the sources are verified on Sourcify, not Etherscan. The evidence table therefore also links each refusal to Blockscout, where the vault's error is decoded. `bytecode-check.mjs` reads the vault's code from the chain, not from the source. It lists the selectors the dispatcher compares calldata with and checks that each state-changing one is in a reviewed role list, and that no opcode could run other code in the vault's name or destroy it. It also compares the code with our build; Sourcify proves that too, so this is a second, independent way. `evidence-doc.mjs` rewrites [docs/evidence-sepolia.md](docs/evidence-sepolia.md) from every Sepolia run in `evidence/`, failed ones included, each with a fresh audit.
 
 `deploy.js` checks the owner balance against the current gas price before sending anything: about 0.006 ETH at 0.001 gwei. Like the local one, the campaign expects a fresh vault and a single UTC day. Do not start it within 15 minutes of 00:00 UTC. If a run fails halfway, redeploy with `--fresh` rather than re-running it.
 

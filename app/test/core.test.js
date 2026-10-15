@@ -268,3 +268,15 @@ test('a mined revert that burnt its whole gas limit is out of gas; otherwise it 
   assert.equal(calls[0].gas, 300000n);
   assert.equal(calls[0].blockNumber, 10n);
 });
+
+test('an RPC error during the replay is retried, never taken for the revert reason', async () => {
+  // Sepolia 2026-10-15, A2: one replay came back "Missing or invalid parameters." and the audit called it a mismatch.
+  const answers = [new Error('Missing or invalid parameters.'), new Error('reverted with reason string \'slippage\'')];
+  const pub = {
+    getTransaction: async () => ({ from: '0x1', to: '0x2', input: '0x', gas: 300000n }),
+    getTransactionReceipt: async () => ({ gasUsed: 124135n, blockNumber: 10n }),
+    call: async () => { throw answers.shift(); },
+  };
+  assert.equal((await minedRevert(pub, '0xh', [])).name, 'slippage');
+  assert.equal(answers.length, 0);
+});

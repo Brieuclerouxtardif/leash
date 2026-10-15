@@ -423,3 +423,25 @@ Ce ne sont pas des promesses du prompt : c'est le contrat qui refuse. Chaque ref
     - J'ai écrit « Windows bloque anvil.exe » dans BASE.md, dans le journal et dans la mémoire, après un seul échec et sans réessayer. Ce n'était pas permanent. **Un blocage constaté une fois se reteste avant d'être écrit comme un fait.**
     - J'ai lancé l'écriture du message de commit et `git commit` dans le même lot d'appels parallèles. L'écriture a échoué, et le commit est parti avec le message précédent (« Local redeploy… ») sur la branche. Je l'ai vu au `git log` et corrigé avec `--amend` : commit local, pas poussé, vieux de quelques secondes. **Ce qui dépend d'un résultat ne part pas en parallèle avec lui.**
     - J'avais pronostiqué que le redéploiement local garderait les mêmes adresses. Faux : l'ancien anvil avait servi à plusieurs déploiements et le nonce du propriétaire n'était plus le même. Sans conséquence, mais c'était encore un pronostic énoncé comme une certitude.
+- 14:20 (réel, 15/10) — Vérifié le coffre tel qu'il est déployé, pas tel qu'il est écrit. Trouvé un trou dans les tests et un défaut de l'auditeur.
+  - **REA.** `inspect_evm_interface` ne tourne que sous Linux x64 et refuse sous Windows. J'ai écrit l'équivalent, `scripts/bytecode-check.mjs`, sans clé et en lecture seule.
+    - Le dispatcher du coffre de référence `0x8237…cE80` contient 36 sélecteurs, exactement ceux de l'ABI, dont 14 changent l'état, chacun rattaché à un rôle relu (3 agent, `pause`, 10 propriétaire).
+    - Le code ne contient ni DELEGATECALL, ni CALLCODE, ni SELFDESTRUCT, et il est identique à notre build une fois les immutables masqués, hash de métadonnées compris. Même résultat sur le coffre de la vidéo et sur le coffre local.
+    - Cas négatif : sur l'adresse du pool, le script échoue, d'abord en plantant, puis proprement après correction.
+    - Sourcify prouvait déjà l'identité du code. Ce qui est nouveau, c'est l'inventaire des points d'entrée.
+  - **Trou dans les tests.** SECURITY.md affirmait que 10 fonctions sont `onlyOwner`, mais `test_admin_is_owner_only` n'en testait que 5 : `setPool`, `revokeAgent`, `bumpEpoch`, `setGuardian` et `unpause` n'étaient jamais appelées depuis la clé agent.
+    - Le test couvre maintenant les 10 fonctions, depuis l'agent et depuis le gardien, puis vérifie que l'état n'a pas bougé.
+    - Mutation : j'ai retiré `onlyOwner` de `setPool` et le test échoue. Source remise, forge 35/35, `out/` à nouveau identique au code déployé.
+  - **Auditeur.** `audit-chain` a classé A2 en « MISMATCH ». Un backend du RPC public avait répondu une fois « Missing or invalid parameters. », et `decodeRevert` a pris la première ligne du message d'erreur pour la raison du revert. Rejoué six fois, A2 donne six fois `PayeeNotAllowed`.
+    - Correctif : `replayRevert` n'accepte qu'un vrai revert (des données de revert, ou un message qui dit « revert ») et réessaie tout le reste.
+    - Test de non-régression ajouté : il échoue sur l'ancien `chain.js` (vérifié avec un stash). On passe à 21 tests Node, et presubmit vérifie désormais que le README et SECURITY citent le bon nombre.
+    - `evidence-sepolia.md` est régénéré : run 4 à 18/18 depuis la chaîne, runs 1 à 3 inchangés.
+  - **Blockscout.** Il décodait 11 refus sur 12 à 09:35 UTC, puis 7 à 12:00 UTC : A4, A8, A11 et A13 sont retombés en « awaiting_internal_transactions ».
+    - README, SECURITY, SUBMISSION, le document d'évidence et le deck (v23) disent maintenant « d'accord sur chaque refus indexé, au mieux 11 sur 12 ; l'indexeur en perd parfois ».
+    - Le lien « decoded » du document s'appelle maintenant « Blockscout ». La console garde « decoded », comme dans la vidéo déjà tournée.
+    - presubmit passe d'un échec à un avertissement quand le compte baisse. C'est un affaiblissement voulu : le README annonce maintenant la variation.
+  - **Critique.**
+    - « Blockscout décode 11 sur 12 » était une photo d'un indexeur tiers, écrite comme un fait stable. C'est la même faute que « Windows bloque anvil » ce matin. **Ce qui dépend d'un service tiers s'écrit avec sa date, ou comme une borne.**
+    - J'avais écrit « ces 10 fonctions sont onlyOwner » dans SECURITY sans vérifier que le test les couvrait toutes. Le code était juste, mais la preuve couvrait la moitié. **Une liste affirmée se recoupe avec le test qui la prouve, ligne par ligne.**
+    - L'auditeur pouvait produire une fausse discordance le jour de la soumission. Ça n'est pas arrivé hier par chance : le RPC répondait bien. **Un vérificateur doit distinguer « le contrat a dit non » de « le réseau n'a pas répondu ».**
+    - Mon premier filtre de sélecteurs (PUSH4 seulement) annonçait `riskBps()` absent du code. J'ai cherché pourquoi avant de conclure : son sélecteur commence par un octet nul, que solc pousse avec un PUSH3. Un outil maison qui « trouve » un problème se vérifie avant le code.
