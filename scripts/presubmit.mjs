@@ -124,6 +124,21 @@ else {
   else if (remote && video.repo.replace(/\/$/, '').replace(/\.git$/, '') !== remote.replace(/^git@github\.com:/, 'https://github.com/')) fail(`the closing card shows ${video.repo}, but the repo is ${remote}`);
   else ok(`the closing card shows ${video.repo}`);
 }
+// The README's video link must serve, without logging in, the very file rendered: a dead link or an older cut is
+// the worst mistake to find after the deadline.
+const videoRow = deliverables.find((l) => /video/i.test(l.split('|')[1] ?? ''));
+const link = videoRow?.match(/https:\/\/github\.com\/([^/]+\/[^/]+)\/releases\/download\/([^/]+)\/([^)\s]+)/);
+if (link) {
+  const r = await get(`https://api.github.com/repos/${link[1]}/releases/tags/${link[2]}`).catch((e) => ({ status: e.message }));
+  const asset = r.body?.assets?.find((a) => a.name === decodeURIComponent(link[3]));
+  if (!asset) fail(`the README's video link is dead: no ${link[3]} in the public release ${link[2]} of ${link[1]} (GitHub answered ${r.status})`);
+  else if (video && asset.size !== video.bytes) fail(`the release's ${asset.name} is ${asset.size} bytes, the newest render ${video.bytes}: upload the new cut (work/finir.mjs)`);
+  else ok(`the README's video link serves ${asset.name} (${(asset.size / 1e6).toFixed(0)} MB)${video ? ', the newest render' : ''}`);
+} else if (videoRow) warn('the README links the video outside a GitHub release: unchecked');
+const deckLink = deliverables.find((l) => /deck|slides/i.test(l.split('|')[1] ?? ''))?.match(/\]\(([^)]+\.(?:pdf|pptx))\)/)?.[1];
+if (deckLink && !/^https?:/.test(deckLink)) {
+  try { if (git('ls-files', deckLink)) ok(`the README's deck link, ${deckLink}, is committed`); else fail(`the README links ${deckLink}, which is not committed`); } catch {}
+}
 
 // ---- Blockscout: does the README's "at best N of M" still hold? Its indexer drops decoded transactions back to
 // "awaiting_internal_transactions" (2026-10-15: 11 of 12, then 7, then 12), so fewer is a warning; more means update the docs.
