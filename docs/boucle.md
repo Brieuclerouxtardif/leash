@@ -507,3 +507,25 @@ Ce ne sont pas des promesses du prompt : c'est le contrat qui refuse. Chaque ref
     - Le compteur montre une faiblesse de notre propre mandat par défaut : clé de 14 jours × 1 500/jour, c'est plus que les 12 000 tUSD du coffre. Tout le tUSD peut partir vers les deux bénéficiaires inscrits avant l'expiration. Écrit dans SECURITY R1 plutôt que caché.
     - Les refus « serveur détourné » ne sont minés qu'en local. Pas encore de hash public sur Sepolia pour cette scène : il faut un déploiement frais et une nouvelle prise vidéo.
     - Je n'ai pas fait de test de mutation sur `judgeChat` : la couverture est celle des 27 tests, sans preuve qu'ils attrapent une régression.
+- 01:31 (réel, 16/10) — Budget de clé agent (contrat modifié), contre-factuel « sans LEASH », pire cas public.
+  - **Pourquoi.** Les deux défauts relevés par Brieuc.
+    - N°2 : « le mandat autorise à vider entièrement le coffre ». C'est exact, et c'était déjà dans R1 : toutes nos limites sont des débits, et un débit fois assez de jours atteint le solde.
+    - N°1 : « pourquoi une blockchain plutôt qu'un backend sécurisé ? ». La démo ne le montrait pas.
+  - **N°2, dans le contrat.**
+    - `agentBudget` : un stock, pas un débit, pour toute la vie de la clé. Chaque `pay` de tier 1 le consomme ; au-delà, `AboveAgentBudget`. Les paiements de tier 2 (signés par le propriétaire) et les swaps n'y touchent pas.
+    - Une clé neuve part de 0, et `revokeAgent` le remet à 0.
+    - Défaut : 1 000 tUSD pour la clé de 14 jours (loyer 800 + électricité 120). Le pire cas passe de 12 000 à 1 000.
+    - `setAgentBudget(expected, budget)` en compare-and-set : si un paiement de l'agent passe entre la lecture et le rechargement, l'appel revert avec `BudgetChanged` au lieu de l'oublier (R16, trouvé en écrivant le budget, corrigé dans la foulée).
+    - Le compilateur marque un rechargement en rouge dès que la nouvelle valeur dépasse ce qui reste : c'est une affectation, pas un ajout, donc 300 avec 80 restants donne plus à l'agent.
+  - **N°1, dans le produit.**
+    - Quatrième mode du chat, « sans LEASH » : le même serveur détourné tient la clé d'un portefeuille simple (rôle `hot`), financé comme le coffre, et signe un `transfer`. Vérifié en local : transfert réussi vers l'attaquant, là où le coffre revert `PayeeNotAllowed`.
+    - Le compteur affiche les deux à côté : 1 000 au pire avec LEASH, 12 000 sans.
+    - `scripts/worst-case.mjs` recalcule le pire cas depuis un RPC public, sans clé : bénéficiaires reconstruits depuis les événements `PayeeSet`, plafonds relus. C'est l'argument concret : n'importe qui peut vérifier la borne, sans faire confiance à l'opérateur.
+    - README : section « Why a contract, and not a well-secured backend? » avec un tableau honnête (backend classique / service de politique MPC-HSM / LEASH). Le coût et la latence y sont du côté du contrat.
+  - **Preuves.** forge 40 (39 unit/fuzz + 1 campagne de 8 invariants, dont « l'agent ne dépense jamais au-delà de son budget »). Fuzz : 12 paiements de taille et de date aléatoires. Mutation : sans la décrémentation, 4 tests tombent. Campagne locale 18/18 sur le nouveau contrat, A5 refusé par `AboveAgentBudget`. Node 27/30.
+  - **Critique.**
+    - Le défaut N°2 était écrit dans SECURITY R1 depuis la veille, et je l'avais classé « accepté ». Il a fallu que Brieuc le dise pour que je le corrige. Le budget tenait en vingt lignes de Solidity.
+    - Le premier rechargement était une simple affectation : la course avec l'agent (R16), je l'ai d'abord documentée comme « acceptée » avant de la fermer. Même réflexe.
+    - 3 tests Node rouges : les enregistrements du compilateur ne correspondent plus au prompt (nouveau champ budget). Codex est en limite d'usage jusqu'à 03:46 ; à réenregistrer.
+    - Sepolia porte encore l'ancien contrat (run 4, pire cas 6 080, borné par le solde). Les chiffres de gaz du README mélangent run 4 et le contrat local actuel : run 5 à faire après 00:15 UTC.
+    - Le contre-factuel n'a pas encore de hash public : en local seulement.
