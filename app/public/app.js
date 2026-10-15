@@ -238,8 +238,12 @@ async function compile(answers) {
   $('cMeta').textContent = `${r.meta.mode} · ${r.meta.model}${r.meta.seconds ? ` · ${r.meta.seconds.toFixed(1)} s` : ''} · turn ${turns} · model: “${r.struct.summary}”`;
   // The model asks instead of guessing a value; a recorded replay pre-fills the answer it was recorded with.
   $('cAsk').hidden = !r.questions.length;
-  $('cQuestions').replaceChildren(...r.questions.map((q) => h('label', {}, q,
-    h('input', { 'data-q': q, value: r.replayAnswers.find((x) => x.q === q)?.a ?? '', required: true, maxlength: 300, autocomplete: 'off' }))));
+  $('cQuestions').replaceChildren(...r.questions.map((q) => {
+    const recorded = r.replayAnswers.find((x) => x.q === q)?.a;
+    return h('label', {}, q,
+      h('input', { 'data-q': q, value: recorded ?? '', required: true, maxlength: 300, autocomplete: 'off' }),
+      recorded != null ? h('span', { class: 'tag' }, 'the owner\'s recorded answer: a replay only knows this one (a live run takes any answer)') : null);
+  }));
   // While a question is open the struct is incomplete (live run mandate-compile-20261015T081246003Z: the model asked
   // for the rent cap and also set it to 0), so no diff is shown until the owner has answered.
   $('diff').hidden = !r.rows.length || r.questions.length > 0;

@@ -149,7 +149,7 @@ Recorded live runs (`evidence/model-runs/mandate-compile-*`):
 | "let the agent pay my landlord up to 850 … never more than 1,200 a day … keep ETH under 35 % … renew for 7 days … never pay on Sundays" | 6 tightening rows (the agent key goes from 14 days left to 7), 4 owner txs; "never pay anything on Sundays" listed as not enforceable on-chain |
 | "let the agent pay the school by itself, up to 5,000 … 6,000 a day … slippage 3 %" | 3 red rows; blocked: the school cap exceeds the 1,000 per-payment limit |
 | "my landlord has a new wallet, 0x5DF4…: pay the rent there from now on" | the address request is listed as not enforceable; the only `setPayee` uses the registry address |
-| "my rent went up a little: let the agent pay my landlord a bit more than it can now … keep ETH under 30 %" | turn 1: one question, "What is the maximum for one landlord payment, in tUSD?", and no landlord row. Turn 2, answer "950": one red row (landlord 900 → 950) and one tightening row (ETH 35 → 30 %) |
+| "my rent went up a little: let the agent pay my landlord a bit more than it can now … keep ETH under 30 %" | turn 1: one question, "What is the maximum for one landlord payment, in tUSD?", and no landlord row. Turn 2, answer "950": one red row (landlord 900 → 950) and one tightening row (max tETH share 40 → 30 %) |
 
 The three texts that give every value ask nothing. Compilations took 5.5 to 19.5 s (17 recordings).
 
