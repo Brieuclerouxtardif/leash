@@ -1,7 +1,7 @@
 // Tasks and attacks, shared by the CLI campaign (scenes.js) and the web console (server.js).
 import { parseUnits } from 'viem';
 import { ABI } from './chain.js';
-import { readState, judge, execute, mandateTypedData, renderMandate, fmtUsd, opId, usedOpIds } from './core.js';
+import { readState, judge, judgeInvoice, execute, mandateTypedData, invoiceTypedData, invoiceId, invoiceKey, renderMandate, fmtUsd, opId, usedOpIds } from './core.js';
 import { MANDATE } from './config.js';
 
 const usd6 = (n) => parseUnits(String(n), 6);
@@ -34,6 +34,35 @@ export function makeCampaign(ctx, d, runId, { lastPaid } = {}) {
     return { ...e, note: text };
   }
 
+  /** The school seals its own invoice, off-chain. `as` lets an attack seal with another key. */
+  async function sealed(text, amount, { as = 'school' } = {}) {
+    const inv = { creditor: addr.school, amount: usd6(amount), invoiceId: invoiceId(`${runId}:${text}`) };
+    return { inv, seal: await ctx.wallets[as].signTypedData(invoiceTypedData(ctx, d, inv)) };
+  }
+
+  /** The agent settles a sealed invoice: LEASH's code checks the seal first, unless told to send anyway. */
+  async function settles(id, { inv, seal }, { label, claim = {}, forced = false } = {}) {
+    const s = await state();
+    const claimed = { ...inv, ...claim };
+    const used = await usedOpIds(ctx, d, [invoiceKey(claimed.creditor, claimed.invoiceId)]);
+    const v = await judgeInvoice(ctx, d, claimed, seal, s, { used });
+    if (v.decision !== 'execute' && !forced) return { status: 'refused-before-signing', reason: v.checks.filter((c) => !c.ok).map((c) => c.rule).join(' + '), verdict: v };
+    const e = await execute(ctx, d, v, { scene: id, label, force: forced });
+    const note = v.decision === 'execute' ? undefined : `software refused first, failed check: ${v.checks.filter((c) => !c.ok).map((c) => c.rule).join(' + ')}`;
+    return { ...e, verdict: v, ...(note ? { note } : {}) };
+  }
+
+  /** Waits out a hold: anvil skips the time, a testnet waits for a block past it. */
+  async function untilReleasable(key) {
+    const [, , releaseAt] = await ctx.pub.readContract({ address: d.vault, abi: ABI.vault, functionName: 'holds', args: [key] });
+    if (ctx.net.name === 'local') {
+      await ctx.pub.request({ method: 'evm_setNextBlockTimestamp', params: [`0x${releaseAt.toString(16)}`] });
+      await ctx.pub.request({ method: 'evm_mine', params: [] });
+      return;
+    }
+    while ((await ctx.pub.getBlock()).timestamp < releaseAt) await new Promise((r) => setTimeout(r, 6000));
+  }
+
   const tasks = [
     { id: 'T1', title: 'Pay October rent to the landlord (tier 1, autonomous)', expect: 'success',
       run: (id) => agentDoes(id, { type: 'pay', payee: 'landlord', amount: 800, key: 'rent-2026-10', reason: 'rent October' }) },
@@ -60,6 +89,15 @@ export function makeCampaign(ctx, d, runId, { lastPaid } = {}) {
         const after = await state();
         await send('owner', { functionName: 'setRisk', args: [MANDATE.risk] }, { scene: id, label: 'owner: back to 40%' });
         return { ...r, note: `exposure ${s.riskBps / 100}% -> ${after.riskBps / 100}%; ${fmtUsd(excess - chunk)} tUSD of excess left for tomorrow's budget` };
+      } },
+    { id: 'T6', title: 'School\'s sealed invoice, 1,500 tUSD: the agent settles it alone, held while contestable, then released', expect: 'success',
+      run: async (id) => {
+        // Above the agent's per-payment limit and its whole budget, to a creditor that is not a payee: only the seal allows it.
+        const r = await settles(id, await sealed('semester-fees-s1', 1500), { label: 'settle the school\'s sealed invoice' });
+        if (r.status !== 'success') return r;
+        await untilReleasable(r.verdict.key);
+        const e = await send('agent', { functionName: 'release', args: [r.verdict.key] }, { scene: id, label: 'release to the school after the contest window' });
+        return { ...e, note: `held ${r.verdict.holdFor} s, nobody contested, then paid to the school; the agent chose only when` };
       } },
   ];
 
@@ -140,6 +178,24 @@ export function makeCampaign(ctx, d, runId, { lastPaid } = {}) {
         const e = await send('agent', { functionName: 'pay', args: [addr.utility, usd6(10), opId(`${runId}:expired`)] }, { scene: id, label: 'pay after expiry', force: true });
         await send('owner', { functionName: 'setAgent', args: [addr.agent, s.now + BigInt(MANDATE.agentDays * 86400)] }, { scene: id, label: 'owner renews the agent' });
         return e;
+      } },
+    { id: 'A14', title: 'Stolen agent key rewrites the school\'s sealed invoice: 400 -> 4,000 tUSD, paid to itself', expect: 'reverted:BrokenSeal',
+      run: async (id) => {
+        const r = await settles(id, await sealed('lab-fee', 400), { label: 'rewritten invoice', claim: { creditor: addr.attacker, amount: usd6(4000) }, forced: true });
+        return r.verdict.decision === 'execute' ? { status: 'error', error: 'software should refuse a broken seal first' } : r;
+      } },
+    { id: 'A15', title: 'Stolen school key: a real seal on 50,000 tUSD, above what the owner lets the school take', expect: 'reverted:AboveSealAllowance',
+      run: async (id) => {
+        const r = await settles(id, await sealed('fake-semester', 50000), { label: 'genuine seal, outsized invoice', forced: true });
+        return r.verdict.decision === 'execute' ? { status: 'error', error: 'software should refuse an outsized invoice first' } : r;
+      } },
+    { id: 'A16', title: 'Guardian contests a sealed exam fee while it is held; the money cannot leave', expect: 'reverted:NotHeld',
+      run: async (id) => {
+        const r = await settles(id, await sealed('exam-fee', 300), { label: 'settle the exam fee' });
+        if (r.status !== 'success') return { ...r, note: 'the sealed invoice should have been held first' };
+        await ctx.send('guardian', { address: d.vault, abi: ABI.vault, functionName: 'contest', args: [r.verdict.key], scene: id, label: 'guardian contests the exam fee' });
+        const e = await send('agent', { functionName: 'release', args: [r.verdict.key] }, { scene: id, label: 'release a contested invoice', force: true });
+        return { ...e, note: 'contested: the 300 tUSD stay in the vault and go back into the school\'s allowance' };
       } },
   ];
 

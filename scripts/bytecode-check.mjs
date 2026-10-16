@@ -17,9 +17,11 @@ const art = JSON.parse(readFileSync(join(ROOT, 'contracts', 'out', 'LeashVault.s
 
 // Reviewed by hand against contracts/src/LeashVault.sol and SECURITY.md §1. A new state-changing function fails here.
 const ROLES = {
-  agent: ['pay', 'swap', 'payWithMandate'],
-  'owner or guardian': ['pause'],
-  owner: ['setPayee', 'setLimits', 'setRisk', 'setPool', 'setAgent', 'setAgentBudget', 'revokeAgent', 'bumpEpoch', 'setGuardian', 'unpause', 'withdraw'],
+  agent: ['pay', 'swap', 'payWithMandate', 'settleInvoice'],
+  'owner or guardian': ['pause', 'contest'],
+  // Pays a held invoice to its sealed creditor once the contest window is over, and to nobody else.
+  'anyone, to the creditor only': ['release'],
+  owner: ['setPayee', 'setLimits', 'setRisk', 'setPool', 'setAgent', 'setAgentBudget', 'setSealAllowance', 'setContestWindow', 'revokeAgent', 'bumpEpoch', 'setGuardian', 'unpause', 'withdraw'],
 };
 
 const { chain, rpc } = network(net);

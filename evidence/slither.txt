@@ -1,45 +1,46 @@
-# Slither 0.11.6 on contracts/src (solc 0.8.30, OpenZeppelin 5.6.1), 2026-10-16 20:24 local time, on the budget contract (LeashVault.sol of 2026-10-16).
-# Command: slither . --filter-paths "node_modules|lib|test" --exclude-dependencies (same as the 2026-10-14 run). Run on a copy of contracts/ and node_modules/@openzeppelin.
-# Note: Slither fails to resolve some OpenZeppelin 5.6.1 identifiers ('Failed to resolved name'), so its coverage is partial.
-# Without the filter, Slither reports 69 results, all in OpenZeppelin code (assembly, mulDiv, naming, pragma ranges); the only line naming our files lists their exact pragma 0.8.30 among the 6 versions used.
+# Slither 0.11.6 on contracts/src (solc 0.8.30, OpenZeppelin 5.6.1), 2026-10-16 23:27 local time, on the sealed-invoice contract (LeashVault.sol with settleInvoice, release, contest).
+# Command: slither . --filter-paths "node_modules|lib|test" --exclude-dependencies (same as the 2026-10-14 and 2026-10-16 runs). Run on a copy of contracts/ and node_modules/@openzeppelin.
+# Note: Slither fails to resolve some OpenZeppelin 5.6.1 identifiers ('Failed to resolved name'), so its coverage is partial. The same 'Missing inheritance' lines appeared in the earlier runs.
 # forge lint src (Foundry 1.8.5): exit 0, 0 lines of output.
 'forge clean' running (wd: <copy>\contracts)
 'forge config --json' running
 'forge build --build-info --deny never --skip ./test/** ./script/** --force' running (wd: <copy>\contracts)
 ERROR:Slither:Failed to resolved name for reference id 618 in <copy>/node_modules/@openzeppelin/contracts/token/ERC20/ERC20.sol.
 ERROR:Slither:Failed to resolved name for reference id 592 in <copy>/node_modules/@openzeppelin/contracts/token/ERC20/ERC20.sol.
-ERROR:Slither:Failed to resolved name for reference id 10772 in <copy>/node_modules/@openzeppelin/contracts/token/ERC20/ERC20.sol.
-ERROR:Slither:Failed to resolved name for reference id 10647 in <copy>/node_modules/@openzeppelin/contracts/token/ERC20/ERC20.sol.
+ERROR:Slither:Failed to resolved name for reference id 11313 in <copy>/node_modules/@openzeppelin/contracts/token/ERC20/ERC20.sol.
+ERROR:Slither:Failed to resolved name for reference id 11188 in <copy>/node_modules/@openzeppelin/contracts/token/ERC20/ERC20.sol.
 ERROR:Slither:Failed to resolved name for reference id 592 in <copy>/node_modules/@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol.
-ERROR:Slither:Failed to resolved name for reference id 10854 in <copy>/node_modules/@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol.
-ERROR:Slither:Failed to resolved name for reference id 10978 in <copy>/node_modules/@openzeppelin/contracts/utils/ReentrancyGuard.sol.
-ERROR:Slither:Failed to resolved name for reference id 11009 in <copy>/node_modules/@openzeppelin/contracts/utils/cryptography/EIP712.sol.
-ERROR:Slither:Failed to resolved name for reference id 11220 in <copy>/node_modules/@openzeppelin/contracts/utils/cryptography/EIP712.sol.
-ERROR:Slither:Failed to resolved name for reference id 11003 in <copy>/node_modules/@openzeppelin/contracts/utils/cryptography/EIP712.sol.
-ERROR:Slither:Failed to resolved name for reference id 11391 in <copy>/node_modules/@openzeppelin/contracts/utils/cryptography/EIP712.sol.
-ERROR:Slither:Failed to resolved name for reference id 10978 in <copy>/contracts/src/LeashPool.sol.
-ERROR:Slither:Failed to resolved name for reference id 10854 in <copy>/contracts/src/LeashPool.sol.
+ERROR:Slither:Failed to resolved name for reference id 11395 in <copy>/node_modules/@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol.
+ERROR:Slither:Failed to resolved name for reference id 11519 in <copy>/node_modules/@openzeppelin/contracts/utils/ReentrancyGuard.sol.
+ERROR:Slither:Failed to resolved name for reference id 11761 in <copy>/node_modules/@openzeppelin/contracts/utils/cryptography/EIP712.sol.
+ERROR:Slither:Failed to resolved name for reference id 11544 in <copy>/node_modules/@openzeppelin/contracts/utils/cryptography/EIP712.sol.
+ERROR:Slither:Failed to resolved name for reference id 11932 in <copy>/node_modules/@openzeppelin/contracts/utils/cryptography/EIP712.sol.
+ERROR:Slither:Failed to resolved name for reference id 11550 in <copy>/node_modules/@openzeppelin/contracts/utils/cryptography/EIP712.sol.
+ERROR:Slither:Failed to resolved name for reference id 11395 in <copy>/contracts/src/LeashPool.sol.
 ERROR:Slither:Failed to resolved name for reference id 592 in <copy>/contracts/src/LeashPool.sol.
-ERROR:Slither:Failed to resolved name for reference id 11009 in <copy>/contracts/src/LeashVault.sol.
+ERROR:Slither:Failed to resolved name for reference id 11519 in <copy>/contracts/src/LeashPool.sol.
+ERROR:Slither:Failed to resolved name for reference id 11395 in <copy>/contracts/src/LeashVault.sol.
+ERROR:Slither:Failed to resolved name for reference id 11544 in <copy>/contracts/src/LeashVault.sol.
+ERROR:Slither:Failed to resolved name for reference id 11932 in <copy>/contracts/src/LeashVault.sol.
+ERROR:Slither:Failed to resolved name for reference id 11550 in <copy>/contracts/src/LeashVault.sol.
 ERROR:Slither:Failed to resolved name for reference id 592 in <copy>/contracts/src/LeashVault.sol.
-ERROR:Slither:Failed to resolved name for reference id 11220 in <copy>/contracts/src/LeashVault.sol.
-ERROR:Slither:Failed to resolved name for reference id 10978 in <copy>/contracts/src/LeashVault.sol.
-ERROR:Slither:Failed to resolved name for reference id 10854 in <copy>/contracts/src/LeashVault.sol.
 ERROR:Slither:Failed to resolved name for reference id 618 in <copy>/contracts/src/LeashVault.sol.
-ERROR:Slither:Failed to resolved name for reference id 11003 in <copy>/contracts/src/LeashVault.sol.
-ERROR:Slither:Failed to resolved name for reference id 11391 in <copy>/contracts/src/LeashVault.sol.
+ERROR:Slither:Failed to resolved name for reference id 11761 in <copy>/contracts/src/LeashVault.sol.
+ERROR:Slither:Failed to resolved name for reference id 11519 in <copy>/contracts/src/LeashVault.sol.
 ERROR:Slither:Failed to resolved name for reference id 618 in <copy>/contracts/src/Mocks.sol.
 ERROR:Slither:Failed to resolved name for reference id 592 in <copy>/contracts/src/Mocks.sol.
-ERROR:Slither:Failed to resolved name for reference id 10772 in <copy>/contracts/src/Mocks.sol.
-ERROR:Slither:Failed to resolved name for reference id 10647 in <copy>/contracts/src/Mocks.sol.
-ERROR:ContractSolcParsing:Missing inheritance LeashVault (bb9465d596f269a0)
-Missing inheritance ID: 11003
+ERROR:Slither:Failed to resolved name for reference id 11313 in <copy>/contracts/src/Mocks.sol.
+ERROR:Slither:Failed to resolved name for reference id 11188 in <copy>/contracts/src/Mocks.sol.
+ERROR:ContractSolcParsing:Missing inheritance LeashVault (1845b6c995638fb8)
+Missing inheritance ID: 11544
 Inheritance found:
 	 - ReentrancyGuard (ID 1186)
 	 - EIP712 (ID 1872)
-ERROR:ContractSolcParsing:Missing inheritance TestToken (bb9465d596f269a0)
-Missing inheritance ID: 10772
+
+ERROR:ContractSolcParsing:Missing inheritance TestToken (1845b6c995638fb8)
+Missing inheritance ID: 11313
 Inheritance found:
 	 - ERC20 (ID 514)
+
 ERROR:ContractSolcParsing:Missing params '_msgSender()' src/Mocks.sol#7-24 (1 - 2)
 INFO:Slither:. analyzed (29 contracts with 102 detectors), 0 result(s) found

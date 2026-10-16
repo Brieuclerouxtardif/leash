@@ -110,6 +110,9 @@ function renderWorst(w, s) {
         : 'tUSD until the owner acts', w.live && w.untilExpiry > 0 ? 'warn' : 'ok'),
       tile(w.live ? `≤ ${money(w.swapLossPerDay, 0)}` : '0', 'tUSD a day lost on swaps against the oracle price', w.live ? 'warn' : 'ok')),
     h('p', { class: 'wfoot' }, 'Adding a payee, raising a limit, withdrawing: impossible for the agent. Nothing written below can raise these numbers; only an owner transaction can.'),
+    // Sealed invoices: the creditor's seal fixes who and how much, so a stolen agent key gains nothing from them.
+    ...(Object.keys(s.seals ?? {}).length ? [h('p', { class: 'wfoot' }, 'Sealed invoices add 0 to these numbers: the agent key cannot make a creditor\'s seal. If a creditor\'s own key were stolen too: ≤ ',
+      h('b', {}, `${money(w.sealedIfCreditorStolen, 0)} tUSD`), `, each payment held ${w.contestWindow >= 3600 ? `${w.contestWindow / 3600} h` : `${w.contestWindow / 60} min`} for you or the guardian to contest. Held now: ${money(s.held, 0)} tUSD.`)] : []),
     // The counterfactual wallet (agent "no LEASH" below): the same hijack, the usual setup.
     s.hot && h('p', { class: 'wplain' }, 'Without LEASH, the usual setup: a plain wallet whose key the agent\'s server holds (', h('span', { class: 'mono' }, short(s.hot.address)),
       ', funded like the vault). The same hijack takes ', h('b', {}, 'all of it'), ', to any address, in one transaction. It holds ', h('b', {}, `${money(s.hot.usd, 0)} tUSD`), ' now.'));

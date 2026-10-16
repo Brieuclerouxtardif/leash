@@ -4,6 +4,8 @@ One take of the real console, plus a title card at each end. English voice-over.
 
 **Length.** The voice-over is 424 words in 37 sentences: about 3:24 at 125 words a minute, a calm pace in a second language. The slots below add the clicks and a breath after each result, which gives about 4:30. Do not stretch it to fill 5:00: silence over a console reads as a stall.
 
+**Sealed invoices are not in it.** Every take below was recorded before the contract gained them (2026-10-16, run 6). The console shows them (T6, A14–A16) on a fresh vault, but no scene of this script does yet; the deck covers them.
+
 **Network.** Record on Sepolia if it is deployed (the header pill reads "Ethereum Sepolia" and every hash opens Etherscan). Otherwise record on the local chain and leave the "Local chain (anvil)" pill visible. Never crop it out.
 
 **Block waits.** On Sepolia each transaction waits for a block (12 s). Measured in the console over two rehearsals on 2026-10-14:
