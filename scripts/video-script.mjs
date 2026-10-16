@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 // One row of the VIDEO.md table per slot.
-export const SLOTS = ['title', 'top', 'routine', 'tier1', 'tier2', 'editor', 'redteam', 'chat', 'kill', 'closing'];
+export const SLOTS = ['title', 'top', 'routine', 'tier1', 'tier2', 'seal', 'editor', 'redteam', 'chat', 'kill', 'closing'];
 
 const rows = readFileSync(join(ROOT, 'docs', 'VIDEO.md'), 'utf8').split('\n')
   .map((l) => l.match(/^\| \d:\d\d–\d:\d\d \| (.*) \| "(.*)" \|\s*$/)).filter(Boolean)

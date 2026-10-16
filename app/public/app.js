@@ -421,6 +421,30 @@ async function loadAttacks() {
   }));
 }
 
+// ------------------------------------------------------------------ sealed invoice
+// The school's bill for the semester (campaign task T6), sealed with the school's own key. The agent settles it alone,
+// above its own limits; the vault holds the money for the contest window, then pays the school and nobody else.
+function loadSeal() {
+  const school = S.seals?.school;
+  if (!school) { $('sealCard').hidden = true; return; }
+  const win = S.contestWindow >= 3600 ? `${S.contestWindow / 3600} h` : `${S.contestWindow / 60} min`;
+  const res = h('div', { class: 'res' }, `The owner lets the school's seals take ${money(school.allowance, 0)} tUSD in total.`);
+  const card = h('div', { class: 'atk seal' }, h('div', { class: 'row' }, h('b', {}, 'Semester fees S1 · 1,500 tUSD')),
+    h('p', {}, 'To the school ', h('span', { class: 'mono' }, school.address), ', sealed with the school\'s own key, for this vault on this chain only. Change the amount or the recipient and the seal breaks.'), res);
+  const btn = h('button', { class: 'primary', onclick: () => busy(btn, async () => {
+    res.textContent = `settling… then held ${win} for you or the guardian to contest`;
+    let r;
+    try { r = await api('/api/task', { id: 'T6' }); } catch (err) { res.textContent = `not sent: ${err.message}`; throw err; }
+    const ok = r.outcome === 'success';
+    card.classList.toggle('pass', ok);
+    card.classList.toggle('fail', !ok);
+    res.replaceChildren(ok ? '✓ released to the school' : `✗ ${r.outcome}`, r.hash ? h('br') : '', r.hash ? link(r.hash) : '', r.note ? h('div', {}, r.note) : '', r.error ? h('div', {}, r.error) : '');
+    refresh();
+  }) }, 'Settle as agent');
+  card.querySelector('.row').append(btn);
+  $('seal').replaceChildren(card);
+}
+
 // A refusal also links to a decoding explorer: Etherscan only says "execution reverted".
 function link(hash, reverted = false) {
   const u = txUrl(hash);
@@ -487,6 +511,7 @@ function refresh() {
 
 await refresh();
 $('instruction').textContent = `Owner: “${S.instruction}”`;
+loadSeal();
 await Promise.all([loadInbox(), loadAttacks(), loadEvidence(), loadSamples(), loadChat()]);
 if (!S.allowLive) for (const id of ['mode', 'cmode', 'tmode']) $(id).querySelector('[value="live"]').disabled = true;
 setInterval(() => refreshing || refresh(), 5000);

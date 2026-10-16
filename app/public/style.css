@@ -132,6 +132,8 @@ button.danger { background: var(--bad); border-color: var(--bad); color: #fff; f
 .attacks { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
 .atk { border: 1px solid var(--line); border-radius: 10px; padding: 10px; background: var(--panel2); display: grid; gap: 8px; grid-template-rows: auto auto 1fr; }
 .atk .res { align-self: end; }
+#seal { grid-template-columns: minmax(0, 620px); }
+#seal .atk .row button { flex: none; }
 .settled { font-size: 13px; font-weight: 600; }
 .settled.ok { color: var(--ok); }
 .settled.bad { color: var(--bad); }
