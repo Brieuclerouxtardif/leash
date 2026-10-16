@@ -123,6 +123,18 @@ await center(`document.querySelectorAll('#proposals .prop')[2]`);
 await beat('signed', `document.querySelectorAll('#proposals .prop')[2].querySelector('.settled')`);
 await sleep(1500);
 
+// The school's sealed invoice: the agent settles it alone, the vault holds it for the contest window, then releases it.
+scene('seal');
+await show('#sealCard');
+await beat('sealed', `document.querySelector('#seal .atk')`);
+await sleep(3000);
+await click(`document.querySelector('#seal .atk button')`, 'Settle as agent', `document.querySelector('#seal .atk')`);
+await waitFor(`document.querySelector('#seal .atk').matches('.pass, .fail')`, 'sealed invoice held, then released', 400000);
+await resize(`document.querySelector('#seal .atk')`);
+await sleep(1500);
+await beat('released', `document.querySelector('#seal .atk')`);
+await sleep(1500);
+
 scene('editor');
 await show('#editor');
 await pick('Let the agent');
@@ -163,14 +175,14 @@ scene('redteam');
 await show('#attacks');
 await beat('attacks', `document.getElementById('attacks')`);
 await sleep(1500);
-for (const id of ['A2', 'A7', 'A9']) {
+for (const id of ['A2', 'A7', 'A14', 'A9']) {
   await click(`${atk(id)}.querySelector('button')`, `Launch ${id}`, atk(id));
   await waitFor(`${atk(id)}.matches('.pass, .fail')`, `attack ${id}`, 120000);
   await resize(atk(id));
   await sleep(1050);
 }
-await until(`document.querySelectorAll('#ledger > li.reverted').length >= 3`, 'ledger shows the refusals');
-await beat('refusals', all('#ledger > li:nth-child(-n+3)'));
+await until(`document.querySelectorAll('#ledger > li.reverted').length >= 4`, 'ledger shows the refusals');
+await beat('refusals', all('#ledger > li:nth-child(-n+4)'));
 await sleep(1500);
 
 // The fake-owner message, sent by the hijacked server with the vault's agent key, then with a plain wallet's key.

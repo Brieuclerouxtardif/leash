@@ -570,3 +570,16 @@ Ce ne sont pas des promesses du prompt : c'est le contrat qui refuse. Chaque ref
     - La capture du panneau red team dans le deck montre encore A1–A13. Le texte le dit, pas de nouvelle capture.
     - La répétition sur un fork de Base (branche `base-mainnet`) date de l'ancien contrat.
     - Les notes du deck ont été raccourcies au compte de mots, pas chronométrées à voix haute.
+
+- 2026-10-17 01:39 — **Nouvelle prise vidéo Sepolia, avec les factures scellées.**
+  - **Fait.**
+    - Console : carte « Sealed invoice » (facture S1 de l'école, 1 500 tUSD, bouton « Settle as agent » qui lance T6 via `POST /api/task`).
+    - `record-demo.mjs` : scène `seal` après la signature du propriétaire ; A14 entre A7 et A9. `video-script.mjs` : slot `seal`. `compose-video.mjs` : 4 ancres de plus. VIDEO.md : 41 phrases, 483 mots, clôture « 22/22 ».
+    - Répétition locale (`work/demo-local-seal`) : 4:21 au plan. Elle a montré un bouton qui débordait de la carte (grille à 4 colonnes) : corrigé en CSS, vérifié à 1920×1080.
+    - Vault neuf `0x4504…f3e9`, preflight vert, prise `work/demo-sepolia5` : 7:16 de capture. Sceau réglé (`0x98fb…0572`), tenu 120 s, libéré à l'école (`0x0cd0…fde3`). A2, A7, A14 (`BrokenSeal`), A9 et A10 refusés on-chain, chat refusé (`PayeeNotAllowed`).
+    - Rendu : `work/demo-sepolia5/leash-demo-sepolia.mp4`, 4:22, 12 attentes coupées, 85 Mo, voix Zira. Images vérifiées à 1:35 et 1:52. `deployments/sepolia.json` revient au run 6 ; la prise est archivée dans `sepolia-take5-20261017.json`.
+  - **Critique.**
+    - Les 120 s de contestation sont coupées au montage : on dit « deux minutes » sans les montrer. Un jury pressé peut croire que le paiement part tout de suite.
+    - `settleInvoice` a consommé 495 347 gas, sept fois le `release` (70 600). Pas expliqué, pas optimisé.
+    - 85 Mo, 4:22 : plus près des 5:00 et plus lourd. La copie 720p n'est pas faite.
+    - Toujours la voix de synthèse et pas d'URL de repo sur la carte de fin : à refaire après la publication du repo.
