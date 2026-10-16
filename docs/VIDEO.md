@@ -15,7 +15,7 @@ One take of the real console, plus a title card at each end. English voice-over.
 | A2, A7 | 1 each | 6–14 s each |
 | A9 | 5 (approve, pump, forced buy, approve, unwind) | 48–61 s |
 | A10 | 2 | 18–26 s |
-| Chat: Send (hijacked server, no LEASH) | 1 each | about one block each (not yet measured on Sepolia) |
+| Chat: Send (hijacked server, no LEASH) | 1 each | 5–6 s each (take of 2026-10-16) |
 | Restart agent | 1 | 9–14 s |
 
 Live, the red-team segment alone needs 90 s to 2 min. Cut the waits and caption each cut "block wait cut (~12 s per transaction)". Keep the click and the result on screen, and never cut inside a result. While a transaction waits, its button reads "Sending…" (or "Signed · waiting for the block…"); clicking the next attack meanwhile is safe, it is queued behind the first. On the local chain there is nothing to cut: every action returns in under 1.5 s (A9, five transactions: 1.3 s).
@@ -60,24 +60,24 @@ node scripts/compose-video.mjs work/demo --voice --repo <url>
 
 Keep the computer awake, with the lid open, during a take and during a render. On 2026-10-14, two runs died the moment the laptop went to sleep. It writes `work/demo/leash-demo-voice.mp4` (1080p, H.264 + AAC) and an `.srt`, rendering in real time (3 min); `--plan` prints the timing without rendering. `--preview` writes a 720p copy (23 MB for 3:00); pass `--out` with it, or it overwrites the 1080p file. Submit the 1080p one, with the 720p as a second link for slow connections. The title card says the video is recorded from the live console, on which network, how many waits were cut, and that the voice is synthetic. A person reading the script is still better: a synthetic voice sounds like one, and the next section needs no new take.
 
-Recorded on Sepolia on 2026-10-15 (vault `0x52a9…f224`), with the mandate editor's question and the Chinese text: 3:41 of capture, of which 137 s of block waits were cut (8 cuts). The result is 3:13 long. During 84 s of it, the picture holds while the voice speaks. A2, A7, A9 and A10 were refused on-chain. The take of 2026-10-14 (vault `0xe30d…dd82`, 3:00, `work/demo-sepolia2`) predates both features; its script is gone from this table, so it can no longer be re-cut.
+Recorded on Sepolia on 2026-10-16 (vault `0x3b0b…d2d6`, budget contract), with the chat scene: 5:10 of capture, of which 206 s of block waits were cut (10 cuts). The result is 3:50 long. During 101 s of it, the picture holds while the voice speaks. A2, A7, A9 and A10 were refused on-chain, and so was the hijacked server's chat payment (`PayeeNotAllowed`, [0xd6be…c1a5](https://sepolia.etherscan.io/tx/0xd6beab2712c2c0c9d39cca040355a46303a2e65b91622d6a48c49d019b69c1a5)); the same message sent from the plain wallet went through ([0xebd2…5c74](https://sepolia.etherscan.io/tx/0xebd217aa9b0c158de92993d04762f4362ab24c3d7c409c689845e0979ff25c74)). The takes of 2026-10-14 and 2026-10-15 (`work/demo-sepolia2`, `work/demo-sepolia3`) predate the budget and the chat; a take started on 2026-10-16 at 08:52 died when the computer restarted (`work/demo-sepolia4-aborted-0853`, one rent payment on vault `0xd90c…f7f9`).
 
 ## A person's voice on the recorded take
 
-Read the 32 sentences of the table into a microphone; `compose-video.mjs` then cuts the same Sepolia take with that voice instead of Zira's. No new take, no new vault.
+Read the 37 sentences of the table into a microphone; `compose-video.mjs` then cuts the same Sepolia take with that voice instead of Zira's. No new take, no new vault.
 
 ```
 node scripts/record-voice.mjs work/voice
-node scripts/compose-video.mjs work/demo-sepolia3 --voice-dir work/voice --plan
-node scripts/compose-video.mjs work/demo-sepolia3 --voice-dir work/voice --repo <url>
+node scripts/compose-video.mjs work/demo-sepolia4 --voice-dir work/voice --plan
+node scripts/compose-video.mjs work/demo-sepolia4 --voice-dir work/voice --repo <url>
 ```
 
-The first command opens a page at http://127.0.0.1:8793 with one sentence at a time and what is on screen when it is said. <kbd>Space</kbd> records, <kbd>Space</kbd> again stops, <kbd>P</kbd> plays back. Record a sentence again to replace it. The page trims the silence around the words and brings every clip to the same loudness. It says when a take is saturated or too quiet. About 15 minutes in all.
+The first command opens a page at http://127.0.0.1:8793 with one sentence at a time and what is on screen when it is said. <kbd>Space</kbd> records, <kbd>Space</kbd> again stops, <kbd>P</kbd> plays back. Record a sentence again to replace it. The page trims the silence around the words and brings every clip to the same loudness. It says when a take is saturated or too quiet. About 17 minutes in all.
 - Pace is free: each sentence still starts on its moment, and the picture holds while the voice runs long. Calm beats fast.
 - A quiet room and a headset microphone matter more than anything else; a laptop microphone picks up the fan.
 - A sentence edited in this table after it was read shows up as to read again, and `compose-video.mjs` refuses to cut until it is.
 
-The last command writes `work/demo-sepolia3/leash-demo-narrated.mp4`; its title card no longer says "synthetic voice". Tested on 2026-10-15 with a fake microphone that played Zira's sentences: same timing as `--voice` to the tenth of a second.
+The last command writes `work/demo-sepolia4/leash-demo-narrated.mp4`; its title card no longer says "synthetic voice". Tested on 2026-10-15 with a fake microphone that played Zira's sentences: same timing as `--voice` to the tenth of a second.
 
 ## Do not say
 

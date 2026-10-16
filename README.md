@@ -92,6 +92,7 @@ Seven scripted messages were sent live to both prompts and replay in the console
 - With only the model hijacked, LEASH's code refused all of it. The 120 tUSD electricity bill was paid (tier 1); the 5,000 tUSD tuition waited for the owner's signature (tier 2).
 - With the server hijacked too, the vault refused six calls on the local chain: `PayeeNotAllowed` for the three payments to the attacker and for the tuition sent without the owner's signature, `NotOwner` for the new payee and the higher limit. The electricity bill went through, because it is inside the mandate. That is the residual risk the meter shows, not a failure.
 - With no LEASH, the same fake-owner message sent from the same hijacked server emptied 9,000 tUSD from the plain wallet in one mined transfer, on the local chain. The vault refused that very request (`PayeeNotAllowed`).
+- On Sepolia, during the video take of 2026-10-16 (vault `0x3b0b8302…d2d6`), the fake owner's 9,000 tUSD from the hijacked server: refused by the vault, [`PayeeNotAllowed`](https://sepolia.etherscan.io/tx/0xd6beab2712c2c0c9d39cca040355a46303a2e65b91622d6a48c49d019b69c1a5), and paid from the plain wallet, [transfer mined](https://sepolia.etherscan.io/tx/0xebd217aa9b0c158de92993d04762f4362ab24c3d7c409c689845e0979ff25c74) (`evidence/sepolia-console-20261016T180747.jsonl`).
 
 The obeying prompt is written to obey. We do not claim a model was fooled (see Honesty notes).
 

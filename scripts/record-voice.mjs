@@ -71,7 +71,7 @@ server.listen(PORT, '127.0.0.1', () => {
 });
 
 function page() {
-  const next = `node scripts/compose-video.mjs work/demo-sepolia3 --voice-dir ${args[0].replace(/\\/g, '/')} --plan`;
+  const next = `node scripts/compose-video.mjs work/demo-sepolia4 --voice-dir ${args[0].replace(/\\/g, '/')} --plan`;
   return `<!doctype html><meta charset="utf-8"><title>LEASH voice-over</title>
 <style>
 :root{--bg:#0b0d10;--panel:#12161b;--line:#232b35;--text:#e7ecf2;--muted:#8a96a3;--accent:#f5a524;--ok:#3ecf8e;--bad:#ff6b6b}
