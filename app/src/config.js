@@ -12,6 +12,8 @@ export const NETWORKS = {
   sepolia: {
     chain: sepolia,
     rpc: process.env.LEASH_SEPOLIA_RPC ?? 'https://ethereum-sepolia-rpc.publicnode.com',
+    // Audits read old receipts: publicnode stopped returning ours about a day after they were mined (2026-10-16).
+    historyRpc: process.env.LEASH_SEPOLIA_RPC ?? 'https://sepolia.drpc.org',
     explorer: 'https://sepolia.etherscan.io',
     // Etherscan shows our refusals only as "execution reverted" (sources are on Sourcify); Blockscout decodes them.
     decoder: 'https://eth-sepolia.blockscout.com',

@@ -229,6 +229,20 @@ test('mandate compiler, recorded live runs: casual English and Chinese give the 
   assert.equal(zh.unmapped.length, 1); // the transfer to "my friend": not enforceable, in the owner's words
 });
 
+test('mandate compiler, recorded live run: "1,000 in total" becomes the key budget, a red row when it gives more than is left', () => {
+  const addr = { landlord: A.landlord, utility: A.utility, school: A.school };
+  const text = replayableSamples().find((t) => t.startsWith('Going away'));
+  assert.ok(text, 'recorded budget sample missing');
+  const budgetRow = (r) => r.rows.filter((x) => x.field === 'agent.budget').map((x) => [x.to, x.direction]);
+  const cut = compileMandate(text, state(), addr); // 5,000 left
+  assert.deepEqual([cut.questions, cut.errors, budgetRow(cut)], [[], [], [['1,000 tUSD', 'tighter']]]);
+  assert.deepEqual(cut.calls.find((c) => c.functionName === 'setAgentBudget').args, [u(5000), u(1000)]); // compare-and-set on what the diff saw
+  assert.ok(cut.rows.some((x) => x.field === 'agent.expiry'), 'two weeks sets the key expiry');
+  assert.ok(cut.unmapped.length === 1, '"on rent and electricity" is not a rule the vault holds: the budget covers every payee');
+  const reload = compileMandate(text, state({ agentBudget: u(80) }), addr);
+  assert.deepEqual(budgetRow(reload), [['1,000 tUSD', 'looser']]);
+});
+
 test('recorded live model runs exist, used no tools and match the schema hash', () => {
   for (const profile of ['guarded', 'naive']) {
     const dir = join(ROOT, 'evidence', 'model-runs');

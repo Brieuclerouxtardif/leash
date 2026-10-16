@@ -17,8 +17,8 @@ const file = args[1] ?? join(ROOT, 'evidence', readdirSync(join(ROOT, 'evidence'
   .filter((f) => f.startsWith(`${net}-campaign-`) && f.endsWith('.json')).sort().at(-1));
 const blockscout = process.argv.includes('--blockscout') && net === 'sepolia' ? 'https://eth-sepolia.blockscout.com' : null;
 const c = JSON.parse(readFileSync(file, 'utf8'));
-const { chain, rpc } = network(net);
-const pub = createPublicClient({ chain, transport: http(rpc, { retryCount: 6, retryDelay: 1500 }) }); // public RPCs drop requests
+const { chain, rpc, historyRpc } = network(net);
+const pub = createPublicClient({ chain, transport: http(historyRpc ?? rpc, { retryCount: 6, retryDelay: 1500 }) }); // public RPCs drop requests
 
 // Blockscout's own reading of a failed transaction: "Out of gas", or the error it decoded. A string
 // revert ("slippage") may come back as Error(string) or as raw bytes; both are reduced to the string.

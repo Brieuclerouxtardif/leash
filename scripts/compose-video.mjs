@@ -57,6 +57,11 @@ const ANCHORS = {
   'It forges': click('Launch A7'),
   'A pumped pool': click('Launch A9'),
   'Every refusal is mined': beat('refusals'),
+  'Now a chat message': beat('message'),
+  'Here the model': click('Send (hijacked server)'),
+  'The contract refuses': beat('chat-refused'),
+  'Without LEASH': click('Send (no LEASH)'),
+  'With LEASH, the worst case': beat('meter'),
   'If anything looks wrong': click('Launch A10'),
   'Only the owner': beat('paused'),
 };
@@ -130,6 +135,8 @@ const EVENTS = new Set(['scroll', 'click', 'beat']); // a block wait is not one:
 const sceneMarks = marks.filter((m) => m.kind === 'scene');
 for (const id of SLOTS.slice(1, -1)) {
   const i = sceneMarks.findIndex((m) => m.id === id);
+  // A take recorded before the chat scene existed (demo-sepolia3) still cuts, without that scene's sentences.
+  if (i < 0 && id === 'chat') { console.warn('this take has no chat scene: its sentences are left out'); continue; }
   if (i < 0) throw new Error(`scene ${id} missing from the capture`);
   const s0 = sceneMarks[i].s;
   const s1 = sceneMarks[i + 1].s;
