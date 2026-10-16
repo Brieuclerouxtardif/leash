@@ -173,6 +173,34 @@ await until(`document.querySelectorAll('#ledger > li.reverted').length >= 3`, 'l
 await beat('refusals', all('#ledger > li:nth-child(-n+3)'));
 await sleep(1500);
 
+// The fake-owner message, sent by the hijacked server with the vault's agent key, then with a plain wallet's key.
+// Neither touches the vault's state: the first reverts, the second moves the plain wallet's tUSD.
+scene('chat');
+const agent = (v) => js(`const a = document.getElementById('agent'); a.value = ${JSON.stringify(v)}; a.dispatchEvent(new Event('change'));`);
+const AGENT_BOX = `[document.getElementById('agent'), document.getElementById('agentNote')]`;
+await show('#talk');
+await agent('server');
+await js(`const s = document.getElementById('say'); s.value = [...s.options].find((o) => o.textContent.startsWith('This is the owner')).value; s.dispatchEvent(new Event('change'));`);
+await sleep(800);
+await beat('message', `document.getElementById('msg')`);
+await sleep(3000);
+await click(`document.getElementById('send')`, 'Send (hijacked server)', AGENT_BOX);
+await waitFor(`document.querySelector('#thread li.ex.server .settled')`, 'chat server', 120000);
+await center(`document.querySelector('#thread li.ex.server .settled')`);
+await beat('chat-refused', `document.querySelector('#thread li.ex.server .settled')`);
+await sleep(2000);
+await show('#talk');
+await agent('plain');
+await sleep(800);
+await click(`document.getElementById('send')`, 'Send (no LEASH)', AGENT_BOX);
+await waitFor(`document.querySelector('#thread li.ex.plain .settled')`, 'chat plain', 120000);
+await center(`document.querySelector('#thread li.ex.plain .settled')`);
+await sleep(2000);
+await show('#talk');
+await until(`!document.querySelector('.wplain')?.textContent.includes('12,000 tUSD now')`, 'meter shows the plain wallet emptied');
+await beat('meter', `document.getElementById('worst')`);
+await sleep(3000);
+
 scene('kill');
 await click(`${atk('A10')}.querySelector('button')`, 'Launch A10', atk('A10'));
 await waitFor(`${atk('A10')}.matches('.pass, .fail')`, 'attack A10', 120000);

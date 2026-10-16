@@ -220,6 +220,6 @@ Still to do by hand, if not done:
 - the team: 2 to 5 full-time students, at least 60 % non-Chinese, each with ID and proof of enrolment (a one-person entry is refused)
 - the organizers' answers (fintechathon@ican-x.com): are testnet hashes accepted, and can the topic move from C to F?
 - the deck: team name and GitHub URL filled in, exported to PDF or PPTX
-- the video as a link, in a GitHub release of the repo (not YouTube or Google Drive alone: blocked in mainland China): a 1080p cut weighs about 65 MB, which cannot be attached to an email; do not commit it
+- the video as a link, in a GitHub release of the repo (not YouTube or Google Drive alone: blocked in mainland China): a 1080p cut weighs about 70 MB, which cannot be attached to an email; do not commit it
 - the submission itself: one email to fintechathon@ican-x.com with every member's details and the materials (docs/SUBMISSION.md)`);
 process.exit(failed ? 1 : 0);

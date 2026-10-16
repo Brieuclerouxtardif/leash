@@ -507,3 +507,47 @@ Ce ne sont pas des promesses du prompt : c'est le contrat qui refuse. Chaque ref
     - Le compteur montre une faiblesse de notre propre mandat par défaut : clé de 14 jours × 1 500/jour, c'est plus que les 12 000 tUSD du coffre. Tout le tUSD peut partir vers les deux bénéficiaires inscrits avant l'expiration. Écrit dans SECURITY R1 plutôt que caché.
     - Les refus « serveur détourné » ne sont minés qu'en local. Pas encore de hash public sur Sepolia pour cette scène : il faut un déploiement frais et une nouvelle prise vidéo.
     - Je n'ai pas fait de test de mutation sur `judgeChat` : la couverture est celle des 27 tests, sans preuve qu'ils attrapent une régression.
+- 01:31 (réel, 16/10) — Budget de clé agent (contrat modifié), contre-factuel « sans LEASH », pire cas public.
+  - **Pourquoi.** Les deux défauts relevés par Brieuc.
+    - N°2 : « le mandat autorise à vider entièrement le coffre ». C'est exact, et c'était déjà dans R1 : toutes nos limites sont des débits, et un débit fois assez de jours atteint le solde.
+    - N°1 : « pourquoi une blockchain plutôt qu'un backend sécurisé ? ». La démo ne le montrait pas.
+  - **N°2, dans le contrat.**
+    - `agentBudget` : un stock, pas un débit, pour toute la vie de la clé. Chaque `pay` de tier 1 le consomme ; au-delà, `AboveAgentBudget`. Les paiements de tier 2 (signés par le propriétaire) et les swaps n'y touchent pas.
+    - Une clé neuve part de 0, et `revokeAgent` le remet à 0.
+    - Défaut : 1 000 tUSD pour la clé de 14 jours (loyer 800 + électricité 120). Le pire cas passe de 12 000 à 1 000.
+    - `setAgentBudget(expected, budget)` en compare-and-set : si un paiement de l'agent passe entre la lecture et le rechargement, l'appel revert avec `BudgetChanged` au lieu de l'oublier (R16, trouvé en écrivant le budget, corrigé dans la foulée).
+    - Le compilateur marque un rechargement en rouge dès que la nouvelle valeur dépasse ce qui reste : c'est une affectation, pas un ajout, donc 300 avec 80 restants donne plus à l'agent.
+  - **N°1, dans le produit.**
+    - Quatrième mode du chat, « sans LEASH » : le même serveur détourné tient la clé d'un portefeuille simple (rôle `hot`), financé comme le coffre, et signe un `transfer`. Vérifié en local : transfert réussi vers l'attaquant, là où le coffre revert `PayeeNotAllowed`.
+    - Le compteur affiche les deux à côté : 1 000 au pire avec LEASH, 12 000 sans.
+    - `scripts/worst-case.mjs` recalcule le pire cas depuis un RPC public, sans clé : bénéficiaires reconstruits depuis les événements `PayeeSet`, plafonds relus. C'est l'argument concret : n'importe qui peut vérifier la borne, sans faire confiance à l'opérateur.
+    - README : section « Why a contract, and not a well-secured backend? » avec un tableau honnête (backend classique / service de politique MPC-HSM / LEASH). Le coût et la latence y sont du côté du contrat.
+  - **Preuves.** forge 40 (39 unit/fuzz + 1 campagne de 8 invariants, dont « l'agent ne dépense jamais au-delà de son budget »). Fuzz : 12 paiements de taille et de date aléatoires. Mutation : sans la décrémentation, 4 tests tombent. Campagne locale 18/18 sur le nouveau contrat, A5 refusé par `AboveAgentBudget`. Node 27/30.
+  - **Critique.**
+    - Le défaut N°2 était écrit dans SECURITY R1 depuis la veille, et je l'avais classé « accepté ». Il a fallu que Brieuc le dise pour que je le corrige. Le budget tenait en vingt lignes de Solidity.
+    - Le premier rechargement était une simple affectation : la course avec l'agent (R16), je l'ai d'abord documentée comme « acceptée » avant de la fermer. Même réflexe.
+    - 3 tests Node rouges : les enregistrements du compilateur ne correspondent plus au prompt (nouveau champ budget). Codex est en limite d'usage jusqu'à 03:46 ; à réenregistrer.
+    - Sepolia porte encore l'ancien contrat (run 4, pire cas 6 080, borné par le solde). Les chiffres de gaz du README mélangent run 4 et le contrat local actuel : run 5 à faire après 00:15 UTC.
+    - Le contre-factuel n'a pas encore de hash public : en local seulement.
+- 08:41 (réel, 16/10) — Run 5 sur Sepolia, sur le contrat avec budget : c'est la référence (commit a3bcacf).
+  - Vault `0x8487…3e15` : 18/18, audit de la chaîne 18/18, Blockscout décode les 12 refus. A5 est désormais refusé par `AboveAgentBudget`. Le run 4 reste dans `evidence/` comme le run sur l'ancien contrat.
+  - `verify.mjs` envoie les sources à l'API de Sourcify au lieu d'appeler forge (bloqué par le contrôle d'applications de Windows) : 4 correspondances exactes.
+  - 8 compilations de mandat réenregistrées avec le prompt actuel, dont le texte « 1,000 in total » ; 31 tests Node verts.
+  - Scène du chat ajoutée au tournage (record-demo, compose-video, VIDEO.md).
+  - Prise vidéo lancée à 08:52 sur un vault neuf (`0xd90c…f7f9`) : tuée par un redémarrage du PC après le loyer. Vault archivé, prise dans `work/demo-sepolia4-aborted-0853/`.
+- 20:27 (réel, 16/10) — Nouvelle prise Sepolia avec la scène du chat. Les deux issues du chat ont maintenant un hash public. Commit qui suit.
+  - **Fait.**
+    - preflight (commit 6e8e9d6) : le budget de l'agent doit couvrir les factures de tier 1 de la semaine, et le portefeuille simple doit tenir les 9 000 de la scène.
+    - Déploiement frais : vault `0x3b0b…d2d6`. La prise a duré 5:10, avec 15 transactions. Le chat y donne : serveur détourné, refusé `PayeeNotAllowed` (`0xd6be…c1a5`) ; sans LEASH, transfert miné (`0xebd2…5c74`).
+    - Vidéo de secours : `work/demo-sepolia4/leash-demo-sepolia.mp4`, 3:50, 10 attentes de bloc coupées, 72 Mo.
+    - Deck v29 : 13 diapos, 9:45 de notes, run 5, et une diapo « Same hijack, two wallets » avec la vraie capture Sepolia et les deux hashes.
+    - README, TECHNICAL, SUBMISSION et VIDEO mis à jour. `deployments/sepolia.json` remis sur la référence run 5 ; le vault de la prise est archivé (`sepolia-20261016T175759.json`).
+    - Slither relancé (voir critique).
+  - **Critique.**
+    - La carte de fin de la vidéo et le deck affichaient « 0 Slither findings ». Mais `evidence/slither.txt` datait du 14/10, avant le contrat avec budget. Je l'ai vu en relisant la carte de fin, après le rendu, pas avant.
+      - Relancé avec les mêmes options (`--filter-paths "node_modules|lib|test" --exclude-dependencies`) : 0 résultat ; `forge lint src` : 0.
+      - Sans filtre : 69 résultats, tous dans OpenZeppelin. La preuve et SECURITY le disent maintenant. L'affirmation tenait, par chance, pas par méthode.
+    - `deploy.js --fresh` ne reprend pas. Un timeout sur l'attente du reçu de la dernière transaction (`fund:hot`, minée plus tard) a coûté un déploiement complet. Sans conséquence sur Sepolia (gaz à ~2e-8 gwei), mais à corriger avant tout déploiement payant.
+    - Rien ne protège une prise contre une coupure : le redémarrage de 08:52 a brûlé un vault et une matinée de tournage.
+    - Vers 3:05 de la vidéo, pendant au plus 1,5 s, la carte GONE est déjà affichée, mais le compteur dit encore « holds 12,000 now » et le registre n'a pas le transfert. Le défaut tombe sur une coupe. Accepté, pas de nouvelle prise.
+    - En mode sans LEASH, la réponse enregistrée du modèle parle de « the owner's signature » sur le coffre. C'est l'enregistrement du prompt obéissant, réutilisé tel quel, alors que c'est le portefeuille simple qui paie. Le transfert, lui, est réel. Laissé : un juré attentif peut le relever.

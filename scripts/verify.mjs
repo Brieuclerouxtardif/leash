@@ -1,35 +1,46 @@
 // Verifies the Sepolia deployment on Sourcify (no API key needed). Run after app/src/deploy.js sepolia.
-// Usage: node scripts/verify.mjs [--dry-run]   (FOUNDRY= path to the folder holding forge)
+// Sends each contract's build metadata and source files (contracts/out/, from `forge build`) to Sourcify's API,
+// with its creation transaction; Sourcify recompiles and compares. Needs no forge at this point: on 2026-10-16
+// Windows application control blocked forge.exe, and `forge verify-contract` with it.
+// Usage: node scripts/verify.mjs [sepolia] [--dry-run]
 import { readFileSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { execFileSync } from 'node:child_process';
-import { encodeAbiParameters } from 'viem';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const net = process.argv.find((a) => !a.startsWith('-') && a !== process.argv[0] && a !== process.argv[1]) ?? 'sepolia';
+const CONTRACTS = join(ROOT, 'contracts');
+const API = 'https://sourcify.dev/server';
+const net = process.argv.slice(2).find((a) => !a.startsWith('-')) ?? 'sepolia';
 const dry = process.argv.includes('--dry-run');
 const d = JSON.parse(readFileSync(join(ROOT, 'deployments', `${net}.json`), 'utf8'));
-const forge = join(process.env.FOUNDRY ?? join(process.env.USERPROFILE ?? process.env.HOME, 'tools', 'foundry-v1.8.5'), process.platform === 'win32' ? 'forge.exe' : 'forge');
-// Older deployment files lack the owner: fall back to the keys file's public address (never the key).
-const ownerAddr = d.owner ?? JSON.parse(readFileSync(join(ROOT, 'secrets', 'testnet-keys.json'), 'utf8')).owner.address;
 
-const enc = (types, values) => encodeAbiParameters(types.map((type) => ({ type })), values).slice(2);
-const targets = [
-  ['usd', 'src/Mocks.sol:TestToken', enc(['string', 'string', 'uint8'], ['Test Dollar', 'tUSD', 6])],
-  ['eth', 'src/Mocks.sol:TestToken', enc(['string', 'string', 'uint8'], ['Test Ether', 'tETH', 18])],
-  ['pool', 'src/LeashPool.sol:LeashPool', enc(['address', 'address'], [d.usd, d.eth])],
-  ['vault', 'src/LeashVault.sol:LeashVault', enc(['address', 'address', 'address', 'address'], [ownerAddr, d.usd, d.eth, d.oracle])],
-];
+const targets = [['usd', 'Mocks.sol/TestToken.json'], ['eth', 'Mocks.sol/TestToken.json'], ['pool', 'LeashPool.sol/LeashPool.json'], ['vault', 'LeashVault.sol/LeashVault.json']];
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+async function api(path, body) {
+  const res = await fetch(`${API}${path}`, body ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) } : {});
+  const json = await res.json().catch(() => ({}));
+  return { status: res.status, json };
+}
 
-for (const [key, contract, args] of targets) {
-  const argv = ['verify-contract', d[key], contract, '--chain', String(d.chainId), '--verifier', 'sourcify', '--constructor-args', `0x${args}`, '--root', join(ROOT, 'contracts'), '--watch'];
-  console.log(`${key.padEnd(6)} ${d[key]}`);
-  if (dry) { console.log(`  forge ${argv.slice(0, 7).join(' ')} --constructor-args 0x${args.slice(0, 16)}… --watch`); continue; }
-  try {
-    console.log(execFileSync(forge, argv, { encoding: 'utf8' }).trim().split('\n').slice(-2).join('\n'));
-  } catch (e) {
-    console.log(`  failed: ${(e.stdout || e.message).trim().split('\n').slice(-3).join(' | ')}`);
+for (const [key, artifact] of targets) {
+  const address = d[key];
+  const metadata = JSON.parse(JSON.parse(readFileSync(join(CONTRACTS, 'out', artifact), 'utf8')).rawMetadata);
+  // Source paths are as the compiler saw them, relative to contracts/ (OpenZeppelin is ../node_modules/...).
+  const sources = Object.fromEntries(Object.keys(metadata.sources).map((p) => [p, readFileSync(resolve(CONTRACTS, p), 'utf8')]));
+  console.log(`${key.padEnd(6)} ${address}  ${Object.keys(metadata.settings.compilationTarget)[0]}, ${Object.keys(sources).length} sources`);
+  if (dry) continue;
+  const known = await api(`/v2/contract/${d.chainId}/${address}`);
+  if (known.status === 200 && known.json.match) { console.log(`  already verified: ${known.json.match}`); continue; }
+  const sent = await api(`/v2/verify/metadata/${d.chainId}/${address}`, { sources, metadata, creationTransactionHash: d.txs?.[`deploy:${key}`] });
+  if (sent.status !== 202) { console.log(`  refused (${sent.status}): ${sent.json.message ?? JSON.stringify(sent.json)}`); continue; }
+  let job;
+  for (let i = 0; i < 40; i++) {
+    await sleep(3000);
+    job = (await api(`/v2/verify/${sent.json.verificationId}`)).json;
+    if (job.isJobCompleted) break;
   }
+  if (job?.error) console.log(`  failed: ${job.error.message ?? job.error.customCode}`);
+  else if (job?.contract?.match) console.log(`  ${job.contract.match} (creation ${job.contract.creationMatch}, runtime ${job.contract.runtimeMatch})`);
+  else console.log(`  no answer after 2 min: verification ${sent.json.verificationId}`);
 }
 console.log(`\nCheck: https://repo.sourcify.dev/${d.chainId}/${d.vault}`);

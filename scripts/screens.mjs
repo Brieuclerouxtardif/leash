@@ -74,6 +74,18 @@ await js(`const sel = document.getElementById('sample'); sel.value = [...sel.opt
 await until(`document.querySelector('#cNotes li.unm')`, 'compile zh');
 await shot('mandate-editor-zh', '#editor');
 
+// Open chat: the fake-owner message, sent by the same hijacked server with the vault's agent key, then
+// with a plain wallet's key. After the routine, so that nothing the chat lets through changes its figures.
+for (const agent of ['server', 'plain']) {
+  await js(`const $ = (id) => document.getElementById(id);
+    $('agent').value = ${JSON.stringify(agent)}; $('agent').dispatchEvent(new Event('change'));
+    const say = $('say'); say.value = [...say.options].find((o) => o.textContent.startsWith('This is the owner')).value; say.dispatchEvent(new Event('change'));
+    $('send').click();`);
+  await until(`document.querySelector('#thread li.ex.${agent} .settled')`, `chat ${agent}`, 120000);
+}
+await sleep(5500); // one refresh tick: the meter shows the plain wallet emptied
+await shot('chat-no-leash', '#talk');
+
 // Red team: stolen-key attacks and the pumped pool, sent for real.
 for (const id of ['A1', 'A2', 'A3', 'A4', 'A7', 'A9']) {
   await js(`[...document.querySelectorAll('#attacks .atk')].find((c) => c.querySelector('b').textContent === ${JSON.stringify(id)}).querySelector('button').click();`);

@@ -92,6 +92,7 @@ Seven scripted messages were sent live to both prompts and replay in the console
 - With only the model hijacked, LEASH's code refused all of it. The 120 tUSD electricity bill was paid (tier 1); the 5,000 tUSD tuition waited for the owner's signature (tier 2).
 - With the server hijacked too, the vault refused six calls on the local chain: `PayeeNotAllowed` for the three payments to the attacker and for the tuition sent without the owner's signature, `NotOwner` for the new payee and the higher limit. The electricity bill went through, because it is inside the mandate. That is the residual risk the meter shows, not a failure.
 - With no LEASH, the same fake-owner message sent from the same hijacked server emptied 9,000 tUSD from the plain wallet in one mined transfer, on the local chain. The vault refused that very request (`PayeeNotAllowed`).
+- On Sepolia, during the video take of 2026-10-16 (vault `0x3b0b8302…d2d6`), the fake owner's 9,000 tUSD from the hijacked server: refused by the vault, [`PayeeNotAllowed`](https://sepolia.etherscan.io/tx/0xd6beab2712c2c0c9d39cca040355a46303a2e65b91622d6a48c49d019b69c1a5), and paid from the plain wallet, [transfer mined](https://sepolia.etherscan.io/tx/0xebd217aa9b0c158de92993d04762f4362ab24c3d7c409c689845e0979ff25c74) (`evidence/sepolia-console-20261016T180747.jsonl`).
 
 The obeying prompt is written to obey. We do not claim a model was fooled (see Honesty notes).
 
@@ -109,17 +110,17 @@ What it does not do: the weekly plan asks nothing before planning, and the owner
 
 ## Measured on week 42
 
-Week 42 is five documents: two bills, a tuition invoice and two hostile emails. Figures from the Sepolia reference run (run 4), the local campaign and the recorded model runs:
+Week 42 is five documents: two bills, a tuition invoice and two hostile emails. Figures from the Sepolia reference run (run 5), the local campaign and the recorded model runs:
 
 | Measure | Value | Source |
 |---|---|---|
-| Owner effort | one instruction and one signature for the week. 920 tUSD of bills paid by the agent key alone (T1, T2); 5,000 tUSD of tuition after one EIP-712 signature over text rendered by code (T4) | run 4 |
+| Owner effort | one instruction and one signature for the week. 920 tUSD of bills paid by the agent key alone (T1, T2); 5,000 tUSD of tuition after one EIP-712 signature over text rendered by code (T4) | run 5 |
 | Fraud stopped | 9,800 tUSD asked for by the two hostile documents (800 to a "new wallet", 9,000 by prompt injection): nothing moved, both reported with the reason | A1; recorded guarded run |
-| Worst case, stolen agent key | 1,500 tUSD per UTC day (3,000 across a midnight, R2), only to the two registered payees, out of 12,000 tUSD and 1.2 tETH in the vault; swaps at most 1 % below the oracle price (R3) | A2–A5, A9 |
-| Stopping it | one guardian transaction pauses everything (A10, 29,050 gas); one owner transaction voids every pending signature (A8, 29,152 gas) | run 4 |
+| Worst case, stolen agent key | 1,000 tUSD in total, the key's whole-life budget, only to the two registered payees, out of 12,000 tUSD and 1.2 tETH in the vault. The same hijack with the tUSD in a plain wallet: all 12,000, to any address. Swaps: at most 1 % below the oracle price (R3) | A2–A5, A9; `scripts/worst-case.mjs` |
+| Stopping it | one guardian transaction pauses everything (A10, 29,072 gas); one owner transaction voids every pending signature (A8, 29,152 gas) | run 5 |
 | Planning time | 18.7 s for the week's plan (13,813 input tokens, 586 output); 5.5–19.5 s per mandate compilation | `evidence/model-runs/` |
-| Questions to the owner | none for the five mandate texts that give every value (plain English, casual English, Chinese). One for *"pay my landlord a bit more"*: the landlord's cap in tUSD. The answer (950) compiles in a second turn into one red row | `evidence/model-runs/` (current prompt) |
-| On-chain cost | a tier-1 payment uses 80–114k gas on anvil and 184–380k on Sepolia. The gap is storage creation: each new slot adds about 98k gas on Sepolia against 17k on anvil (T1 − T2, T2 − A5; an `approve` creating one slot: 46,376 vs 128,296). A payment creates up to three: its opId, the day's counter (first payment of the day), the payee's token balance (first payment ever). A call that creates no storage costs 1,200 gas more on Sepolia (A8, A10, T5's mandate changes: +4.0 to 4.3 %) | run 4 vs local campaign |
+| Questions to the owner | none for the six mandate texts that give every value (plain English, casual English, Chinese, and *"1,000 in total"*, which sets the key's budget). One for *"pay my landlord a bit more"*: the landlord's cap in tUSD. The answer (950) compiles in a second turn into one red row | `evidence/model-runs/` (current prompt) |
+| On-chain cost | a tier-1 payment uses 80–119k gas on anvil and 185–392k on Sepolia. The gap is storage creation: each new slot adds about 104k gas on Sepolia against 20k on anvil (T1 − T2, T2 − A5; an `approve` creating one slot: 46,376 vs 128,296). A payment creates up to three: its opId, the day's counter (first payment of the day), the payee's token balance (first payment ever). A call that creates no storage costs 1,200 gas more on Sepolia (A8, A10, T5's mandate changes: +4.0 to 4.3 %) | run 5 vs local campaign |
 
 ## What works today
 
@@ -130,9 +131,9 @@ Week 42 is five documents: two bills, a tuition invoice and two hostile emails. 
 | Off-chain policy + mandate compiler tests | 31 / 31 | `npm test` |
 | Full local campaign (5 tasks + 13 attacks, fresh chain) | 18 / 18 | `powershell -ExecutionPolicy Bypass -File scripts/local-campaign.ps1` |
 | Same 13 attacks launched from the web console | 13 / 13 | `npm run server`, Red team panel |
-| Live LLM runs (gpt-6.1-sol via Codex CLI, no tools) | 2 routine plans + 19 mandate compilations + 14 chat answers (7 messages × 2 prompts), all recorded; the 7 compilations made with the current prompt and the 14 chat answers replay in the console | `evidence/model-runs/` |
-| Ethereum Sepolia campaign (run 4), vault [`0x8237…cE80`](https://sepolia.etherscan.io/address/0x8237d47a29e49d8f60fde0ca900df86ae2c7ce80) | 18 / 18, 29 transactions, 12 mined refusals, re-derived from the chain by `audit-chain.mjs`; Blockscout's own decoding agrees on every refusal it has indexed, at best 12 of the 12 (all 12 on 2026-10-15 at 15:47 UTC). Its indexer sometimes falls back to "awaiting_internal_transactions" (7 of 12 the same day at 12:00 UTC), so a Blockscout link can show no reason; `audit-chain.mjs` reads it from the chain; 4 contracts verified on Sourcify (exact match). Runs 1–3 were 17/18 (see Honesty notes) | [docs/evidence-sepolia.md](docs/evidence-sepolia.md) |
-| No hidden entry point in the deployed vault | the vault's code, read from Sepolia: 36 selectors in its dispatcher, the same as the ABI; 14 change state, each in a reviewed role (3 agent, `pause`, 10 owner); no `DELEGATECALL`, `CALLCODE` or `SELFDESTRUCT` opcode; same code as our build, immutables masked | `node scripts/bytecode-check.mjs sepolia 0x8237d47a29E49D8F60FDE0CA900dF86AE2C7cE80` |
+| Live LLM runs (gpt-6.1-sol via Codex CLI, no tools) | 2 routine plans + 27 mandate compilations + 14 chat answers (7 messages × 2 prompts), all recorded; the 8 compilations made with the current prompt and the 14 chat answers replay in the console | `evidence/model-runs/` |
+| Ethereum Sepolia campaign (run 5), vault [`0x8487…3e15`](https://sepolia.etherscan.io/address/0x8487aa5d276387dd2be76330d391f4643b893e15) | 18 / 18, 29 transactions, 12 mined refusals, re-derived from the chain by `audit-chain.mjs`; Blockscout's own decoding agrees on every refusal it has indexed, at best 12 of the 12 (all 12 on 2026-10-16 at 06:39 UTC). Its indexer sometimes falls back to "awaiting_internal_transactions" (run 4: 7 of 12 on 2026-10-15 at 12:00 UTC), so a Blockscout link can show no reason; `audit-chain.mjs` reads it from the chain; 4 contracts verified on Sourcify (exact match). Runs 1–3 were 17/18 (see Honesty notes); run 4 was 18/18 on the previous contract, before the agent key had a budget | [docs/evidence-sepolia.md](docs/evidence-sepolia.md) |
+| No hidden entry point in the deployed vault | the vault's code, read from Sepolia: 38 selectors in its dispatcher, the same as the ABI; 15 change state, each in a reviewed role (3 agent, `pause`, 11 owner); no `DELEGATECALL`, `CALLCODE` or `SELFDESTRUCT` opcode; same code as our build, immutables masked | `node scripts/bytecode-check.mjs sepolia 0x8487aa5d276387dd2BE76330d391f4643B893e15` |
 
 Every attack is sent for real with a fixed gas limit, so the refusal is **mined as a reverted transaction**. Every refusal has a public hash. We call this *proof of refusal*.
 
@@ -142,14 +143,15 @@ These links point to the reference run on Ethereum Sepolia, in public block expl
 
 | Claim | Where to look |
 |---|---|
-| The agent pays a registered bill alone (tier 1) | [800 tUSD rent](https://sepolia.etherscan.io/tx/0x74edd399285c281abae3d8dc400fed359b22ba2aeed5723227a224a6c55a7fe2) on Etherscan |
-| A payment above the agent's limits goes through only with the owner's EIP-712 signature (tier 2) | [5,000 tUSD tuition](https://sepolia.etherscan.io/tx/0x119280a0ac4a7a1030dc16e66a4ae6db7cd94fd332b707ce47fa7a4f82899217) on Etherscan |
-| A stolen agent key cannot forge the owner's signature | [A7, 9,000 tUSD to the attacker](https://eth-sepolia.blockscout.com/tx/0x44dc52039c20162febb93c766ddec4414c277f13a5300cab8bef659e2c8d9236): Blockscout decodes `BadMandateSignature()` |
-| A pumped pool cannot make the agent overpay | [A9, forced buy](https://eth-sepolia.blockscout.com/tx/0xb1e06f38a5a1616e29068724f64e11c050c67bc966c07805273c1c91f54adb8b): the vault demands at least the oracle price minus 1 %, the pumped pool cannot pay it, and the swap reverts (`slippage`) |
-| The guardian's kill switch stops the agent | [A10](https://eth-sepolia.blockscout.com/tx/0x8adf991aceed69e4dd4fc15f33dee7ce1f1cf7e694b3182606d893380d05088e): `VaultPaused()` |
-| The source you read is the code deployed | [LeashVault source on Blockscout](https://eth-sepolia.blockscout.com/address/0x8237d47a29E49D8F60FDE0CA900dF86AE2C7cE80?tab=contract), [Sourcify: exact match](https://repo.sourcify.dev/11155111/0x8237d47a29E49D8F60FDE0CA900dF86AE2C7cE80) |
+| The agent pays a registered bill alone (tier 1) | [800 tUSD rent](https://sepolia.etherscan.io/tx/0x8b17f09ed9b8e605650cd0afba77b80906f51a2dce6fe367e4dce8ac7cd54d0d) on Etherscan |
+| A payment above the agent's limits goes through only with the owner's EIP-712 signature (tier 2) | [5,000 tUSD tuition](https://sepolia.etherscan.io/tx/0xe88e7a11feccc4aadd25fcae479921ebb249addaf8c034dba6139364be6cb4fa) on Etherscan |
+| A stolen agent key cannot drain the vault, even to a trusted payee | [A5, the last slice](https://eth-sepolia.blockscout.com/tx/0x71f7b5a0382ff6bbb500b1cd289a3745f7e69eec0eafe8da7c46d61a7ee6ade6): the key has spent its 1,000 tUSD budget, Blockscout decodes `AboveAgentBudget()` |
+| A stolen agent key cannot forge the owner's signature | [A7, 9,000 tUSD to the attacker](https://eth-sepolia.blockscout.com/tx/0x5cfcdfb6b6fdf9e5ad3227c1ba3ff85cd9f3c6073ee5500c2ea00a58ad3da147): Blockscout decodes `BadMandateSignature()` |
+| A pumped pool cannot make the agent overpay | [A9, forced buy](https://eth-sepolia.blockscout.com/tx/0x6ddea3083ce20514ae1ae3162d0e3430fcf587fde608b5284750cd7f3a8dd47b): the vault demands at least the oracle price minus 1 %, the pumped pool cannot pay it, and the swap reverts (`slippage`) |
+| The guardian's kill switch stops the agent | [A10](https://eth-sepolia.blockscout.com/tx/0x2884ce7835c6e1f868bd84f813bb5771abe5065850eca07cd2e3148280dc67a5): `VaultPaused()` |
+| The source you read is the code deployed | [LeashVault source on Blockscout](https://eth-sepolia.blockscout.com/address/0x8487aa5d276387dd2BE76330d391f4643B893e15?tab=contract), [Sourcify: exact match](https://repo.sourcify.dev/11155111/0x8487aa5d276387dd2BE76330d391f4643B893e15) |
 
-All 29 transactions of this run, and the three earlier runs that failed, are in [docs/evidence-sepolia.md](docs/evidence-sepolia.md).
+All 29 transactions of this run, and the four earlier runs (three failed, run 4 passed on the previous contract), are in [docs/evidence-sepolia.md](docs/evidence-sepolia.md).
 
 ## Where each required deliverable is
 
@@ -157,7 +159,7 @@ All 29 transactions of this run, and the three earlier runs that failed, are in 
 |---|---|
 | Technical documentation: system architecture, core algorithm, security design | [TECHNICAL.md](docs/TECHNICAL.md) §2, §3, §4 |
 | Source code with README, deployment instructions and test cases | this repository: [Run it locally](#run-it-locally), [Run it on Ethereum Sepolia](#run-it-on-ethereum-sepolia), `contracts/test/`, `app/test/` |
-| Security self-assessment: permission tiers and known risks | [SECURITY.md](docs/SECURITY.md) §2 (tiers), §5 (13 attacks), §6 (known risks R1–R15), §7 (compliance controls, and what is not covered: KYC, AML, data protection) |
+| Security self-assessment: permission tiers and known risks | [SECURITY.md](docs/SECURITY.md) §2 (tiers), §5 (13 attacks), §6 (known risks R1–R16), §7 (compliance controls, and what is not covered: KYC, AML, data protection) |
 | Execution evidence: on-chain transaction hashes | [evidence-sepolia.md](docs/evidence-sepolia.md), `evidence/sepolia-campaign-*.json` |
 | Topic F: asset management, transaction execution, risk control | a weekly tETH purchase under an exposure cap; bill payments; the vault's limits, oracle floor and kill switch |
 
@@ -278,8 +280,8 @@ Nobody arbitrages our pool, so it keeps the deploy-day price while the real feed
 - **The model resisted.** In our recorded live runs, both the guarded prompt and a deliberately naive prompt refused the prompt injection. We therefore do not claim "the model was fooled and the vault held". We show the stolen-key case instead (A2–A4, A7), clearly labelled *simulated* compromised model outputs in the tests, and, in the console's chat, a prompt written to obey every message. That prompt is a stand-in for a hijacked model, not a model we tricked.
 - **Our first three Sepolia runs were 17/18, and our own tooling first hid that.** The vault never let anything through; the failures were all in how we sent and labelled the attacks:
   - Run 1 took A8's revert reason from a simulation served by a lagging RPC node.
-  - In runs 1 and 2, A9's forced buy ran out of gas, because creating storage costs far more on Sepolia than on anvil (the vault's weekly swap, T3: 384,184 gas against 159,560) and our limit was tuned on anvil. It was still labelled as a refusal. Blockscout showed "Out of gas".
+  - In runs 1 and 2, A9's forced buy ran out of gas, because creating storage costs far more on Sepolia than on anvil (the vault's weekly swap in run 5, T3: 384,175 gas against 159,563) and our limit was tuned on anvil. It was still labelled as a refusal. Blockscout showed "Out of gas".
   - In run 3, an RPC node simulated A9 while filling the transaction, so it was never sent.
 
-  Labels now come from the mined transaction, forced calls are fully filled with room to spare, and the audit checks every outcome against Blockscout. All three runs stay in `evidence/` as recorded (SECURITY.md, R15).
+  Labels now come from the mined transaction, forced calls are fully filled with room to spare, and the audit checks every outcome against Blockscout. All three runs stay in `evidence/` as recorded (SECURITY.md, R15). Run 4 then passed 18/18, but on a contract where a stolen agent key could still pay the whole vault to the registered payees over its 14 days. We gave the key a budget and ran run 5 on a fresh deployment of the new contract.
 - **Unaudited code.** Testnet only. See [docs/SECURITY.md](docs/SECURITY.md) for the known-risk list.
