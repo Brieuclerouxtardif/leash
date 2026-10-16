@@ -25,9 +25,11 @@ const latest = await pub.getBlockNumber();
 
 const v = (functionName, args = []) => pub.readContract({ address: vault, abi: ABI.vault, functionName, args });
 const seen = new Set();
+const sealers = new Set();
 for (let from = fromBlock; from <= latest; from += 9000n) {
   const to = from + 8999n < latest ? from + 8999n : latest; // public RPCs cap the block range of eth_getLogs
   for (const log of await pub.getContractEvents({ address: vault, abi: ABI.vault, eventName: 'PayeeSet', fromBlock: from, toBlock: to })) seen.add(log.args.payee);
+  for (const log of await pub.getContractEvents({ address: vault, abi: ABI.vault, eventName: 'SealAllowanceSet', fromBlock: from, toBlock: to })) sealers.add(log.args.creditor);
 }
 const [block, agent, agentExpiry, paused, limits, risk, today, stable] = await Promise.all([
   pub.getBlock({ blockNumber: latest }), v('agent'), v('agentExpiry'), v('paused'), v('limits'), v('risk'), v('today'), v('stable'),
@@ -37,9 +39,13 @@ const agentBudget = await v('agentBudget').catch(() => null);
 const payees = {};
 for (const a of seen) payees[a] = { address: a, cap: await v('payeeCap', [a]) }; // the current cap, not the event's
 const usd = await pub.readContract({ address: stable, abi: erc20Abi, functionName: 'balanceOf', args: [vault] });
+// Vaults deployed before sealed invoices (Sepolia run 6, 2026-10-16) have neither allowances nor holds.
+const seals = {};
+for (const a of sealers) seals[a] = { address: a, allowance: await v('sealAllowance', [a]) };
+const [held, contestWindow] = await Promise.all([v('held').catch(() => 0n), v('contestWindow').catch(() => 0)]);
 
 const s = {
-  now: block.timestamp, agent, agentExpiry, agentBudget: agentBudget ?? usd, paused, payees, usd, paidToday: today[1],
+  now: block.timestamp, agent, agentExpiry, agentBudget: agentBudget ?? usd, paused, payees, seals, contestWindow: Number(contestWindow), usd, paidToday: today[1],
   limits: { payPerTx: limits[0], payDaily: limits[1], swapPerTx: limits[2], swapDaily: limits[3] },
   risk: { maxSlippageBps: risk[0], maxRiskBps: risk[1], maxOracleAge: risk[2] },
 };
@@ -58,5 +64,11 @@ console.log('  to an address the owner did not register:  0 tUSD');
 console.log(`  more today, only to the payees above:       ≤ ${w.today.toLocaleString('en-US')} tUSD`);
 console.log(`  in total, until the key expires:             ≤ ${w.untilExpiry.toLocaleString('en-US')} tUSD (bound: ${{ budget: 'the key\'s budget', balance: 'the vault\'s balance', days: `${w.days} paying days at the daily limit` }[w.bound]})`);
 console.log(`  lost to swap prices, per day:                ≤ ${w.swapLossPerDay.toLocaleString('en-US')} tUSD against the oracle`);
+console.log('  through sealed invoices:                     0 tUSD (the agent key cannot make a creditor\'s seal)');
+if (sealers.size) {
+  console.log(`\nSealed invoices (from ${sealers.size} SealAllowanceSet address${sealers.size === 1 ? '' : 'es'}, allowances read back), ${fmtUsd(held).toLocaleString('en-US')} tUSD held now:`);
+  for (const c of Object.values(seals).filter((x) => x.allowance > 0n)) console.log(`    ${c.address}  ≤ ${fmtUsd(c.allowance).toLocaleString('en-US')} left`);
+  console.log(`  if a creditor's own key were stolen too:     ≤ ${w.sealedIfCreditorStolen.toLocaleString('en-US')} tUSD, each payment held ${w.contestWindow} s for the owner or guardian to contest`);
+}
 console.log(`The same hijack on a plain wallet holding the same tUSD: ${fmtUsd(usd).toLocaleString('en-US')} tUSD, to any address.`);
 console.log('Owner-signed (tier 2) payments are not in these numbers: they need the owner\'s key, which no agent component holds.');

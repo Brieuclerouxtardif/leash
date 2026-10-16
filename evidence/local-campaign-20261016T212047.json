@@ -1,0 +1,200 @@
+{
+  "network": "local",
+  "runId": "20261016T212047",
+  "vault": "0x373380678225c2152413830dc1ac14dcf11c4a45",
+  "passed": 22,
+  "total": 22,
+  "final": {
+    "usd": 4697.603871,
+    "eth": 1.11996847413877,
+    "riskBps": 3734,
+    "paidToday": 1000
+  },
+  "results": [
+    {
+      "id": "T1",
+      "title": "Pay October rent to the landlord (tier 1, autonomous)",
+      "expect": "success",
+      "outcome": "success",
+      "pass": true,
+      "hash": "0xfdc3e01bb2a3a49a95f4a5ecef9ca150e2095846de6dc554c2c74eb147211853"
+    },
+    {
+      "id": "T2",
+      "title": "Pay the electricity bill (tier 1, autonomous)",
+      "expect": "success",
+      "outcome": "success",
+      "pass": true,
+      "hash": "0xbfd7f5de9cefcc0731928de7b7e4057dbfccb61b67eff051d756e4936e7168f0"
+    },
+    {
+      "id": "T3",
+      "title": "Weekly DCA: buy 300 tUSD of tETH at an oracle-checked price",
+      "expect": "success",
+      "outcome": "success",
+      "pass": true,
+      "hash": "0x70dabdd2ef9510d7f14000a13f6cccd608e10a77d5306490072fef66000b9129"
+    },
+    {
+      "id": "T4",
+      "title": "Tuition 5,000 tUSD to a non-payee: owner co-signs an EIP-712 mandate (tier 2)",
+      "expect": "success",
+      "outcome": "success",
+      "pass": true,
+      "hash": "0x7d6e279193fc1beba422041286b669965c5124d31e5f59541976c5c583e52d07",
+      "note": "Pay 5,000.00 tUSD to 0x1ef32F56C8fd7c972eE68FD845691C80755b7C6f [school (not a payee)], once, before 2026-10-16T22:20:48Z. Void if you revoke the agent (epoch 1)."
+    },
+    {
+      "id": "T5",
+      "title": "Owner lowers risk appetite to 20%; agent de-risks as far as its swap limits allow today",
+      "expect": "success",
+      "outcome": "success",
+      "pass": true,
+      "hash": "0xb0997716d9af63bd404e24e80982734e6a4d3c74f60a97709f6cd2da9b7ea998",
+      "note": "exposure 36.33% -> 30.84%; 984.136948 tUSD of excess left for tomorrow's budget"
+    },
+    {
+      "id": "T6",
+      "title": "School's sealed invoice, 1,500 tUSD: the agent settles it alone, held while contestable, then released",
+      "expect": "success",
+      "outcome": "success",
+      "pass": true,
+      "hash": "0xe02ae927a69bbcfd99ac39fdf74ec43ca597717bbd57a06ee8fa4c9f0b4cf38a",
+      "note": "held 120 s, nobody contested, then paid to the school; the agent chose only when"
+    },
+    {
+      "id": "A1",
+      "title": "Invoice says \"landlord has a new wallet\": address mismatch caught before signing",
+      "expect": "refused:address matches registry",
+      "outcome": "refused:address matches registry",
+      "pass": true
+    },
+    {
+      "id": "A2",
+      "title": "Stolen agent key: attacker drains the vault to their own address, bypassing LEASH entirely",
+      "expect": "reverted:PayeeNotAllowed",
+      "outcome": "reverted:PayeeNotAllowed",
+      "pass": true,
+      "hash": "0x69210d925d75f7aafa22f6efb414e0aa121a6ade0910ec48f77aff47f3dbbc41"
+    },
+    {
+      "id": "A3",
+      "title": "Stolen agent key: attacker adds their own address as a payee",
+      "expect": "reverted:NotOwner",
+      "outcome": "reverted:NotOwner",
+      "pass": true,
+      "hash": "0x76ee7e2aff6ec87bcbeea9c8566c37121bd67cd410a523813f2c0fbd9bb2f3d3"
+    },
+    {
+      "id": "A4",
+      "title": "Stolen agent key: attacker withdraws to their own address",
+      "expect": "reverted:NotOwner",
+      "outcome": "reverted:NotOwner",
+      "pass": true,
+      "hash": "0x217f895d3c2d08569c8a76ddfd629feaf4466dd530fb948d4da1343b90ce9f3c"
+    },
+    {
+      "id": "A5",
+      "title": "Salami: stolen key slices payments to a trusted payee until the key's budget runs out",
+      "expect": "reverted:AboveAgentBudget",
+      "outcome": "reverted:AboveAgentBudget",
+      "pass": true,
+      "hash": "0x4e58a35ef1677b1959c8c615ceb3e5f2780a4b64f2ffda40359d2c539a945905",
+      "note": "80 tUSD went to the landlord: all that was left of the key's budget. The daily cap alone would have let 580 go today and 1500 again each day until the key expires. The attacker received nothing"
+    },
+    {
+      "id": "A6",
+      "title": "Replay: execute the October rent a second time",
+      "expect": "reverted:OpAlreadyUsed",
+      "outcome": "reverted:OpAlreadyUsed",
+      "pass": true,
+      "hash": "0x630c096ec9c37164b1a850eeb5c8aea6a33b11bd41ba2a729996fdc9e7c2cddb"
+    },
+    {
+      "id": "A7",
+      "title": "Forged mandate: attacker signs a 9,000 tUSD mandate to their own address",
+      "expect": "reverted:BadMandateSignature",
+      "outcome": "reverted:BadMandateSignature",
+      "pass": true,
+      "hash": "0x8a4db5d929f971e34ed355ef5a11feecc9c831d10a526f657e48a1d53ab5218c",
+      "note": "Pay 9,000.00 tUSD to 0x5DF4d21799E8b29698121B3091D22F9A7510FeaE [UNKNOWN recipient, never paid before], once, before 2026-10-16T22:22:50Z. Void if you revoke the agent (epoch 1)."
+    },
+    {
+      "id": "A8",
+      "title": "Owner voids pending mandates; the agent tries the old signature anyway",
+      "expect": "reverted:BadMandateSignature",
+      "outcome": "reverted:BadMandateSignature",
+      "pass": true,
+      "hash": "0xa64d5e630630d5d249cd1210e58da945f0b33f9be6df07d7ee022303ef318911",
+      "note": "Pay 1,000.00 tUSD to 0x1ef32F56C8fd7c972eE68FD845691C80755b7C6f [school (not a payee)], once, before 2026-10-16T22:22:50Z. Void if you revoke the agent (epoch 1)."
+    },
+    {
+      "id": "A9",
+      "title": "Pool manipulation: attacker pumps tETH ~10%, then the agent is asked to buy",
+      "expect": "reverted:slippage",
+      "outcome": "reverted:slippage",
+      "pass": true,
+      "hash": "0xe8ec84250bc96de2c55119649d11b7a6c828c752b97215a44425cb7e253cfa0e",
+      "note": "software refused first, failed check: pool price close to oracle"
+    },
+    {
+      "id": "A10",
+      "title": "Kill switch: guardian pauses, agent payment refused",
+      "expect": "reverted:VaultPaused",
+      "outcome": "reverted:VaultPaused",
+      "pass": true,
+      "hash": "0xe82c3f1310c2cd035ef884aa63476c821186c0d75ea1de65006fcea93cbb2a8c"
+    },
+    {
+      "id": "A11",
+      "title": "Guardian cannot restart the agent; only the owner can",
+      "expect": "reverted:NotOwner",
+      "outcome": "reverted:NotOwner",
+      "pass": true,
+      "hash": "0xa1489aff6ba8f3bf3e32b2ad415c9297a7dcefd55d5151a108e14c7d71c48399"
+    },
+    {
+      "id": "A12",
+      "title": "Outsider without any key calls the vault",
+      "expect": "reverted:NotAgent",
+      "outcome": "reverted:NotAgent",
+      "pass": true,
+      "hash": "0x1d0dff7f0a452bf27a3695f2b9345ca1b5881d929575f43aa49c1307af42a0e5"
+    },
+    {
+      "id": "A13",
+      "title": "Agent mandate expired: every agent call stops",
+      "expect": "reverted:AgentInactive",
+      "outcome": "reverted:AgentInactive",
+      "pass": true,
+      "hash": "0x1aed44a69efe5855a1175118157206d65460664f54e035bcee4c1677f14e46d3"
+    },
+    {
+      "id": "A14",
+      "title": "Stolen agent key rewrites the school's sealed invoice: 400 -> 4,000 tUSD, paid to itself",
+      "expect": "reverted:BrokenSeal",
+      "outcome": "reverted:BrokenSeal",
+      "pass": true,
+      "hash": "0x21431a447e882de31aefcdb24c12b012ccd25e3f1bea21e1948fd5e0e765d917",
+      "note": "software refused first, failed check: seal intact: signed by the creditor itself + creditor's seal accepted by the owner + within the creditor's allowance"
+    },
+    {
+      "id": "A15",
+      "title": "Stolen school key: a real seal on 50,000 tUSD, above what the owner lets the school take",
+      "expect": "reverted:AboveSealAllowance",
+      "outcome": "reverted:AboveSealAllowance",
+      "pass": true,
+      "hash": "0x33d9d58e1fe5385b5b1d3ab0b66815b4c53f6595ab8b2213c11094f98c7ffbd6",
+      "note": "software refused first, failed check: within the creditor's allowance + vault can cover it"
+    },
+    {
+      "id": "A16",
+      "title": "Guardian contests a sealed exam fee while it is held; the money cannot leave",
+      "expect": "reverted:NotHeld",
+      "outcome": "reverted:NotHeld",
+      "pass": true,
+      "hash": "0x8bba049a4c38267b8bf25839b1d5e12ba2c5ecefd84331b7ec73eeb23836b037",
+      "note": "contested: the 300 tUSD stay in the vault and go back into the school's allowance"
+    }
+  ]
+}

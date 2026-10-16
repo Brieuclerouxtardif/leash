@@ -551,3 +551,22 @@ Ce ne sont pas des promesses du prompt : c'est le contrat qui refuse. Chaque ref
     - Rien ne protège une prise contre une coupure : le redémarrage de 08:52 a brûlé un vault et une matinée de tournage.
     - Vers 3:05 de la vidéo, pendant au plus 1,5 s, la carte GONE est déjà affichée, mais le compteur dit encore « holds 12,000 now » et le registre n'a pas le transfert. Le défaut tombe sur une coupe. Accepté, pas de nouvelle prise.
     - En mode sans LEASH, la réponse enregistrée du modèle parle de « the owner's signature » sur le coffre. C'est l'enregistrement du prompt obéissant, réutilisé tel quel, alors que c'est le portefeuille simple qui paie. Le transfert, lui, est réel. Laissé : un juré attentif peut le relever.
+- 23:55 (réel, 16/10) — Factures scellées : le créancier pose son sceau, l'agent ne choisit que le moment. Run 6 sur Sepolia, 22/22.
+  - **Pourquoi.** Brieuc voulait une amélioration qui résout un vrai problème. Le problème : une grosse facture récurrente (frais de scolarité, fournisseur) réveille le propriétaire à chaque fois (tier 2). Sa contrainte : pas de pair-à-pair dangereux, un intermédiaire qui réconcilie, rien de prise de tête. Son image : le sceau de cire.
+  - **Fait.**
+    - Contrat : `settleInvoice(creditor, amount, invoiceId, seal)`. Le créancier signe en EIP-712 `Invoice(creditor, amount, invoiceId)`, lié au vault et à la chaîne. Ordre des vérifications : sceau (`BrokenSeal`), plafond du créancier (`AboveSealAllowance`), argent libre (`HeldForCreditors`).
+    - L'argent reste dans le vault pendant une fenêtre de contestation (1 jour par défaut, 2 min sur les vaults de test). Propriétaire ou gardien : `contest` rend le plafond. Après la fenêtre, `release` par n'importe qui, vers le créancier seulement, même en pause.
+    - `setSealAllowance(creditor, expected, allowance)` en compare-and-set, comme le budget.
+    - forge : 51 tests unitaires et fuzz (12 sur les sceaux), 9 invariants (le 9e : l'argent scellé reste tenu jusqu'à `release`, et ne va qu'au créancier). Node : 36 tests. Slither 0, `forge lint` 0.
+    - App : T6 (1 500 tUSD scellés, tenus, libérés), A14 (sceau réécrit), A15 (vrai sceau sur 50 000), A16 (contesté puis `release` refusé `NotHeld`). Le compteur de pire cas affiche 0 de plus pour une clé agent volée, et le plafond si la clé du créancier l'est aussi.
+    - Local 22/22, console 16/16. Sepolia run 6, vault `0x00Ad…0E40` : 22/22, audit de la chaîne 22/22, Blockscout décode les 15 refus, Sourcify exact match. `bytecode-check` : 50 sélecteurs, 20 qui changent l'état, chacun dans un rôle relu.
+    - README, SECURITY (R17, R18), TECHNICAL, SUBMISSION, VIDEO, preuves régénérées. Deck v30 : 14 diapos, notes coupées pour tenir en 9:30.
+  - **Critique.**
+    - Le différenciateur n'est pas dans la vidéo, qui est le livrable obligatoire. Usage hebdo trop haut pour une prise ; l'ancienne reste, VIDEO.md le dit.
+    - La protection contre une clé de créancier volée, c'est la contestation. Or rien ne prévient le propriétaire quand une facture est tenue (R18, ouvert). Sur les vaults de test, 2 minutes : en pratique, personne ne contesterait. Le plafond est la seule borne réelle.
+    - Le gardien peut contester sans fin, donc bloquer un créancier honnête. Il ne peut pas voler, mais un gardien hostile coûte un retard. Écrit, pas résolu.
+    - La clé de l'école est une clé jetable que nous tenons. Aucun créancier réel ne signe d'EIP-712 aujourd'hui : l'adoption n'est pas traitée.
+    - L'audit du run 6 a échoué après la campagne : drpc a fermé Sepolia aux comptes gratuits. Troisième nœud public changé en trois jours ; les audits passent maintenant par Tenderly, qui a relu le run 1. Même fragilité.
+    - La capture du panneau red team dans le deck montre encore A1–A13. Le texte le dit, pas de nouvelle capture.
+    - La répétition sur un fork de Base (branche `base-mainnet`) date de l'ancien contrat.
+    - Les notes du deck ont été raccourcies au compte de mots, pas chronométrées à voix haute.

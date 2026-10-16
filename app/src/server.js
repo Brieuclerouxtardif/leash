@@ -55,6 +55,8 @@ async function snapshot() {
     limits: Object.fromEntries(Object.entries(s.limits).map(([k, v]) => [k, fmtUsd(v)])), risk: s.risk,
     paidToday: fmtUsd(s.paidToday), swappedToday: fmtUsd(s.swappedToday),
     payees: Object.fromEntries(Object.entries(s.payees).map(([k, v]) => [k, { address: v.address, cap: fmtUsd(v.cap) }])),
+    seals: Object.fromEntries(Object.entries(s.seals).map(([k, v]) => [k, { address: v.address, allowance: fmtUsd(v.allowance) }])),
+    held: fmtUsd(s.held), contestWindow: s.contestWindow,
     worst: worstCase(s),
   };
 }

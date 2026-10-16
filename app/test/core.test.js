@@ -2,7 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { judge, opId, renderMandate, poolQuote } from '../src/core.js';
+import { keccak256, toHex } from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
+import { judge, opId, renderMandate, poolQuote, judgeInvoice, invoiceTypedData, invoiceId, invoiceKey, worstCase } from '../src/core.js';
 import { scanDocument, review, loadInbox, buildPrompt, SCHEMA } from '../src/planner.js';
 import { ROOT } from '../src/chain.js';
 import { diffMandate, compileMandate, replayableSamples } from '../src/compiler.js';
@@ -31,6 +33,61 @@ function state(over = {}) {
   };
 }
 const J = (intent, s = state(), used) => judge({ key: 'k', ...intent }, s, { registry: s.payees, used });
+
+// Sealed invoices. Throwaway keys derived from a label, never funded anywhere.
+const schoolKey = privateKeyToAccount(keccak256(toHex('leash-test:school')));
+const strangerKey = privateKeyToAccount(keccak256(toHex('leash-test:stranger')));
+const ctxT = { net: { chain: { id: 31337 } } };
+const vaultT = { vault: '0x00000000000000000000000000000000000000a1' };
+const sealState = (over = {}) => state({ seals: { school: { address: schoolKey.address, allowance: u(6000) } }, held: 0n, contestWindow: 120, ...over });
+const invoice = (amount, text = 'semester-fees') => ({ creditor: schoolKey.address, amount: u(amount), invoiceId: invoiceId(text) });
+const sealWith = (key, inv, d = vaultT, ctx = ctxT) => key.signTypedData(invoiceTypedData(ctx, d, inv));
+const failed = (v) => v.checks.filter((c) => !c.ok).map((c) => c.rule);
+
+test('sealed invoice: the creditor\'s own seal inside its allowance executes, above every tier-1 limit', async () => {
+  const inv = invoice(1500);
+  const v = await judgeInvoice(ctxT, vaultT, inv, await sealWith(schoolKey, inv), sealState());
+  assert.equal(v.decision, 'execute');
+  assert.equal(v.tier, 1);
+  assert.equal(v.key, invoiceKey(inv.creditor, inv.invoiceId));
+  assert.deepEqual(v.call.args.slice(0, 3), [inv.creditor, u(1500), inv.invoiceId]);
+});
+
+test('sealed invoice: a changed amount or creditor, or a seal from another key, breaks the seal', async () => {
+  const inv = invoice(400);
+  const seal = await sealWith(schoolKey, inv);
+  for (const changed of [{ ...inv, amount: u(4000) }, { ...inv, creditor: A.attacker }]) {
+    assert.ok(failed(await judgeInvoice(ctxT, vaultT, changed, seal, sealState())).includes('seal intact: signed by the creditor itself'));
+  }
+  const forged = await judgeInvoice(ctxT, vaultT, inv, await sealWith(strangerKey, inv), sealState());
+  assert.deepEqual(failed(forged), ['seal intact: signed by the creditor itself']);
+});
+
+test('sealed invoice: a seal made for another vault or another chain does not open this one', async () => {
+  const inv = invoice(400);
+  for (const seal of [await sealWith(schoolKey, inv, { vault: '0x00000000000000000000000000000000000000b2' }), await sealWith(schoolKey, inv, vaultT, { net: { chain: { id: 11155111 } } })]) {
+    assert.equal((await judgeInvoice(ctxT, vaultT, inv, seal, sealState())).decision, 'refuse');
+  }
+});
+
+test('sealed invoice: above the allowance, already settled or eating money held for creditors is refused', async () => {
+  const big = invoice(50000);
+  assert.deepEqual(failed(await judgeInvoice(ctxT, vaultT, big, await sealWith(schoolKey, big), sealState())), ['within the creditor\'s allowance', 'vault can cover it']);
+  const inv = invoice(1500);
+  const seal = await sealWith(schoolKey, inv);
+  assert.deepEqual(failed(await judgeInvoice(ctxT, vaultT, inv, seal, sealState(), { used: new Set([invoiceKey(inv.creditor, inv.invoiceId)]) })), ['invoice not already settled']);
+  assert.deepEqual(failed(await judgeInvoice(ctxT, vaultT, inv, seal, sealState({ usd: u(2000), held: u(1000) }))), ['vault can cover it']);
+  assert.deepEqual(failed(await judgeInvoice(ctxT, vaultT, inv, seal, sealState({ seals: { school: { address: schoolKey.address, allowance: 0n } } }))), ['creditor\'s seal accepted by the owner', 'within the creditor\'s allowance']);
+});
+
+test('worst case: sealed invoices add nothing to a stolen agent key; a stolen creditor key is bounded by its allowance', () => {
+  const plain = worstCase(state());
+  const w = worstCase(sealState());
+  assert.equal(w.untilExpiry, plain.untilExpiry);
+  assert.equal(w.today, plain.today);
+  assert.equal(w.sealedIfCreditorStolen, 6000);
+  assert.equal(w.contestWindow, 120);
+});
 
 test('tier 1 payment to a payee inside every limit executes', () => {
   const v = J({ type: 'pay', payee: 'landlord', amount: 800 });

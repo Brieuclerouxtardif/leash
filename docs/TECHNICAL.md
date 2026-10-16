@@ -20,9 +20,10 @@ Why a contract rather than rules in a secured backend: rules that run in the age
  owner ───► │ instruction                                           │        │                                  │
  inbox ───► │ planner.js ── LLM (Codex CLI, no tools) ─► intents    │        │  LeashVault                      │
  (untrusted)│      │                                                │        │   ├─ tier 1: pay / swap          │
+            │      │                                                │        │   ├─ sealed: settle → release    │
             │      ▼                                                │        │   ├─ tier 2: payWithMandate      │
             │ review(): scanner, source/amount/payee rules          │        │   ├─ owner: limits, payees, risk │
-            │      ▼                                                │        │   └─ guardian: pause             │
+            │      ▼                                                │        │   └─ guardian: pause, contest    │
             │ core.judge(): registry, limits, oracle floor, exposure│        │        │            │            │
             │      ▼                                                │  tx    │        ▼            ▼            │
             │ chain.send(): chain guard → simulate → sign → journal │ ─────► │  LeashPool     Chainlink feed    │
@@ -33,13 +34,13 @@ Why a contract rather than rules in a secured backend: rules that run in the age
 
 | Component | File | Role |
 |---|---|---|
-| Vault | `contracts/src/LeashVault.sol` | holds funds; enforces tiers 1 and 2; owner and guardian controls |
+| Vault | `contracts/src/LeashVault.sol` | holds funds; enforces tiers 1 and 2 and sealed invoices; owner and guardian controls |
 | Pool | `contracts/src/LeashPool.sol` | minimal constant-product AMM (0.3 % fee) for testnets without liquidity |
 | Oracle | Chainlink ETH/USD (Sepolia) or `MockAggregator` (local) | fair price for swap floors and exposure |
 | Planner | `app/src/planner.js` | prompt building, model call, recording/replay, document scanner, `review` |
-| Policy engine | `app/src/core.js` | `judge`, EIP-712 typed data, deterministic mandate text |
+| Policy engine | `app/src/core.js` | `judge`, `judgeInvoice`, EIP-712 typed data, deterministic mandate text |
 | Signer and journal | `app/src/chain.js` | chain-id guard, per-role wallets, simulate-then-send, JSONL evidence |
-| Scenes | `app/src/campaign.js`, `scenes.js` | 5 tasks and 13 attacks; CLI runner |
+| Scenes | `app/src/campaign.js`, `scenes.js` | 6 tasks and 16 attacks; CLI runner |
 | Console | `app/src/server.js`, `app/public/` | routine, mandate signing, red team, kill switch, live ledger |
 
 Stack: Solidity 0.8.30, OpenZeppelin 5.6.1 (EIP712, ECDSA, SafeERC20, ReentrancyGuard), Foundry 1.8.5, Node 24 + viem 2.57.
@@ -120,6 +121,31 @@ What the owner reads before signing is rendered **by code from the struct**, for
 The address is printed in full: a shortened one is what address-poisoning attacks imitate.
 
 An address outside the registry is labelled "UNKNOWN recipient, never paid before". The model never writes this text.
+
+#### Sealed invoices (signed by the creditor)
+
+Tier 2 asks the owner to sign every large bill. A sealed invoice moves that signature to the party who knows the bill: the creditor.
+
+```
+domain  = the same as the mandate's (vault, chain)
+Invoice(address creditor, uint256 amount, bytes32 invoiceId)
+key     = keccak256(abi.encode(creditor, invoiceId))       // the op id: an invoice settles once
+
+settleInvoice(creditor, amount, invoiceId, seal)            // agent only, gate as tier 1
+  require recover(seal) == creditor                         // else BrokenSeal, checked first
+  require amount ≤ sealAllowance[creditor]                  // else AboveSealAllowance; a stock set by the owner
+  require amount ≤ balance − held                           // else HeldForCreditors
+  sealAllowance[creditor] −= amount;  held += amount
+  holds[key] = (creditor, amount, releaseAt = now + contestWindow, Held)
+contest(key)   owner or guardian, now < releaseAt:  Held → Contested, allowance restored, money stays
+release(key)   anyone, now ≥ releaseAt:             Held → Released, held −= amount, transfer to creditor
+```
+
+- The agent chooses only *when*. The seal fixes *who* and *how much*, so the agent key alone cannot use this path for anything but the creditor's own bill: A14 resubmits a genuine 400 tUSD seal as 4,000 tUSD to the attacker and gets `BrokenSeal`.
+- The owner chooses whose seals count and for how much in total (`setSealAllowance(creditor, expected, allowance)`, compare-and-set like the budget). It does not draw on the agent's budget: that one bounds what the agent key decides alone, this one what each creditor's key can ask for.
+- Held money is subtracted from what `pay`, `payWithMandate`, a buy swap and a tUSD `withdraw` may spend, so a release cannot fail for lack of funds and the owner cannot spend money promised to a creditor without contesting it first.
+- `release` ignores the pause: a guardian who pauses the vault to stop an attack does not also freeze bills nobody contested. To stop one, contest it.
+- `judgeInvoice` (code, before signing) recovers the seal with the same typed data and checks the same rules, so a broken seal is refused without a transaction. A seal for another vault or another chain recovers to another address (tested).
 
 ### 3.5 Proof of refusal
 
@@ -218,11 +244,11 @@ The full threat model, attack catalogue and known-risk list are in [SECURITY.md]
 
 | Layer | Suite | Count |
 |---|---|---|
-| Contract | unit and fuzz (`LeashVault.t.sol`) | 39 |
-| Contract | invariants with a rogue-agent handler (`Invariant.t.sol`) | 8 invariants, 16,384 calls |
-| Off-chain | policy (including the budget), scanner, simulated hostile model output, recorded runs, mandate compiler (including the two-turn question, casual English and Chinese, the budget row), open chat (code's verdict, the hijacked server's raw calls, the plain wallet's transfers), worst case with its three bounds, revert labelling, no secret in any prompt sent to the model | 31 |
-| End to end | `scenes.js` on a fresh chain | 18 scenes |
-| UI | 13 attacks fired from the console on a fresh chain | 13 |
+| Contract | unit and fuzz (`LeashVault.t.sol`) | 51 |
+| Contract | invariants with a rogue-agent handler (`Invariant.t.sol`) | 9 invariants, 16,384 calls |
+| Off-chain | policy (including the budget), sealed-invoice check, scanner, simulated hostile model output, recorded runs, mandate compiler (including the two-turn question, casual English and Chinese, the budget row), open chat (code's verdict, the hijacked server's raw calls, the plain wallet's transfers), worst case with its three bounds, revert labelling, no secret in any prompt sent to the model | 36 |
+| End to end | `scenes.js` on a fresh chain | 22 scenes |
+| UI | 16 attacks fired from the console on a fresh chain | 16 |
 
 ## 7. Limits and next steps
 
@@ -230,7 +256,8 @@ The full threat model, attack catalogue and known-risk list are in [SECURITY.md]
 - A Safe as owner, and two-step ownership (R7).
 - Owner signing in the browser wallet instead of server-side (R6).
 - Uniswap router behind the same floor (R9).
-- Structured invoice extraction (R10).
+- More creditors sealing their invoices, and structured extraction for the bills that are not sealed (R10).
+- An alert on `InvoiceHeld`, so the contest window is watched (R17, R18).
 - An external audit (R12).
 - Mandate compiler: time rules ("not on Sundays", "rent once a month") need new contract fields; today they are shown as not enforceable (R14).
 - Questions in the weekly plan. The mandate editor asks (§3.6), the weekly routine does not, and a flag cannot be answered from the console. Next: the same `questions` field in the plan schema (for example "the electricity bill is 3× last month's: pay it?"), answered by the owner in one click. The answer would go back through the policy, never straight to a transaction.

@@ -12,6 +12,8 @@ import {IAggregatorV3, ILeashPool} from "./Interfaces.sol";
 /// @title LeashVault — a two-asset vault an AI agent can operate but cannot drain.
 /// @notice Tier 1: the agent acts alone inside on-chain limits. Tier 2: anything above needs an
 /// EIP-712 mandate signed by the owner. Tier 3: everything else has no code path at all.
+/// Sealed invoices: a creditor the owner accepted signs its own invoice; the agent can settle it, choosing
+/// when but never to whom or how much, and the money is held for a contest window before it leaves.
 /// The rules live here, not in the agent's prompt, so they hold even if the agent key is stolen.
 contract LeashVault is EIP712, ReentrancyGuard {
     using SafeERC20 for IERC20;
@@ -29,8 +31,23 @@ contract LeashVault is EIP712, ReentrancyGuard {
         uint32 maxOracleAge; // seconds
     }
 
+    enum HoldState {
+        None,
+        Held,
+        Released,
+        Contested
+    }
+
+    struct Hold {
+        address creditor;
+        uint128 amount;
+        uint64 releaseAt;
+        HoldState state;
+    }
+
     bytes32 public constant MANDATE_TYPEHASH =
         keccak256("Mandate(address to,uint256 amount,bytes32 opId,uint64 deadline,uint32 epoch)");
+    bytes32 public constant INVOICE_TYPEHASH = keccak256("Invoice(address creditor,uint256 amount,bytes32 invoiceId)");
 
     address public immutable owner;
     IERC20 public immutable stable;
@@ -57,6 +74,14 @@ contract LeashVault is EIP712, ReentrancyGuard {
     mapping(uint256 day => uint256) public swappedOnDay;
     mapping(bytes32 opId => bool) public used;
 
+    /// What a creditor's sealed invoices may still take, in total: a stock like the agent's budget. 0 = no seal accepted.
+    mapping(address creditor => uint128) public sealAllowance;
+    /// How long a settled invoice stays contestable before anyone can release it to the creditor.
+    uint32 public contestWindow = 1 days;
+    /// Stable units held for creditors: no other path may spend them.
+    uint256 public held;
+    mapping(bytes32 key => Hold) public holds;
+
     event Paid(bytes32 indexed opId, address indexed to, uint256 amount, uint8 tier);
     event Swapped(bytes32 indexed opId, bool buyRisky, uint256 amountIn, uint256 amountOut, uint256 fairOut);
     event AgentSet(address agent, uint64 expiry);
@@ -69,6 +94,11 @@ contract LeashVault is EIP712, ReentrancyGuard {
     event PausedSet(bool paused, address by);
     event EpochBumped(uint32 epoch);
     event Withdrawn(address indexed token, address indexed to, uint256 amount);
+    event InvoiceHeld(bytes32 indexed key, address indexed creditor, uint256 amount, bytes32 invoiceId, uint64 releaseAt);
+    event InvoiceReleased(bytes32 indexed key, address indexed creditor, uint256 amount);
+    event InvoiceContested(bytes32 indexed key, address by);
+    event SealAllowanceSet(address indexed creditor, uint128 allowance);
+    event ContestWindowSet(uint32 window);
 
     error NotOwner();
     error NotAgent();
@@ -91,6 +121,12 @@ contract LeashVault is EIP712, ReentrancyGuard {
     error InsufficientOutput(uint256 received, uint256 minOut);
     error ExposureAboveMandate(uint256 riskBps, uint256 maxRiskBps);
     error NoPool();
+    error AboveSealAllowance(uint256 amount, uint256 left);
+    error BrokenSeal();
+    error HeldForCreditors(uint256 amount, uint256 free);
+    error NotHeld(bytes32 key);
+    error StillContestable(uint64 releaseAt);
+    error ContestWindowOver(uint64 releaseAt);
 
     modifier onlyOwner() {
         if (msg.sender != owner) revert NotOwner();
@@ -134,6 +170,7 @@ contract LeashVault is EIP712, ReentrancyGuard {
         if (wouldBe > limits.payDaily) revert AboveDailyLimit(wouldBe, limits.payDaily);
         uint128 budget = agentBudget;
         if (amount > budget) revert AboveAgentBudget(amount, budget);
+        _requireFree(amount);
         paidOnDay[day] = wouldBe;
         // casting to 'uint128' is safe because amount <= budget, a uint128, was checked above
         // forge-lint: disable-next-line(unsafe-typecast)
@@ -152,6 +189,7 @@ contract LeashVault is EIP712, ReentrancyGuard {
         if (address(pool) == address(0)) revert NoPool();
         uint256 price = _price();
         _spendSwapBudget(buyRisky ? amountIn : _riskyToStable(amountIn, price));
+        if (buyRisky) _requireFree(amountIn);
 
         // The floor comes from the oracle, never from the agent: a manipulated pool cannot pass it.
         uint256 fair = buyRisky ? _stableToRisky(amountIn, price) : _riskyToStable(amountIn, price);
@@ -182,10 +220,70 @@ contract LeashVault is EIP712, ReentrancyGuard {
         bytes32 digest = _hashTypedDataV4(keccak256(abi.encode(MANDATE_TYPEHASH, to, amount, opId, deadline, epoch)));
         (address signer, ECDSA.RecoverError err,) = ECDSA.tryRecover(digest, signature);
         if (err != ECDSA.RecoverError.NoError || signer != owner) revert BadMandateSignature();
-        // The only "external call" above is the ecrecover precompile, which cannot re-enter.
+        _requireFree(amount);
+        // The external calls above are the ecrecover precompile and a balance read; neither can re-enter.
         // forge-lint: disable-next-line(reentrancy-events)
         emit Paid(opId, to, amount, 2);
         stable.safeTransfer(to, amount);
+    }
+
+    // ---------------------------------------------------------------- agent, sealed invoices
+
+    /// Settles an invoice sealed (EIP-712 signed) by a creditor the owner accepted. The seal fixes who is paid
+    /// and how much; the agent only chooses when. The money is held for `contestWindow`: the owner or the
+    /// guardian can contest it meanwhile, and after that anyone, the creditor included, can release it.
+    function settleInvoice(address creditor, uint256 amount, bytes32 invoiceId, bytes calldata seal)
+        external
+        nonReentrant
+        agentOp(invoiceKey(creditor, invoiceId))
+    {
+        if (amount == 0) revert ZeroAmount();
+        bytes32 digest = _hashTypedDataV4(keccak256(abi.encode(INVOICE_TYPEHASH, creditor, amount, invoiceId)));
+        (address signer, ECDSA.RecoverError err,) = ECDSA.tryRecover(digest, seal);
+        if (err != ECDSA.RecoverError.NoError || signer != creditor) revert BrokenSeal();
+        uint128 left = sealAllowance[creditor];
+        if (amount > left) revert AboveSealAllowance(amount, left);
+        _requireFree(amount);
+        bytes32 key = invoiceKey(creditor, invoiceId);
+        // casting to 'uint128' is safe because amount <= left, a uint128, was checked above
+        // forge-lint: disable-next-line(unsafe-typecast)
+        sealAllowance[creditor] = left - uint128(amount);
+        held += amount;
+        // casting to 'uint64' is safe: block.timestamp fits in 64 bits for billions of years
+        // forge-lint: disable-next-line(unsafe-typecast)
+        uint64 releaseAt = uint64(block.timestamp) + contestWindow;
+        // forge-lint: disable-next-line(unsafe-typecast)
+        holds[key] = Hold(creditor, uint128(amount), releaseAt, HoldState.Held);
+        // The external calls above are the ecrecover precompile and a balance read; neither can re-enter.
+        // forge-lint: disable-next-line(reentrancy-events)
+        emit InvoiceHeld(key, creditor, amount, invoiceId, releaseAt);
+    }
+
+    /// After the window, anyone can release a held invoice to its creditor. A pause does not stop it: the window
+    /// was the owner's chance to object, and a creditor must be able to count on being paid.
+    function release(bytes32 key) external nonReentrant {
+        Hold storage h = holds[key];
+        if (h.state != HoldState.Held) revert NotHeld(key);
+        // forge-lint: disable-next-line(block-timestamp)
+        if (block.timestamp < h.releaseAt) revert StillContestable(h.releaseAt);
+        h.state = HoldState.Released;
+        held -= h.amount;
+        emit InvoiceReleased(key, h.creditor, h.amount);
+        stable.safeTransfer(h.creditor, h.amount);
+    }
+
+    /// The owner or the guardian refuses a held invoice before its window closes: the money stays in the vault and
+    /// the creditor's allowance comes back. Contesting can only keep money in, so the guardian may do it too.
+    function contest(bytes32 key) external {
+        if (msg.sender != owner && msg.sender != guardian) revert NotGuardian();
+        Hold storage h = holds[key];
+        if (h.state != HoldState.Held) revert NotHeld(key);
+        // forge-lint: disable-next-line(block-timestamp)
+        if (block.timestamp >= h.releaseAt) revert ContestWindowOver(h.releaseAt);
+        h.state = HoldState.Contested;
+        held -= h.amount;
+        sealAllowance[h.creditor] += h.amount;
+        emit InvoiceContested(key, msg.sender);
     }
 
     // ---------------------------------------------------------------- owner and guardian
@@ -229,6 +327,20 @@ contract LeashVault is EIP712, ReentrancyGuard {
         emit PayeeSet(payee, cap);
     }
 
+    /// Accepts a creditor's seal: the total its sealed invoices may take from now on. Compare-and-set, like the
+    /// agent's budget, so a settlement mined between the owner's read and this call is not forgotten.
+    function setSealAllowance(address creditor, uint128 expected, uint128 allowance) external onlyOwner {
+        if (sealAllowance[creditor] != expected) revert BudgetChanged(expected, sealAllowance[creditor]);
+        sealAllowance[creditor] = allowance;
+        emit SealAllowanceSet(creditor, allowance);
+    }
+
+    /// 0 is allowed and means no recourse: a settled invoice can be released at once.
+    function setContestWindow(uint32 window) external onlyOwner {
+        contestWindow = window;
+        emit ContestWindowSet(window);
+    }
+
     function setLimits(Limits calldata limits_) external onlyOwner {
         limits = limits_;
         emit LimitsSet(limits_);
@@ -266,6 +378,9 @@ contract LeashVault is EIP712, ReentrancyGuard {
 
     function withdraw(IERC20 token, address to, uint256 amount) external nonReentrant onlyOwner {
         require(to != address(0), "zero");
+        if (address(token) == address(stable)) _requireFree(amount);
+        // The only external call above is a balance read on the vault's own token, which cannot re-enter.
+        // forge-lint: disable-next-line(reentrancy-events)
         emit Withdrawn(address(token), to, amount);
         token.safeTransfer(to, amount);
     }
@@ -279,6 +394,15 @@ contract LeashVault is EIP712, ReentrancyGuard {
 
     function mandateDigest(address to, uint256 amount, bytes32 opId, uint64 deadline) external view returns (bytes32) {
         return _hashTypedDataV4(keccak256(abi.encode(MANDATE_TYPEHASH, to, amount, opId, deadline, epoch)));
+    }
+
+    /// One key per creditor and invoice number: the same number from two creditors is two invoices.
+    function invoiceKey(address creditor, bytes32 invoiceId) public pure returns (bytes32) {
+        return keccak256(abi.encode(creditor, invoiceId));
+    }
+
+    function invoiceDigest(address creditor, uint256 amount, bytes32 invoiceId) external view returns (bytes32) {
+        return _hashTypedDataV4(keccak256(abi.encode(INVOICE_TYPEHASH, creditor, amount, invoiceId)));
     }
 
     function fairOut(bool buyRisky, uint256 amountIn) external view returns (uint256) {
@@ -316,6 +440,13 @@ contract LeashVault is EIP712, ReentrancyGuard {
         uint256 riskyValue = _riskyToStable(risky.balanceOf(address(this)), price);
         uint256 total = riskyValue + stable.balanceOf(address(this));
         return total == 0 ? 0 : riskyValue * 10_000 / total;
+    }
+
+    /// Money held for creditors is theirs unless contested: payments, buys and withdrawals only see the rest.
+    function _requireFree(uint256 amount) private view {
+        uint256 balance = stable.balanceOf(address(this));
+        uint256 free = balance > held ? balance - held : 0;
+        if (amount > free) revert HeldForCreditors(amount, free);
     }
 
     function _setAgentBudget(uint128 budget) private {

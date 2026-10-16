@@ -87,6 +87,8 @@ await call('setPool', vault, ABI.vault, 'setPool', [pool]);
 await call('setLimits', vault, ABI.vault, 'setLimits', [{ payPerTx: usd6(L.payPerTx), payDaily: usd6(L.payDaily), swapPerTx: usd6(L.swapPerTx), swapDaily: usd6(L.swapDaily) }]);
 await call('setRisk', vault, ABI.vault, 'setRisk', [MANDATE.risk]);
 for (const [who, cap] of Object.entries(MANDATE.payees)) await call(`setPayee:${who}`, vault, ABI.vault, 'setPayee', [addr[who], usd6(cap)]);
+for (const [who, allowance] of Object.entries(MANDATE.seals)) await call(`setSealAllowance:${who}`, vault, ABI.vault, 'setSealAllowance', [addr[who], 0n, usd6(allowance)]);
+await call('setContestWindow', vault, ABI.vault, 'setContestWindow', [MANDATE.contestSeconds]);
 await call('fund:usd', usd, ABI.token, 'mint', [vault, usd6(MANDATE.funding.usd)]);
 await call('fund:eth', eth, ABI.token, 'mint', [vault, parseEther(String(MANDATE.funding.eth))]);
 await call('mint:attacker', usd, ABI.token, 'mint', [addr.attacker, usd6(200000)]); // the pool manipulator's war chest

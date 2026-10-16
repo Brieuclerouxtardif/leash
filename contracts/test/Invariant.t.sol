@@ -86,6 +86,59 @@ contract RogueAgentHandler is Test {
         if (refreshOracle) feed.set(feed.answer(), vm.getBlockTimestamp());
     }
 
+    // ---- sealed invoices: genuine seals from the school, forged or altered ones, releases and contests
+
+    uint256 schoolPk;
+    address school;
+    address owner;
+    uint256 public sealedHeld;
+    uint256 public sealedReleased;
+    uint256 public sealedContested;
+    uint256 public brokenSealsAccepted;
+    bytes32[] public keys;
+
+    /// Set once in setUp; the fuzzer's own calls to it revert, so it cannot swap the school mid-run.
+    function setSealer(uint256 pk, address school_, address owner_) external {
+        require(school == address(0), "once");
+        (schoolPk, school, owner) = (pk, school_, owner_);
+    }
+
+    function settle(uint256 amount, uint256 tamper, uint256 idSeed) external {
+        amount = bound(amount, 1, 7000e6);
+        bytes32 id = bytes32(idSeed % 64); // a small id space makes replays likely
+        uint256 mode = tamper % 4; // 0, 1: genuine; 2: altered amount; 3: sealed by a stranger
+        uint256 pk = mode == 3 ? uint256(keccak256("stranger")) : schoolPk;
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(pk, vault.invoiceDigest(school, amount, id));
+        uint256 claimed = mode == 2 ? amount + 1 : amount;
+        vm.prank(agent);
+        try vault.settleInvoice(school, claimed, id, abi.encodePacked(r, s, v)) {
+            if (mode >= 2) brokenSealsAccepted++;
+            keys.push(vault.invoiceKey(school, id));
+            sealedHeld += claimed;
+        } catch {}
+    }
+
+    function releaseOne(uint256 i) external {
+        if (keys.length == 0) return;
+        bytes32 key = keys[i % keys.length];
+        (, uint128 amount,,) = vault.holds(key);
+        try vault.release(key) {
+            sealedHeld -= amount;
+            sealedReleased += amount;
+        } catch {}
+    }
+
+    function contestOne(uint256 i) external {
+        if (keys.length == 0) return;
+        bytes32 key = keys[i % keys.length];
+        (, uint128 amount,,) = vault.holds(key);
+        vm.prank(owner);
+        try vault.contest(key) {
+            sealedHeld -= amount;
+            sealedContested += amount;
+        } catch {}
+    }
+
     function touchedCount() external view returns (uint256) {
         return touchedDays.length;
     }
@@ -103,12 +156,18 @@ contract LeashInvariants is LeashBase {
         address[] memory t = new address[](4);
         (t[0], t[1], t[2], t[3]) = (landlord, utility, attacker, address(0xBEEF));
         handler = new RogueAgentHandler(vault, pool, usd, feed, agent, whale, t);
+        handler.setSealer(schoolPk, school, owner);
         vm.prank(whale);
         usd.transfer(address(handler), 1); // keeps the handler's address non-empty for the fuzzer
         vm.startPrank(whale);
         usd.approve(address(pool), type(uint256).max);
         vm.stopPrank();
         targetContract(address(handler));
+        bytes4[] memory calls = new bytes4[](9);
+        (calls[0], calls[1], calls[2], calls[3]) = (handler.pay.selector, handler.swap.selector, handler.replay.selector, handler.manipulate.selector);
+        (calls[4], calls[5], calls[6]) = (handler.moveMarket.selector, handler.warp.selector, handler.settle.selector);
+        (calls[7], calls[8]) = (handler.releaseOne.selector, handler.contestOne.selector);
+        targetSelector(FuzzSelector({addr: address(handler), selectors: calls}));
     }
 
     function invariant_strangers_receive_nothing() public view {
@@ -146,6 +205,15 @@ contract LeashInvariants is LeashBase {
         assertEq(handler.exposureBreaches(), 0);
     }
 
+    function invariant_sealed_money_is_held_until_released_and_only_to_the_creditor() public view {
+        assertEq(handler.brokenSealsAccepted(), 0);
+        assertEq(vault.held(), handler.sealedHeld());
+        assertGe(usd.balanceOf(address(vault)), vault.held());
+        assertEq(usd.balanceOf(school), handler.sealedReleased());
+        // What the school's seals took, plus what is held, plus what is left, is the allowance it was given.
+        assertEq(handler.sealedReleased() + vault.held() + vault.sealAllowance(school), SEAL_ALLOWANCE);
+    }
+
     function invariant_no_op_executes_twice() public view {
         assertEq(handler.replays(), 0);
     }
@@ -153,5 +221,6 @@ contract LeashInvariants is LeashBase {
     /// Guards against vacuous passes: the rogue agent must actually get payments and swaps through.
     function afterInvariant() external view {
         console.log("successful ops", handler.consumedCount(), "paid", handler.paidTotal());
+        console.log("sealed: released", handler.sealedReleased(), "contested", handler.sealedContested());
     }
 }

@@ -17,7 +17,8 @@ export const NETWORKS = {
     chain: sepolia,
     rpc: process.env.LEASH_SEPOLIA_RPC ?? 'https://ethereum-sepolia-rpc.publicnode.com',
     // Audits read old receipts: publicnode stopped returning ours about a day after they were mined (2026-10-16).
-    historyRpc: process.env.LEASH_SEPOLIA_RPC ?? 'https://sepolia.drpc.org',
+    // drpc then closed Sepolia to free use (2026-10-16 21:39 UTC). Tenderly returned run 1's receipt and replayed it at its block.
+    historyRpc: process.env.LEASH_SEPOLIA_RPC ?? 'https://sepolia.gateway.tenderly.co',
     explorer: 'https://sepolia.etherscan.io',
     // Etherscan shows our refusals only as "execution reverted" (sources are on Sourcify); Blockscout decodes them.
     decoder: 'https://eth-sepolia.blockscout.com',
@@ -57,6 +58,11 @@ export const MANDATE = {
   limits: { payPerTx: 1000, payDaily: 1500, swapPerTx: 500, swapDaily: 1000 },
   risk: { maxSlippageBps: 100, maxRiskBps: 4000, maxOracleAge: 7200 },
   payees: { landlord: 900, utility: 150 },
+  // Creditors whose sealed invoices the agent may settle, and the total their seals may take (a semester of fees).
+  seals: { school: 6000 },
+  // How long a settled invoice stays contestable. The contract's default is a day; the test vaults use 2 minutes
+  // so a run or a video can show the release. A real owner would keep a day or more.
+  contestSeconds: 120,
   funding: { usd: 12000, eth: 1.2 },
   poolUsd: 500000,
 };

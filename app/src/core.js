@@ -1,6 +1,6 @@
 // LEASH agent core: read the vault, judge an intent, execute it. The model only ever proposes
 // intents; addresses come from the registry, numbers are re-checked here and again on-chain.
-import { keccak256, toHex, formatUnits, parseUnits, parseEther, isAddress } from 'viem';
+import { keccak256, toHex, formatUnits, parseUnits, parseEther, isAddress, encodeAbiParameters, recoverTypedDataAddress } from 'viem';
 import { ABI } from './chain.js';
 
 const USD = 6;
@@ -24,6 +24,10 @@ export async function readState(ctx, d) {
   for (const name of ['landlord', 'utility', 'school']) {
     payees[name] = { address: addr[name], cap: await v('payeeCap', [addr[name]]) };
   }
+  // Creditors whose sealed invoices the owner accepts, and what their seals may still take.
+  const seals = {};
+  for (const name of ['school']) seals[name] = { address: addr[name], allowance: await v('sealAllowance', [addr[name]]) };
+  const [held, contestWindow] = await Promise.all([v('held'), v('contestWindow')]);
   const price = round[1];
   const ethValue = (ethBal * price) / 10n ** 20n;
   return {
@@ -34,7 +38,7 @@ export async function readState(ctx, d) {
     usd: usdBal, eth: ethBal, ethValue, price, priceUpdatedAt: round[3],
     riskBps: usdBal + ethValue === 0n ? 0 : Number((ethValue * 10000n) / (usdBal + ethValue)),
     pool: { usd: r0, eth: r1, price: r1 === 0n ? 0n : (r0 * 10n ** 20n) / r1 }, // pool ETH price, 8 decimals
-    payees,
+    payees, seals, held, contestWindow: Number(contestWindow),
   };
 }
 
@@ -66,6 +70,10 @@ export function worstCase(s) {
     untilExpiry: fmtUsd(total),
     // A swap can only fail to get the oracle price by the slippage bound, on at most swapDaily a day.
     swapLossPerDay: fmtUsd((s.limits.swapDaily * BigInt(s.risk.maxSlippageBps)) / 10000n),
+    // Sealed invoices add nothing to a stolen agent key: it cannot make a creditor's seal. If a creditor's own key
+    // is stolen too, its seals can take at most its allowance, held for the contest window first.
+    sealedIfCreditorStolen: fmtUsd(Object.values(s.seals ?? {}).reduce((a, c) => a + c.allowance, 0n)),
+    contestWindow: s.contestWindow ?? 0,
   };
 }
 
@@ -172,6 +180,43 @@ export function mandateTypedData(ctx, d, m) {
     domain: { name: 'LeashVault', version: '1', chainId: ctx.net.chain.id, verifyingContract: d.vault },
     types: MANDATE_TYPES, primaryType: 'Mandate', message: m,
   };
+}
+
+export const INVOICE_TYPES = {
+  Invoice: [{ name: 'creditor', type: 'address' }, { name: 'amount', type: 'uint256' }, { name: 'invoiceId', type: 'bytes32' }],
+};
+
+/** A creditor seals its invoice for one vault: the domain names the vault and the chain. */
+export function invoiceTypedData(ctx, d, inv) {
+  return {
+    domain: { name: 'LeashVault', version: '1', chainId: ctx.net.chain.id, verifyingContract: d.vault },
+    types: INVOICE_TYPES, primaryType: 'Invoice', message: inv,
+  };
+}
+
+export const invoiceKey = (creditor, invoiceId) => keccak256(encodeAbiParameters([{ type: 'address' }, { type: 'bytes32' }], [creditor, invoiceId]));
+export const invoiceId = (text) => keccak256(toHex(`invoice:${text}`));
+
+/**
+ * Judge a sealed invoice before the agent signs anything. The seal decides who and how much; this only checks
+ * that the seal is the creditor's own and that the vault would take it. The vault checks it all again.
+ */
+export async function judgeInvoice(ctx, d, inv, seal, s, { used = new Set() } = {}) {
+  const checks = [];
+  const key = invoiceKey(inv.creditor, inv.invoiceId);
+  const signer = await recoverTypedDataAddress({ ...invoiceTypedData(ctx, d, inv), signature: seal }).catch(() => ZERO);
+  const name = Object.entries(s.seals).find(([, c]) => c.address.toLowerCase() === inv.creditor.toLowerCase())?.[0];
+  const left = name ? s.seals[name].allowance : 0n;
+  const free = s.usd > s.held ? s.usd - s.held : 0n;
+  const ok = check(checks, 'agent active', s.agentExpiry >= s.now && s.agent !== ZERO, `expires ${new Date(Number(s.agentExpiry) * 1000).toISOString()}`)
+    & check(checks, 'vault not paused', !s.paused, s.paused ? 'guardian or owner paused the vault' : 'running')
+    & check(checks, 'seal intact: signed by the creditor itself', signer.toLowerCase() === inv.creditor.toLowerCase(), signer === ZERO ? 'no valid signature' : `signed by ${signer}`)
+    & check(checks, 'creditor\'s seal accepted by the owner', left > 0n, name ? `${name}: ${fmtUsd(left)} tUSD of sealed invoices left` : `${inv.creditor} is not an accepted creditor`)
+    & check(checks, 'within the creditor\'s allowance', inv.amount <= left, `${fmtUsd(inv.amount)} ≤ ${fmtUsd(left)}`)
+    & check(checks, 'invoice not already settled', !used.has(key), key)
+    & check(checks, 'vault can cover it', inv.amount <= free, `${fmtUsd(inv.amount)} ≤ ${fmtUsd(free)} not held for creditors`);
+  const call = { functionName: 'settleInvoice', args: [inv.creditor, inv.amount, inv.invoiceId, seal] };
+  return { decision: ok ? 'execute' : 'refuse', tier: 1, checks, opId: key, key, call, creditor: name ?? inv.creditor, amount: inv.amount, holdFor: s.contestWindow };
 }
 
 /** What the owner reads before signing. Built from the struct itself, never paraphrased by the model. */
