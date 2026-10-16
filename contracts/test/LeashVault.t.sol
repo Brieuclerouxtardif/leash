@@ -154,7 +154,7 @@ contract PayTest is LeashBase {
         vault.pay(utility, 1e6, "x");
     }
 
-    /// All eleven onlyOwner functions listed in SECURITY.md (tier 3), from the agent key and from the guardian.
+    /// All thirteen onlyOwner functions listed in SECURITY.md (tier 3), from the agent key and from the guardian.
     function test_admin_is_owner_only() public {
         address[2] memory callers = [agent, guardian];
         uint256 epoch = vault.epoch();
@@ -182,8 +182,14 @@ contract PayTest is LeashBase {
             vault.unpause();
             vm.expectRevert(LeashVault.NotOwner.selector);
             vault.withdraw(usd, attacker, 1);
+            vm.expectRevert(LeashVault.NotOwner.selector);
+            vault.setSealAllowance(attacker, 0, type(uint128).max);
+            vm.expectRevert(LeashVault.NotOwner.selector);
+            vault.setContestWindow(0);
             vm.stopPrank();
         }
+        assertEq(vault.sealAllowance(attacker), 0);
+        assertEq(vault.contestWindow(), 1 days);
         assertEq(vault.agent(), agent);
         assertEq(vault.guardian(), guardian);
         assertEq(address(vault.pool()), address(pool));
@@ -420,5 +426,154 @@ contract StolenKeyFuzz is LeashBase {
         vm.prank(agent);
         vm.expectRevert(LeashVault.BadMandateSignature.selector);
         vault.payWithMandate(attacker, 9000e6, "steal", deadline, sig);
+    }
+}
+
+/// Sealed invoices: the creditor's EIP-712 seal fixes who is paid and how much; the agent only picks when.
+contract SealTest is LeashBase {
+    bytes32 constant TUITION = "tuition-s1";
+
+    function settle(uint256 amount, bytes32 id) internal returns (bytes32 key) {
+        bytes memory s = seal(schoolPk, school, amount, id);
+        vm.prank(agent);
+        vault.settleInvoice(school, amount, id, s);
+        return vault.invoiceKey(school, id);
+    }
+
+    function test_sealed_invoice_is_held_then_released() public {
+        // 5,000 is above the per-payment limit, the daily cap and every tier-1 path: the seal is what allows it.
+        bytes32 key = settle(5000e6, TUITION);
+        assertEq(vault.held(), 5000e6);
+        assertEq(usd.balanceOf(school), 0);
+        assertEq(vault.sealAllowance(school), 1000e6);
+        assertEq(vault.agentBudget(), BUDGET, "a sealed invoice does not draw the agent's budget");
+        (, uint256 paid,) = vault.today();
+        assertEq(paid, 0);
+
+        uint64 releaseAt = uint64(vm.getBlockTimestamp() + 1 days);
+        vm.expectRevert(abi.encodeWithSelector(LeashVault.StillContestable.selector, releaseAt));
+        vault.release(key);
+        vm.warp(releaseAt);
+        vm.prank(attacker); // anyone may release; the money can only go to the sealed creditor
+        vault.release(key);
+        assertEq(usd.balanceOf(school), 5000e6);
+        assertEq(usd.balanceOf(attacker), 0);
+        assertEq(vault.held(), 0);
+        vm.expectRevert(abi.encodeWithSelector(LeashVault.NotHeld.selector, key));
+        vault.release(key);
+    }
+
+    function test_altered_amount_breaks_the_seal() public {
+        bytes memory s = seal(schoolPk, school, 5000e6, TUITION);
+        vm.prank(agent);
+        vm.expectRevert(LeashVault.BrokenSeal.selector);
+        vault.settleInvoice(school, 5900e6, TUITION, s);
+    }
+
+    function test_seal_must_come_from_the_creditor() public {
+        (, uint256 pk) = makeAddrAndKey("not-school");
+        bytes memory forged = seal(pk, school, 1000e6, TUITION);
+        vm.prank(agent);
+        vm.expectRevert(LeashVault.BrokenSeal.selector);
+        vault.settleInvoice(school, 1000e6, TUITION, forged);
+        // The attacker seals its own invoice perfectly: the owner never accepted its seal.
+        (address thief, uint256 thiefPk) = makeAddrAndKey("thief");
+        bytes memory own = seal(thiefPk, thief, 1000e6, TUITION);
+        vm.prank(agent);
+        vm.expectRevert(abi.encodeWithSelector(LeashVault.AboveSealAllowance.selector, 1000e6, 0));
+        vault.settleInvoice(thief, 1000e6, TUITION, own);
+    }
+
+    function test_real_seal_cannot_exceed_the_allowance() public {
+        bytes memory s = seal(schoolPk, school, 50_000e6, "inflated");
+        vm.prank(agent);
+        vm.expectRevert(abi.encodeWithSelector(LeashVault.AboveSealAllowance.selector, 50_000e6, SEAL_ALLOWANCE));
+        vault.settleInvoice(school, 50_000e6, "inflated", s);
+    }
+
+    function test_an_invoice_settles_once() public {
+        bytes32 key = settle(300e6, "fee");
+        bytes memory s = seal(schoolPk, school, 300e6, "fee");
+        vm.prank(agent);
+        vm.expectRevert(abi.encodeWithSelector(LeashVault.OpAlreadyUsed.selector, key));
+        vault.settleInvoice(school, 300e6, "fee", s);
+    }
+
+    function test_only_the_agent_settles() public {
+        bytes memory s = seal(schoolPk, school, 300e6, "fee");
+        vm.prank(school);
+        vm.expectRevert(LeashVault.NotAgent.selector);
+        vault.settleInvoice(school, 300e6, "fee", s);
+    }
+
+    function test_contest_keeps_the_money_and_restores_the_allowance() public {
+        bytes32 key = settle(300e6, "fee");
+        vm.prank(attacker);
+        vm.expectRevert(LeashVault.NotGuardian.selector);
+        vault.contest(key);
+        vm.prank(agent);
+        vm.expectRevert(LeashVault.NotGuardian.selector);
+        vault.contest(key);
+        vm.prank(guardian);
+        vault.contest(key);
+        assertEq(vault.held(), 0);
+        assertEq(vault.sealAllowance(school), SEAL_ALLOWANCE);
+        vm.warp(vm.getBlockTimestamp() + 2 days);
+        vm.expectRevert(abi.encodeWithSelector(LeashVault.NotHeld.selector, key));
+        vault.release(key);
+        assertEq(usd.balanceOf(school), 0);
+    }
+
+    function test_contest_closes_with_the_window() public {
+        bytes32 key = settle(300e6, "fee");
+        uint64 releaseAt = uint64(vm.getBlockTimestamp() + 1 days);
+        vm.warp(releaseAt);
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSelector(LeashVault.ContestWindowOver.selector, releaseAt));
+        vault.contest(key);
+    }
+
+    function test_held_money_is_out_of_reach() public {
+        settle(6000e6, TUITION); // the vault holds 10,000: 4,000 stay free
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSelector(LeashVault.HeldForCreditors.selector, 4001e6, 4000e6));
+        vault.withdraw(usd, owner, 4001e6);
+        uint64 deadline = uint64(vm.getBlockTimestamp() + 1 hours);
+        bytes memory sig = sign(ownerPk, landlord, 4500e6, "big", deadline);
+        vm.prank(agent);
+        vm.expectRevert(abi.encodeWithSelector(LeashVault.HeldForCreditors.selector, 4500e6, 4000e6));
+        vault.payWithMandate(landlord, 4500e6, "big", deadline, sig);
+        vm.prank(owner);
+        vault.withdraw(usd, owner, 4000e6);
+        vm.prank(agent);
+        vm.expectRevert(abi.encodeWithSelector(LeashVault.HeldForCreditors.selector, 800e6, 0));
+        vault.pay(landlord, 800e6, "rent");
+    }
+
+    function test_release_ignores_a_pause() public {
+        bytes32 key = settle(300e6, "fee");
+        vm.prank(guardian);
+        vault.pause();
+        vm.warp(vm.getBlockTimestamp() + 1 days);
+        vault.release(key);
+        assertEq(usd.balanceOf(school), 300e6);
+    }
+
+    function test_allowance_reload_is_compare_and_set() public {
+        settle(300e6, "fee");
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSelector(LeashVault.BudgetChanged.selector, SEAL_ALLOWANCE, SEAL_ALLOWANCE - 300e6));
+        vault.setSealAllowance(school, SEAL_ALLOWANCE, 10_000e6);
+    }
+
+    /// Any change to the sealed amount or invoice number breaks the seal.
+    function testFuzz_seal_binds_amount_and_number(uint256 sealedAmount, uint256 claimed, bytes32 id, bytes32 claimedId) public {
+        sealedAmount = bound(sealedAmount, 1, SEAL_ALLOWANCE);
+        claimed = bound(claimed, 1, SEAL_ALLOWANCE);
+        vm.assume(claimed != sealedAmount || claimedId != id);
+        bytes memory s = seal(schoolPk, school, sealedAmount, id);
+        vm.prank(agent);
+        vm.expectRevert(LeashVault.BrokenSeal.selector);
+        vault.settleInvoice(school, claimed, claimedId, s);
     }
 }

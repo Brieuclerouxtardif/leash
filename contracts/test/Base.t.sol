@@ -21,13 +21,17 @@ abstract contract LeashBase is Test {
     address whale = makeAddr("whale");
     address landlord = makeAddr("landlord");
     address utility = makeAddr("utility");
+    address school;
+    uint256 schoolPk;
 
     uint256 constant PRICE = 2500e8; // ETH/USD, 8 decimals like Chainlink
     uint128 constant BUDGET = 5000e6; // half the vault's tUSD: the daily cap alone would let 30 days take it all
+    uint128 constant SEAL_ALLOWANCE = 6000e6; // a semester of the school's sealed invoices
 
     function setUp() public virtual {
         vm.warp(1_790_000_000);
         (owner, ownerPk) = makeAddrAndKey("owner");
+        (school, schoolPk) = makeAddrAndKey("school");
         usd = new TestToken("Test Dollar", "tUSD", 6);
         eth = new TestToken("Test Ether", "tETH", 18);
         feed = new MockAggregator();
@@ -55,7 +59,13 @@ abstract contract LeashBase is Test {
         vault.setRisk(LeashVault.Risk({maxSlippageBps: 100, maxRiskBps: 4000, maxOracleAge: 3600}));
         vault.setPayee(landlord, 900e6);
         vault.setPayee(utility, 150e6);
+        vault.setSealAllowance(school, 0, SEAL_ALLOWANCE);
         vm.stopPrank();
+    }
+
+    function seal(uint256 pk, address creditor, uint256 amount, bytes32 invoiceId) internal view returns (bytes memory) {
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(pk, vault.invoiceDigest(creditor, amount, invoiceId));
+        return abi.encodePacked(r, s, v);
     }
 
     function sign(uint256 pk, address to, uint256 amount, bytes32 opId, uint64 deadline)
