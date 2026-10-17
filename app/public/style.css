@@ -101,8 +101,8 @@ h1 { font-size: var(--step-display); letter-spacing: -0.045em; line-height: .95;
 .pipe li { animation: rise .4s var(--ease) both; }
 .pipe li:nth-child(2) { animation-delay: 60ms; }
 .pipe li:nth-child(3) { animation-delay: 120ms; }
-.pipe li.stop { background: var(--accent); animation: stamp .45s var(--ease) both; }
-.pipe li.leak { background: var(--coral); animation: stamp .45s var(--ease) both; }
+.pipe li.stop { background: var(--accent); animation: hit .55s var(--ease) both; }
+.pipe li.leak { background: var(--coral); animation: hit .55s var(--ease) both; }
 .pipe li.stop b, .pipe li.stop span { color: var(--accent-ink); }
 .pipe li.leak b, .pipe li.leak span { color: #2a0a05; }
 .seg-label { font-size: var(--step-small); color: var(--muted); margin-bottom: -10px; }
@@ -273,7 +273,13 @@ details.why-box summary { cursor: pointer; width: max-content; }
 .atk .res b { flex-basis: 100%; font-size: var(--step-sub); font-weight: 600; letter-spacing: -0.03em; line-height: 1.1; }
 .atk .res .by { overflow-wrap: anywhere; }
 .atk .res .tx { font-size: var(--step-small); }
-.atk.pass, .atk.fail { animation: stamp .45s var(--ease); }
+.atk.pass, .atk.fail { animation: hit .5s var(--ease); position: relative; }
+/* The moment an attack is refused, the tile flashes the colour of the side that won, then settles. */
+.atk.pass::after, .atk.fail::after { content: ""; position: absolute; inset: 0; background: var(--accent); opacity: 0; pointer-events: none; animation: flash .7s var(--ease); }
+.atk.fail::after { background: var(--coral); }
+@keyframes hit { from { transform: scale(1.045); } 45% { transform: scale(.99); } }
+@keyframes flash { from { opacity: .9; } }
+.score b { transform-origin: left bottom; }
 .atk.pass { background: color-mix(in srgb, var(--accent) 16%, var(--surface)); }
 .atk.pass .res { color: var(--muted); }
 .atk.pass .res b { color: var(--accent); }

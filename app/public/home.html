@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="leash-token" content="__LEASH_TOKEN__">
+  <meta name="description" content="LEASH: an AI wallet you talk to. A contract holds the leash.">
+  <title>LEASH</title>
+  <link rel="icon" href="leash.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="home.css">
+</head>
+<body class="home door">
+  <a class="skip" href="#agent">Skip to the agent</a>
+  <header class="bar hbar">
+    <a class="mark" href="/" aria-label="LEASH"><img src="leash.svg" alt="" width="28" height="28"><span>LEASH</span></a>
+    <div class="who" id="who" hidden>
+      <span class="wallet"><i></i>Test wallet <b id="walletAddr"></b></span>
+      <span class="net" id="net"></span>
+    </div>
+    <a class="how" href="/console">How it holds <span aria-hidden="true">→</span></a>
+    <button class="kill" id="kill" hidden>Kill switch</button>
+  </header>
+
+  <div class="paused-band" id="pausedBand" hidden>
+    <p><b>Paused by the guardian.</b> Nothing leaves the vault.</p>
+    <button class="light" id="unpause">Restart as owner</button>
+  </div>
+
+  <main class="home-main">
+    <!-- LEASH's own mark is the interface: the box is your vault, the white square the agent, the line the leash. -->
+    <div class="tether" id="tether">
+      <section class="vault" id="vault" aria-label="Your vault">
+        <div class="door-copy">
+          <h1 class="lines"><span class="line"><span>It can spend.</span></span><span class="line"><span>It can’t run away.</span></span></h1>
+          <p class="lead">An AI wallet you talk to.<br>A contract holds the leash.</p>
+        </div>
+        <div class="purse" id="purse" hidden>
+          <p class="bal"><b id="bal">$0</b><span id="balSub">in your vault</span></p>
+          <div class="reach">
+            <div class="track"><i id="reachBar"></i></div>
+            <p><b id="reach">$0</b> <span id="reachSub">is the most it can move, even hijacked</span></p>
+          </div>
+          <ul class="payees" id="payees"></ul>
+        </div>
+      </section>
+
+      <div class="leash" id="leash" aria-hidden="true"><i></i></div>
+
+      <section class="agent" id="agent" aria-label="Your agent" tabindex="-1">
+        <div class="loose" id="loose">
+          <span class="wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+          <span class="who-says">Your agent</span>
+          <b class="loose-line">Off the leash.</b>
+          <button class="enter" id="enter"><span>Enter with a test wallet</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.4"/></svg></button>
+        </div>
+        <div class="talk" id="talk" hidden>
+          <button class="mic" id="mic" aria-pressed="false">
+            <span class="wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+            <span class="who-says" id="agentRole">Your agent</span>
+            <b id="micLabel">Tap to talk</b>
+          </button>
+          <div class="seg langs" role="radiogroup" aria-label="Voice language" id="langs">
+            <button role="radio" aria-checked="true" data-v="en-US">EN</button>
+            <button role="radio" aria-checked="false" data-v="fr-FR">FR</button>
+            <button role="radio" aria-checked="false" data-v="zh-CN">中文</button>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <section class="convo" id="convo" aria-label="Talk to the agent" hidden>
+      <form class="composer" id="composer">
+        <input id="say" type="text" maxlength="1000" autocomplete="off" spellcheck="false" placeholder="Or type: pay the electricity, 120" aria-label="Message to the agent">
+        <button class="go" id="send" type="submit">Send</button>
+      </form>
+      <label class="switch"><input type="checkbox" id="hijack"><span>Hijack the agent</span></label>
+      <div class="chips" id="chips" aria-label="Try one"></div>
+      <div class="answer" id="answer" aria-live="polite"></div>
+    </section>
+
+    <p class="door-note" id="doorNote">Test network, test tokens. Nothing to install.</p>
+  </main>
+
+  <dialog id="mandateDlg">
+    <form method="dialog">
+      <h2>Owner signature</h2>
+      <p class="mandate-text" id="mText"></p>
+      <div class="dlg-actions">
+        <button value="cancel" class="light">Reject</button>
+        <button value="sign" class="go" id="mSign">Sign as owner</button>
+      </div>
+    </form>
+  </dialog>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="home.js"></script>
+</body>
+</html>

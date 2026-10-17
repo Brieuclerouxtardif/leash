@@ -11,6 +11,7 @@ import { makeCampaign, outcomeOf } from './campaign.js';
 import { INSTRUCTION, WEEK } from './routine.js';
 import { compileMandate, diffMandate, replayableSamples } from './compiler.js';
 import { AGENTS, profileOf, chatPrompt, chatSamples, recordedProfiles, judgeChat, rawCall, plainCall, CHAT_SCHEMA } from './chat.js';
+import { readMessage, READER } from './reader.js';
 
 const arg = (k, def) => { const i = process.argv.indexOf(`--${k}`); return i > 0 ? process.argv[i + 1] : def; };
 const NET = arg('network', 'local');
@@ -78,12 +79,17 @@ async function rejudge(i, from = 'plan') {
 
 /** One chat message: the model answers, then each intent goes through what is left of LEASH for that agent. */
 async function talk({ text, agent = 'healthy', mode = 'replay' }) {
-  if (!AGENTS.includes(agent) || !['replay', 'live'].includes(mode)) throw new Error('bad agent or mode');
+  if (!AGENTS.includes(agent) || !['replay', 'live', 'auto'].includes(mode)) throw new Error('bad agent or mode');
   if (typeof text !== 'string' || !text.trim() || text.length > 1000) throw new Error('a message is 1–1000 characters');
   if (mode === 'live' && !ALLOW_LIVE) throw new Error('live model calls are disabled; start the server with --allow-live');
   if (agent === 'plain' && !ctx.wallets.hot) throw new Error('no plain wallet: run `node app/src/keys.js`, then deploy again');
   const profile = profileOf(agent);
-  const p = propose({ scenario: 'chat', profile, prompt: chatPrompt(profile, text), mode, schema: CHAT_SCHEMA, exactPrompt: true });
+  // auto (a free or spoken message): the model's recorded answer if there is one, else the live model if allowed,
+  // else the offline reader. Whatever reads it, the intents go through the same code and the same vault.
+  const how = mode !== 'auto' ? mode : recordedProfiles(text).includes(profile) ? 'replay' : ALLOW_LIVE ? 'live' : 'reader';
+  const p = how === 'reader'
+    ? { response: readMessage(text, profile), mode: 'OFFLINE READER', model: READER, seconds: 0, at: new Date().toISOString(), recording: null }
+    : propose({ scenario: 'chat', profile, prompt: chatPrompt(profile, text), mode: how, schema: CHAT_SCHEMA, exactPrompt: true });
   const doc = { id: `msg-${++msgs}`, text };
   const week = `chat-${runId}`;
   const s0 = await readState(ctx, d);
@@ -323,12 +329,14 @@ const server = createServer(async (req, res) => {
       return json(res, 400, { error: e.shortMessage ?? e.message });
     }
   }
-  const file = url.pathname === '/' ? 'index.html' : url.pathname.slice(1);
+  // The front door is the wallet you talk to; the console behind it shows every layer of the leash.
+  const file = { '/': 'home.html', '/console': 'console.html' }[url.pathname] ?? url.pathname.slice(1);
   const path = join(PUBLIC, file);
   if (!path.startsWith(PUBLIC) || !existsSync(path) || !TYPES[extname(path)]) { res.writeHead(404); return res.end('not found'); }
   let body = readFileSync(path);
-  if (file === 'index.html') body = body.toString('utf8').replace('__LEASH_TOKEN__', TOKEN);
+  if (extname(path) === '.html') body = body.toString('utf8').replace('__LEASH_TOKEN__', TOKEN);
   res.writeHead(200, { 'content-type': TYPES[extname(path)], 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', 'referrer-policy': 'no-referrer',
+    'permissions-policy': 'microphone=(self), camera=(), geolocation=()',
     'content-security-policy': "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'" });
   res.end(body);
 });

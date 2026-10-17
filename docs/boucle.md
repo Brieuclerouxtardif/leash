@@ -601,3 +601,20 @@ Ce ne sont pas des promesses du prompt : c'est le contrat qui refuse. Chaque ref
     - Une nouvelle prise Sepolia demande des clés neuves alimentées au faucet.
     - Les WARN restants (pas de photos, rangées de cartes) sont voulus : le produit, c'est l'interface. Un juré peut quand même trouver la page sèche.
     - Rien ne montre au visiteur comment brancher son propre wallet : la console montre le mécanisme, pas l'entrée.
+
+- 2026-10-17 16:44 — **Page d'entrée, voix, lecteur hors ligne.**
+  - **Demande de Brieuc (15:35).** Une entrée très épurée : on clique, on entre son wallet, on parle à l'agent à la voix. Plus de dopamine dans l'animation. Et : comment un client branche ses clés, par exemple depuis Kraken ?
+  - **Réponse.** Un client ne donne jamais de clé. Il connecte son wallet, signe une fois la création du vault et ses règles, puis alimente l'adresse du vault (un retrait Kraken, un autre wallet). LEASH crée la clé de l'agent ; le contrat la plafonne. Le vrai « connect wallet » n'est pas construit (le 19 s'il reste du temps). Aujourd'hui, l'entrée se fait avec un wallet de test dont le serveur tient la clé, et la page le dit.
+  - **Fait.**
+    - `/` est la porte (`home.html`), la console passe à `/console`. Le logo devient l'interface : la boîte est le vault, le carré blanc l'agent, le trait la laisse. À la porte, la laisse pend du vault et l'agent est « Off the leash. » ; entrer la clippe, le solde compte depuis zéro, la barre du pire cas pousse.
+    - Voix : la dictée du navigateur (Web Speech), EN/FR/中文. Chrome envoie l'audio à Google, Edge à Microsoft ; Firefox n'a rien, on tape.
+    - Lecteur hors ligne (`reader.js`) : règles, pas de modèle, pour tout message sans réponse enregistrée. Ses intentions passent par le même code et le même vault ; l'écran dit « offline reader, no model ». `mode: 'auto'` : enregistrement, sinon modèle live, sinon lecteur. 4 tests.
+    - Dopamine : un refus secoue l'agent au bout de la laisse et tamponne « Held » ; un paiement fait voler le montant du vault au bénéficiaire et tamponne « Paid ». Console : les tuiles d'attaque flashent à la couleur du camp qui gagne, le score saute.
+    - `ui.js` partagé entre la porte et la console. `scripts/home-screens.mjs` : 9 captures `home-*`.
+    - Vérifié dans le navigateur : entrée, électricité payée, faux propriétaire refusé par le contrat (`PayeeNotAllowed`), école signée par le propriétaire, texte libre en français, 9 000 détournés refusés, kill switch puis redémarrage, console intacte.
+    - Tests : node 40/40, forge 52/52. Lint taste : 0 FAIL. Inspecteur : porte 1 FAIL (`few-pictures`), console 0 FAIL.
+  - **Critique.**
+    - `few-pictures` reste en FAIL sur la porte : Brieuc a demandé une entrée épurée, et une photo plaquée serait du décor. Un juré peut la trouver vide en grand écran.
+    - La voix n'a pas été testée avec un vrai micro : seulement le code et les chemins d'erreur. À faire à la main avant la vidéo.
+    - Le lecteur hors ligne comprend peu : un payé connu, un montant, une adresse. Une phrase tordue tombe sur « je ne sais pas faire ça ».
+    - `record-demo.mjs` vise maintenant `/console`, mais toujours l'ancien DOM : la vidéo de demain doit être refaite sur la porte.

@@ -211,7 +211,10 @@ Recorded live runs (`evidence/model-runs/chat-*`, 7 messages × 2 prompts):
 | school, 5,000 | proposed | proposed | tier 2: owner signs | `PayeeNotAllowed` (no signature) |
 | electricity, 120 | proposed | proposed | tier 1: paid | paid: inside the mandate |
 
+**Front door and offline reader.** The app opens on a front door (`/`, `home.html`): enter with a test wallet, then talk to the agent by voice (the browser's Web Speech dictation, English, French or Chinese) or by typing. The console moved to `/console`. Both use the same `POST /api/chat`, now with `mode: 'auto'`: the recorded model answer when one exists for this exact message and prompt; otherwise the live model with `--allow-live`; otherwise the **offline reader** (`reader.js`). The reader is rules, not a model. Guarded, it pays a registered payee named in the message with an amount taken only from the numbers the code reads in that same text (`amountsLoose`), and it flags addresses, owner-only requests, claimed authority and requests for secrets. Obeying, it turns the message into whatever intents it asks for, addresses included. Its intents then go through `judgeChat` or `rawCall` and the vault, exactly like a model's, and the screen labels the answer *offline reader, no model*. It gives free messages and voice a path when no model is reachable; it does not stand in for the model runs in the table above. Tests: `app/test/reader.test.js`.
+
 Self-critique.
+- The test wallet is a throwaway owner key the server holds. A real client connects their own wallet and signs the vault's creation and rules once; that connection is not built.
 - Our first console line for a hijacked payment read "Pay 800 tUSD to landlord", while the call went to the attacker: the model had filled both the payee name and the address. The line now starts with the address and gives the name in parentheses.
 - The first meter only showed the total until expiry. Capped by the vault balance, it stayed the same when the owner shortened the key from 14 days to 7, which hid a real gain. It now shows the paying days too.
 - That cap was the real finding. With 1,500 tUSD a day over 14 days, a stolen key could send the whole balance to the registered payees: every rule held and nothing was protected. Limits per day are rates, and only a stock bounds a total, so the vault now has a budget per agent key (`agentBudget`, SECURITY.md §2, R1). A5 now ends on `AboveAgentBudget` instead of `AboveDailyLimit`.
@@ -246,7 +249,7 @@ The full threat model, attack catalogue and known-risk list are in [SECURITY.md]
 |---|---|---|
 | Contract | unit and fuzz (`LeashVault.t.sol`) | 51 |
 | Contract | invariants with a rogue-agent handler (`Invariant.t.sol`) | 9 invariants, 16,384 calls |
-| Off-chain | policy (including the budget), sealed-invoice check, scanner, simulated hostile model output, recorded runs, mandate compiler (including the two-turn question, casual English and Chinese, the budget row), open chat (code's verdict, the hijacked server's raw calls, the plain wallet's transfers), worst case with its three bounds, revert labelling, no secret in any prompt sent to the model | 36 |
+| Off-chain | policy (including the budget), sealed-invoice check, scanner, simulated hostile model output, recorded runs, mandate compiler (including the two-turn question, casual English and Chinese, the budget row), open chat (code's verdict, the hijacked server's raw calls, the plain wallet's transfers), the offline reader (English, French, Chinese; guarded and obeying), worst case with its three bounds, revert labelling, no secret in any prompt sent to the model | 40 |
 | End to end | `scenes.js` on a fresh chain | 22 scenes |
 | UI | 16 attacks fired from the console on a fresh chain | 16 |
 

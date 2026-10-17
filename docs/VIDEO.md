@@ -59,7 +59,7 @@ Then `npm run server -- --network <net> --port 8791`. Play the scenes in this or
 - every block wait over 2.5 s is cut and labelled with its length.
 
 ```
-node scripts/record-demo.mjs http://127.0.0.1:8791/ work/demo
+node scripts/record-demo.mjs http://127.0.0.1:8791/console work/demo
 node scripts/compose-video.mjs work/demo --voice --repo <url>
 ```
 

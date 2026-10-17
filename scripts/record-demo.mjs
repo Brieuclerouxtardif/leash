@@ -6,7 +6,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { launch, sleep } from './cdp.mjs';
 
-const URL_ = process.argv[2] ?? 'http://127.0.0.1:8791/';
+const URL_ = process.argv[2] ?? 'http://127.0.0.1:8791/console';
 const OUT = process.argv[3] ?? join('work', `demo-${new Date().toISOString().replace(/[-:]/g, '').slice(0, 15)}`);
 const W = 1920;
 const H = 1080;

@@ -1,0 +1,192 @@
+/* The front door. LEASH's mark at full size: the outlined box is your vault, the white square is the agent you
+   talk to, the line between them is the leash. Entering clips the leash on; a refused attempt pulls it taut. */
+body.home { min-height: 100dvh; overflow-x: clip; }
+.hbar { gap: 18px; }
+.hbar .who { display: flex; gap: 14px; align-items: center; font-size: var(--step-small); color: var(--muted); white-space: nowrap; }
+.hbar .who[hidden] { display: none; }
+.hbar .wallet { display: inline-flex; align-items: center; gap: 8px; background: var(--surface); color: var(--ink); padding: 7px 12px; }
+.hbar .wallet i { width: 8px; height: 8px; background: var(--accent); }
+.hbar .wallet b { font-weight: 600; }
+.hbar .how { margin-left: auto; text-decoration: none; font-size: var(--step-body); color: var(--muted); transition: color .18s; }
+.hbar .how span { display: inline-block; transition: transform .18s var(--ease); }
+.hbar .how:hover { color: var(--ink); }
+.hbar .how:hover span { transform: translateX(4px); }
+
+.home-main { padding: clamp(12px, 3vh, 40px) var(--m) 40px; display: grid; gap: 26px; align-content: start; }
+
+/* ---------------------------------------------------------------- the mark: vault, leash, agent */
+.tether { display: grid; grid-template-columns: minmax(0, 1fr) clamp(56px, 7vw, 120px) clamp(260px, 25vw, 380px); align-items: center; }
+.vault { container-type: inline-size; border: 3px solid var(--accent); padding: clamp(20px, 3vw, 44px); min-height: clamp(300px, 50vh, 470px); display: grid; align-content: end; position: relative; }
+.leash { height: 3px; }
+.leash i { display: block; width: 100%; height: 100%; background: var(--accent); transform-origin: left center; transform: scaleX(0); }
+.agent { aspect-ratio: 1; background: var(--ink); color: var(--accent-ink); position: relative; display: grid; outline-offset: 4px; }
+
+/* The door: the headline sits in the vault, the agent square is the way in, and nothing ties them yet. */
+.lines { font-size: clamp(32px, 9.4cqi, 92px); letter-spacing: -0.045em; line-height: .95; }
+.lines .line { display: block; overflow: hidden; padding-bottom: .08em; margin-bottom: -.08em; }
+.lines .line > span { display: block; animation: line-up .9s var(--ease) both; }
+.lines .line:nth-child(2) > span { animation-delay: .11s; }
+@keyframes line-up { from { transform: translateY(105%); } }
+.door-copy { display: grid; gap: clamp(16px, 2.4vh, 28px); }
+.door-copy .lead { animation: rise .7s var(--ease) .3s both; max-width: 34ch; }
+.vault { animation: draw-box .9s var(--ease) both; }
+@keyframes draw-box { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+.agent { animation: shutter-up .8s var(--ease) .25s both; }
+@keyframes shutter-up { from { clip-path: inset(100% 0 0 0); } to { clip-path: inset(0 0 0 0); } }
+
+/* The agent at the door: awake, loose, one button away from the leash. The whole square takes the click. */
+.loose { position: absolute; inset: 0; display: grid; grid-template-rows: auto auto 1fr auto; align-items: start; justify-items: start; gap: 6px;
+  padding: clamp(18px, 2vw, 28px); color: var(--accent-ink); cursor: pointer; }
+.loose .wave i { animation: breathe 2.4s var(--ease) infinite alternate; }
+.loose .wave i:nth-child(2) { animation-delay: -.5s; }
+.loose .wave i:nth-child(3) { animation-delay: -1s; }
+.loose .wave i:nth-child(4) { animation-delay: -1.5s; }
+.loose .wave i:nth-child(5) { animation-delay: -2s; }
+@keyframes breathe { from { transform: scaleY(.25); } to { transform: scaleY(.8); } }
+.loose:hover .wave i { animation-duration: .7s; }
+.loose-line { font-size: clamp(26px, 2.3vw, 36px); font-weight: 600; letter-spacing: -0.03em; line-height: 1.05; align-self: end; margin-bottom: 10px; }
+.enter { justify-self: stretch; display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 60px;
+  background: var(--accent-ink); color: var(--ink); padding: 14px 18px; text-align: left; font-size: var(--step-lead); font-weight: 600; letter-spacing: -0.01em; }
+.enter:hover, .loose:hover .enter { background: #000; color: var(--accent); }
+.enter svg { width: 26px; height: 26px; flex: none; transition: transform .25s var(--ease); }
+.loose:hover .enter svg { transform: translateX(5px); }
+.enter:active { transform: scale(.98); }
+.loose > * { animation: rise .6s var(--ease) both; }
+.loose > :nth-child(1) { animation-delay: .55s; }
+.loose > :nth-child(2) { animation-delay: .62s; }
+.loose > :nth-child(3) { animation-delay: .7s; }
+.loose > :nth-child(4) { animation-delay: .8s; }
+.door-note { color: var(--muted); font-size: var(--step-body); animation: rise .6s var(--ease) .9s both; }
+.hbar .mark, .hbar .how { animation: rise .6s var(--ease) both; }
+.hbar .how { animation-delay: .1s; }
+body:not(.door) .door-copy, body:not(.door) .loose, body:not(.door) .door-note { display: none; }
+/* The door fills the screen; the leash hangs from the vault, not yet clipped to the agent. */
+body.door .home-main { min-height: calc(100dvh - 72px); align-content: center; }
+body.door .leash i { transform: scaleX(.34); animation: stub .7s var(--ease) .6s both; }
+@keyframes stub { from { transform: scaleX(0); } }
+
+/* Entered: the leash clips on, the vault shows what it holds, the agent listens. */
+body:not(.door) .leash i { transform: scaleX(1); transition: transform .55s cubic-bezier(.7, 0, .2, 1); }
+.purse { display: grid; gap: clamp(20px, 3vh, 34px); }
+.purse[hidden] { display: none; }
+.purse > * { animation: rise .7s var(--ease) both; }
+.purse > :nth-child(2) { animation-delay: .12s; }
+.purse > :nth-child(3) { animation-delay: .22s; }
+.bal { display: grid; gap: clamp(10px, 1.6cqi, 18px); }
+.bal b { font-size: clamp(56px, 13cqi, 140px); font-weight: 600; letter-spacing: -0.055em; line-height: .9; }
+.bal span { font-size: var(--step-lead); color: var(--muted); }
+.reach { display: grid; gap: 10px; }
+.reach .track { height: 12px; background: var(--surface); overflow: hidden; }
+.reach .track i { display: block; height: 100%; background: var(--accent); transform-origin: left; transform: scaleX(0); transition: transform 1.1s var(--ease) .3s; }
+.reach p { font-size: var(--step-lead); }
+.reach p b { color: var(--accent); font-weight: 600; }
+.reach p span { color: var(--muted); }
+.payees { list-style: none; margin: 0; padding: 0; display: flex; gap: 6px; flex-wrap: wrap; }
+.payees li { background: var(--surface); padding: 10px 14px; display: grid; gap: 1px; min-width: 128px; position: relative; }
+.payees b { font-size: var(--step-body); font-weight: 600; }
+.payees span { font-size: var(--step-small); color: var(--muted); }
+.payees em { position: absolute; top: 8px; right: 10px; font-style: normal; font-weight: 700; font-size: var(--step-small); color: var(--accent); animation: rise .4s var(--ease) both; }
+.payees li.got { animation: got .9s var(--ease); }
+@keyframes got { 0% { transform: scale(1); } 25% { transform: scale(1.06); } 100% { transform: scale(1); } }
+
+/* The agent you talk to: the white square of the mark. */
+.talk { position: absolute; inset: 0; display: grid; }
+.talk[hidden] { display: none; }
+.mic { display: grid; grid-template-rows: auto 1fr auto; justify-items: start; align-items: start; gap: 6px; text-align: left;
+  background: transparent; color: var(--accent-ink); padding: clamp(18px, 2vw, 28px); padding-bottom: 72px; }
+.mic:hover { background: transparent; }
+.mic:active { transform: none; }
+.mic b { font-size: clamp(26px, 2.3vw, 36px); font-weight: 600; letter-spacing: -0.03em; line-height: 1.05; align-self: end; max-width: 10ch; }
+.who-says { font-size: var(--step-small); font-weight: 600; color: rgba(15, 31, 16, .62); }
+.wave { display: flex; gap: 5px; align-items: center; height: 44px; }
+.wave i { display: block; width: 7px; height: 100%; background: currentColor; transform: scaleY(.35); transform-origin: center; transition: transform .25s var(--ease); }
+.wave i:nth-child(2) { transform: scaleY(.7); }
+.wave i:nth-child(3) { transform: scaleY(1); }
+.wave i:nth-child(4) { transform: scaleY(.6); }
+.wave i:nth-child(5) { transform: scaleY(.3); }
+.agent[data-state="listen"] .wave i { animation: hear .9s var(--ease) infinite alternate; }
+.agent[data-state="listen"] .wave i:nth-child(2) { animation-delay: -.3s; }
+.agent[data-state="listen"] .wave i:nth-child(3) { animation-delay: -.6s; }
+.agent[data-state="listen"] .wave i:nth-child(4) { animation-delay: -.15s; }
+.agent[data-state="listen"] .wave i:nth-child(5) { animation-delay: -.45s; }
+@keyframes hear { from { transform: scaleY(.2); } to { transform: scaleY(1); } }
+.agent[data-state="think"] .wave i { animation: think 1.1s var(--ease) infinite; }
+.agent[data-state="think"] .wave i:nth-child(2) { animation-delay: .1s; }
+.agent[data-state="think"] .wave i:nth-child(3) { animation-delay: .2s; }
+.agent[data-state="think"] .wave i:nth-child(4) { animation-delay: .3s; }
+.agent[data-state="think"] .wave i:nth-child(5) { animation-delay: .4s; }
+@keyframes think { 0%, 100% { transform: scaleY(.25); } 40% { transform: scaleY(.9); } }
+.agent[data-state="listen"] { background: var(--accent); }
+.seg.langs { position: absolute; left: clamp(18px, 2vw, 28px); bottom: clamp(18px, 2vw, 28px); display: flex; flex-wrap: nowrap; background: transparent; gap: 4px; }
+.langs button { background: rgba(15, 31, 16, .08); color: var(--accent-ink); padding: 6px 10px; font-weight: 600; }
+.langs button:hover { background: rgba(15, 31, 16, .16); }
+.langs button[aria-checked="true"] { background: var(--accent-ink); color: var(--ink); }
+
+/* Hijacked: the attacker has the agent, model and server. The leash is the same line. */
+body.hijacked .agent { background: var(--coral); }
+body.hijacked .agent[data-state="listen"] { background: #ff9585; }
+body.hijacked .langs button[aria-checked="true"] { background: #2a0a05; }
+/* Paused: nothing can leave, the agent does not answer. */
+body.paused .leash i { background: var(--coral); }
+body.paused .agent { opacity: .5; }
+
+/* A refusal: the stamp lands on the agent square. */
+.stamp { position: absolute; right: clamp(14px, 1.6vw, 22px); top: clamp(14px, 1.6vw, 22px); background: var(--accent-ink); color: var(--accent); padding: 8px 12px;
+  font-size: var(--step-body); font-weight: 700; letter-spacing: 0.02em; pointer-events: none; animation: slam .5s var(--ease) both; }
+.stamp.paid { background: var(--accent); color: var(--accent-ink); }
+@keyframes slam { from { opacity: 0; transform: scale(1.6) rotate(-6deg); } 60% { opacity: 1; transform: scale(.96) rotate(-2deg); } to { transform: scale(1) rotate(-2deg); } }
+/* The amount on its way from the vault to the payee. */
+.coin { position: fixed; z-index: 45; left: 0; top: 0; background: var(--accent); color: var(--accent-ink); padding: 6px 12px; font-weight: 700; font-size: var(--step-body); pointer-events: none; }
+
+/* ---------------------------------------------------------------- the conversation */
+.convo { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px 24px; align-items: center; }
+.convo[hidden] { display: none; }
+.convo > * { animation: rise .6s var(--ease) both; }
+.convo > :nth-child(2) { animation-delay: .08s; }
+.convo > :nth-child(3) { animation-delay: .16s; }
+.composer { display: flex; gap: 6px; }
+.composer input { flex: 1; min-width: 0; font: inherit; font-size: var(--step-lead); color: var(--ink); background: var(--surface); border: 0; border-radius: 0; padding: 14px 18px; }
+.composer input::placeholder { color: var(--faint); }
+.composer button { padding: 14px 24px; font-size: var(--step-body); }
+.switch { display: inline-flex; align-items: center; gap: 12px; font-size: var(--step-body); cursor: pointer; user-select: none; }
+.switch input { appearance: none; margin: 0; width: 52px; height: 28px; background: var(--surface-2); position: relative; cursor: pointer; transition: background-color .2s; }
+.switch input::after { content: ""; position: absolute; top: 4px; left: 4px; width: 20px; height: 20px; background: var(--muted); transition: transform .22s var(--ease), background-color .2s; }
+.switch input:checked { background: color-mix(in srgb, var(--coral) 40%, var(--deep)); }
+.switch input:checked::after { transform: translateX(24px); background: var(--coral); }
+.convo .chips { grid-column: 1 / -1; }
+.convo .chips button { padding: 9px 14px; }
+.answer { grid-column: 1 / -1; display: grid; gap: 8px; max-width: 1100px; }
+.answer:empty { display: none; }
+.said, .replied { font-size: var(--step-body); display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+.said span, .replied span { font-size: var(--step-small); color: var(--faint); min-width: 64px; }
+.said q { font-size: var(--step-lead); overflow-wrap: anywhere; }
+.replied p { color: var(--muted); overflow-wrap: anywhere; flex: 1; min-width: 0; }
+.answer .verdict .word { font-size: var(--step-sub); }
+.answer .hint { color: var(--faint); font-size: var(--step-small); }
+
+@media (prefers-reduced-motion: reduce) {
+  body:not(.door) .leash i, .reach .track i { transition: none; }
+}
+
+@media (max-width: 900px) {
+  .tether { grid-template-columns: 1fr; justify-items: stretch; }
+  .vault { min-height: 0; }
+  .leash { width: 3px; height: 44px; margin-left: 44px; }
+  .leash i { transform-origin: center top; transform: scaleY(0); }
+  body:not(.door) .leash i { transform: scaleY(1); }
+  body.door .leash i { transform: scaleY(.34); animation-name: stub-down; }
+  @keyframes stub-down { from { transform: scaleY(0); } }
+  .agent { aspect-ratio: auto; min-height: 236px; }
+  .mic { padding-bottom: 64px; }
+  .convo { grid-template-columns: 1fr; }
+  .switch { justify-self: start; }
+}
+@media (max-width: 720px) {
+  .hbar .who .net { display: none; }
+  .hbar .how { font-size: var(--step-small); }
+  .composer input { font-size: var(--step-body); }
+  .composer button { padding: 14px 18px; }
+  .payees { display: grid; }
+  .payees li { display: flex; align-items: baseline; gap: 10px; padding: 10px 56px 10px 14px; }
+  .payees em { top: 50%; transform: translateY(-50%); animation: none; }
+}

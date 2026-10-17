@@ -6,7 +6,7 @@ FinTechathon 2026, Topic F: Agent Wallet (autonomous on-chain wallet).
 
 An AI agent that pays your bills and manages a small portfolio needs a key. A key can be stolen, and a model can be talked into things: a fake "new bank details" invoice, a prompt injection hidden in an email. LEASH accepts that the agent will one day be wrong or compromised, and makes sure that **the worst it can do is bounded by a contract, not by the model's good behaviour.**
 
-![The LEASH console on the local chain: what the vault holds, the most a full hijack can move, what the same hijack takes from a plain wallet, and the agent to hijack](docs/screens/console-top.png)
+![LEASH on the local chain: the vault, the leash, and the hijacked agent (coral). It asked to pay the fake landlord's new wallet; the contract refused (PayeeNotAllowed) and the leash held](docs/screens/home-held.png)
 
 ```
  owner instruction + inbox (untrusted)
@@ -149,7 +149,7 @@ Week 42 is five documents: two bills, a tuition invoice and two hostile emails. 
 |---|---|---|
 | Contract unit + fuzz tests | 51 / 51 (fuzz: 2,000 runs each), 12 of them on sealed invoices | `forge test` |
 | Invariants (rogue-agent handler, 256 runs × 64 calls) | 9 / 9, 16,384 hostile calls (forge lists 9 `[PASS]` lines but counts one shared campaign as 1 test, so plain `forge test` reports 52) | `forge test --match-path test/Invariant.t.sol` |
-| Off-chain policy + mandate compiler tests | 36 / 36 | `npm test` |
+| Off-chain policy, mandate compiler and offline reader tests | 40 / 40 | `npm test` |
 | Full local campaign (6 tasks + 16 attacks, fresh chain) | 22 / 22 | `powershell -ExecutionPolicy Bypass -File scripts/local-campaign.ps1` |
 | Same 16 attacks launched from the web console | 16 / 16 | `npm run server`, Red team panel |
 | Live LLM runs (gpt-6.1-sol via Codex CLI, no tools) | 2 routine plans + 27 mandate compilations + 14 chat answers (7 messages × 2 prompts), all recorded; the 8 compilations made with the current prompt and the 14 chat answers replay in the console | `evidence/model-runs/` |
@@ -206,12 +206,13 @@ app/src/
   compiler.js          owner text → mandate struct → deterministic on-chain diff (CLI: compile.js)
   chat.js              the open chat: guarded and obeying prompts, code's verdict, the hijacked server's raw call,
                        and the plain-wallet transfer of the no-LEASH counterfactual
+  reader.js            the offline reader: rules, no model, for messages no model answer was recorded for
   campaign.js          the 6 tasks and 16 attacks, shared by the CLI and the console
   scenes.js            CLI campaign runner → evidence/<net>-campaign-<run>.json
-  server.js            local web console (127.0.0.1 only)
+  server.js            local web app: front door at /, console at /console (127.0.0.1 only)
   deploy.js, keys.js   deployment and throwaway key generation
   repeg.js             keeps our testnet pool at the oracle price (the arbitrageur's job)
-app/public/            console front-end (vanilla JS, no build step)
+app/public/            front door (home.*) and console (console.html, app.js), vanilla JS, no build step
 app/test/              Node tests: policy, swaps, scanner, compiler, recorded runs, revert labels
 inbox/week42/          the documents the agent reads, two of them hostile
 deployments/           deployed addresses; Sepolia runs, rehearsals and video takes kept by name
@@ -249,14 +250,28 @@ If port 8545 is taken, start anvil with `--port 8546` and set `LEASH_LOCAL_RPC=h
 
 These steps were replayed on 2026-10-15 from a fresh clone, with no prior build. Results: `npm ci`, then 34 + 7 forge tests, 17 Node tests (more were added later that day; the table above gives today's count) and 18/18 on the campaign.
 
-### Web console
+### The app
 
 ```bash
 node app/src/deploy.js local --fresh
 npm run server -- --network local --port 8791
 ```
 
-Open http://127.0.0.1:8791. Then:
+Open http://127.0.0.1:8791: the front door. *Enter with a test wallet* clips the leash on. Then talk to the agent:
+
+- **By voice:** tap the white square, speak (English, French or Chinese), tap again to send. Dictation is the browser's own (Chrome and Edge send the audio to Google's or Microsoft's speech service); Firefox has none, so type instead.
+- **By typing**, or with one of the five sample messages.
+- **Hijack the agent** turns the square coral: the model and the server now obey whatever the message says, and only the vault is left to refuse. A refusal pulls the leash taut; a payment flies from the vault to the payee.
+
+The sample messages replay recorded model answers. Any other message is read by the **offline reader** (`app/src/reader.js`): plain rules, no model, labelled as such on screen. Its output goes through the same code checks and the same vault as a model's. With `--allow-live` and a logged-in Codex CLI, those messages go to the live model instead.
+
+The test wallet is a throwaway owner key the server holds. A client never hands over keys: they would connect their own wallet, sign once to create the vault and its rules, and fund the vault's address from wherever they hold money (an exchange withdrawal, another wallet). LEASH makes the agent's key; the contract caps it. The wallet connection is not built yet.
+
+![The front door at phone width: the vault, the leash, and the agent you talk to](docs/screens/home-mobile-door.png)
+
+*How it holds →* opens the console (http://127.0.0.1:8791/console), every layer behind the door:
+
+![The LEASH console: what the vault holds, the most a full hijack can move, what the same hijack takes from a plain wallet, and the agent to hijack](docs/screens/console-top.png)
 
 1. Hijack the agent: pick how much of it the attacker controls and a message, then send. Send the same message with *No LEASH*: the plain wallet pays.
 2. Run the week (recorded replay by default) and execute the allowed bills.
@@ -270,7 +285,7 @@ Live model calls need `--allow-live` and a logged-in Codex CLI.
 
 ![The weekly routine: two hostile documents flagged by code and by the model; rent and electricity allowed, tuition waiting for the owner's signature](docs/screens/routine.png)
 
-`node scripts/screens.mjs` re-takes every screenshot in `docs/screens/` by driving the console in a headless Edge or Chrome (`BROWSER=` path). Run it on a fresh deployment. The screenshots in `docs/screens/` were taken on the local chain.
+`node scripts/screens.mjs` re-takes the console's screenshots in `docs/screens/` by driving it in a headless Edge or Chrome (`BROWSER=` path); `node scripts/home-screens.mjs` does the front door's (`home-*.png`). Run them on a fresh deployment. The screenshots in `docs/screens/` were taken on the local chain.
 
 `node scripts/preflight.mjs <local|sepolia>` says whether a deployment can still play the whole demo. It sends nothing. It checks that the week's bills are unpaid and the vault is not paused, that the pool is at the oracle price, and that every key has gas.
 
