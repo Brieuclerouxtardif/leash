@@ -127,6 +127,24 @@ async function talk({ text, agent = 'healthy', mode = 'replay' }) {
   return out;
 }
 
+// The school's bills, sealed with the school's own key when the agent settles one from the console.
+const BILLS = { semester: ['Semester fees', 1500], lab: ['Lab fee', 400], exam: ['Exam fee', 300] };
+const holds = []; // sealed invoices settled from the console: { key, bill, title, amount, heldAt }
+const HOLD = ['none', 'held', 'released', 'contested'];
+
+async function readHolds() {
+  return Promise.all(holds.map(async (h) => {
+    const [, , releaseAt, state] = await ctx.pub.readContract({ address: d.vault, abi: ABI.vault, functionName: 'holds', args: [h.key] });
+    return { ...h, releaseAt: Number(releaseAt), state: HOLD[state] };
+  }));
+}
+
+function holdOf(key) {
+  const h = holds.find((x) => x.key === key);
+  if (!h) throw new Error('no such held invoice');
+  return h;
+}
+
 function remember(entry, verdict) {
   if (entry.status === 'success' && verdict?.call?.functionName === 'pay') lastPaid = { to: verdict.call.args[0], amount: verdict.call.args[1], opId: verdict.call.args[2] };
 }
@@ -181,7 +199,7 @@ const routes = {
     pending = null;
     return log({ kind: 'mandate', ...strip(e) });
   },
-  'GET /api/chat/samples': async () => chatSamples(ctx.addr.attacker).map((text) => ({ text, recorded: recordedProfiles(text) })),
+  'GET /api/chat/samples': async () => chatSamples().map((text) => ({ text, recorded: recordedProfiles(text) })),
   'POST /api/chat': talk,
   'GET /api/mandate/samples': async () => replayableSamples(),
   'POST /api/mandate/compile': async ({ text, mode = 'replay', answers = [] }) => {
@@ -223,6 +241,33 @@ const routes = {
   },
   'POST /api/guardian/pause': async () => log({ kind: 'guardian', ...strip(await campaign.send('guardian', { functionName: 'pause' }, { scene: 'console', label: 'kill switch (guardian)' })) }),
   'POST /api/owner/unpause': async () => log({ kind: 'owner', ...strip(await campaign.send('owner', { functionName: 'unpause' }, { scene: 'console', label: 'owner restarts the agent' })) }),
+  'GET /api/holds': async () => readHolds(),
+  'POST /api/seal/settle': async ({ bill = 'semester' }) => {
+    const b = BILLS[bill];
+    if (!b) throw new Error('unknown bill');
+    const r = await campaign.settles('console', await campaign.sealed(`${bill}:${holds.length + 1}`, b[1]), { label: `settle the school's sealed invoice: ${b[0]}, ${b[1]} tUSD` });
+    // The countdown runs on this machine's clock from the moment the hold was mined.
+    if (r.status === 'success') holds.push({ key: r.verdict.key, bill, title: b[0], amount: b[1], heldAt: Date.now() });
+    return log({ kind: 'seal', title: `${b[0]}, ${b[1]} tUSD: settled by the agent, held`, key: r.verdict?.key, ...strip(r) });
+  },
+  'POST /api/seal/contest': async ({ key, as = 'owner' }) => {
+    if (!['owner', 'guardian'].includes(as)) throw new Error('only the owner or the guardian can contest');
+    const h = holdOf(key);
+    const e = await ctx.send(as, { address: d.vault, abi: ABI.vault, functionName: 'contest', args: [key], scene: 'console', label: `${as} contests ${h.title}`, force: true });
+    return log({ kind: 'seal', title: `${h.title}: contested by the ${as}`, key, ...strip(e) });
+  },
+  'POST /api/seal/release': async ({ key }) => {
+    const h = holdOf(key);
+    const e = await campaign.send('agent', { functionName: 'release', args: [key] }, { scene: 'console', label: `release ${h.title} to the school`, force: true });
+    return log({ kind: 'seal', title: `${h.title}: released to the school`, key, ...strip(e) });
+  },
+  // Local chain only: anvil jumps to the end of the window. A testnet waits for it.
+  'POST /api/seal/skip': async ({ key }) => {
+    if (NET !== 'local') throw new Error('time only jumps on the local chain');
+    holdOf(key);
+    await campaign.untilReleasable(key);
+    return { ok: true };
+  },
   'POST /api/task': async ({ id }) => {
     const t = campaign.tasks.find((x) => x.id === id);
     if (!t) throw new Error('unknown task');
@@ -233,7 +278,8 @@ const routes = {
 
 // Actions that send transactions run one at a time, in click order. Two at once from the same key read the
 // same pending nonce, and the node rejects the second (Sepolia, A2 and A7 clicked together: "invalid parameters").
-const SENDS = new Set(['POST /api/execute', 'POST /api/mandate/sign', 'POST /api/mandate/apply', 'POST /api/attack', 'POST /api/guardian/pause', 'POST /api/owner/unpause', 'POST /api/task', 'POST /api/chat']);
+const SENDS = new Set(['POST /api/execute', 'POST /api/mandate/sign', 'POST /api/mandate/apply', 'POST /api/attack', 'POST /api/guardian/pause', 'POST /api/owner/unpause', 'POST /api/task', 'POST /api/chat',
+  'POST /api/seal/settle', 'POST /api/seal/contest', 'POST /api/seal/release', 'POST /api/seal/skip']);
 let queue = Promise.resolve();
 function serial(fn) {
   const p = queue.then(fn);

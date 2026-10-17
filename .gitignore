@@ -7,3 +7,4 @@ contracts/broadcast/*/31337/
 work/
 *.log
 .claude/
+.taste-skill/

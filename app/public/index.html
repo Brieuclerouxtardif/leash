@@ -4,155 +4,191 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="leash-token" content="__LEASH_TOKEN__">
-  <title>LEASH Console</title>
+  <meta name="description" content="LEASH: an AI wallet agent that can spend, but can't run away. Hijack it and watch the contract refuse.">
+  <title>LEASH</title>
   <link rel="icon" href="leash.svg" type="image/svg+xml">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header class="top">
-    <div class="brand">
-      <img src="leash.svg" alt="" width="28" height="28">
-      <div>
-        <h1>LEASH</h1>
-        <p class="tag">An AI wallet agent that can spend, but can't run away.</p>
-      </div>
+  <a class="skip" href="#hijack">Skip to the agent</a>
+  <header class="bar">
+    <a class="mark" href="#top" aria-label="LEASH, back to the top"><img src="leash.svg" alt="" width="28" height="28"><span>LEASH</span></a>
+    <nav class="links" aria-label="Sections">
+      <a href="#hijack">Hijack</a>
+      <a href="#routine">Routine</a>
+      <a href="#rules">Rules</a>
+      <a href="#invoices">Invoices</a>
+      <a href="#redteam">Red team</a>
+    </nav>
+    <div class="chain">
+      <span id="net">…</span>
+      <a id="vaultLink" target="_blank" rel="noopener">vault</a>
+      <span id="agentState" class="agent-state">agent</span>
     </div>
-    <div class="status">
-      <span class="pill" id="net">network</span>
-      <a class="pill mono" id="vaultLink" target="_blank" rel="noopener">vault</a>
-      <span class="pill" id="agentPill">agent</span>
-      <button class="kill" id="kill" title="Guardian pause: stops the agent instantly. Only the owner can restart it.">Kill switch</button>
-      <button class="ghost" id="unpause" hidden>Owner: restart agent</button>
-    </div>
+    <button class="receipts-btn" id="receiptsBtn" aria-controls="receipts" aria-expanded="false">Receipts <b id="receiptCount">0</b></button>
+    <button class="kill" id="kill">Kill switch</button>
   </header>
 
-  <main class="layout">
-    <section class="col-main">
-      <div class="cards3">
-        <article class="card" id="vaultCard">
-          <h2>Vault</h2>
-          <div class="big" id="total">—</div>
-          <div class="alloc" aria-label="allocation"><div class="alloc-eth" id="allocEth"></div><div class="alloc-limit" id="allocLimit" title="mandate limit"></div></div>
-          <div class="legend"><span><i class="dot usd"></i><b id="usd">—</b> tUSD</span><span><i class="dot eth"></i><b id="eth">—</b> tETH · <b id="riskPct">—</b></span></div>
-          <dl class="kv">
-            <dt id="oracleLbl">Oracle ETH/USD</dt><dd id="price">—</dd>
-            <dt>Pool price</dt><dd id="poolPrice">—</dd>
-          </dl>
-        </article>
-        <article class="card" id="mandateCard">
-          <h2>Mandate <span class="sub">enforced by the contract</span></h2>
-          <ul class="mandate" id="mandate"></ul>
-        </article>
-        <article class="card">
-          <h2>Today</h2>
-          <div class="gauge"><label>Autonomous payments</label><div class="bar"><div id="payBar"></div></div><span id="payTxt">—</span></div>
-          <div class="gauge"><label>Swaps</label><div class="bar"><div id="swapBar"></div></div><span id="swapTxt">—</span></div>
-          <dl class="kv">
-            <dt>Agent key</dt><dd class="mono" id="agentAddr">—</dd>
-            <dt>Mandate epoch</dt><dd id="epoch">—</dd>
-          </dl>
-        </article>
+  <div class="paused-band" id="pausedBand" hidden>
+    <p><b>Paused by the guardian.</b> Nothing leaves the vault. Only the owner can restart the agent.</p>
+    <button class="light" id="unpause">Restart as owner</button>
+  </div>
+
+  <main id="top">
+    <!-- First screen: the claim, the leash, and the agent to hijack. -->
+    <section class="hero">
+      <div class="hero-copy">
+        <h1>It can spend.<br>It can't run away.</h1>
+        <p class="lead">An AI agent holds the money. A contract holds the agent.</p>
+        <div class="meter" id="meter" aria-live="polite">
+          <div class="m-row">
+            <b class="m-num" id="mVault">$0</b>
+            <p class="m-sub" id="mVaultSub">in the vault</p>
+          </div>
+          <div class="m-row reach">
+            <b class="m-num" id="mReach">$0</b>
+            <div class="m-bar"><i id="mReachBar"></i></div>
+            <p class="m-sub" id="mReachSub">is the most a full hijack can move</p>
+          </div>
+          <div class="m-row plain">
+            <b class="m-num" id="mPlain">$0</b>
+            <div class="m-bar"><i id="mPlainBar"></i></div>
+            <p class="m-sub">is what the same hijack takes from a plain wallet, to anyone, in one transaction</p>
+          </div>
+        </div>
       </div>
 
-      <section class="card" id="talk">
-        <h2>Talk to the agent <span class="sub">anyone can write here and claim to be anyone; nothing written here has authority</span></h2>
-        <div class="worst" id="worst"></div>
-        <div class="controls compile-controls">
-          <label>Agent <select id="agent">
-            <option value="healthy">healthy: guarded prompt</option>
-            <option value="model">hijacked model: LEASH's code still checks</option>
-            <option value="server">hijacked model + server: only the contract is left</option>
-            <option value="plain">no LEASH: the same hijacked server with a plain wallet</option>
-          </select></label>
-          <label class="grow">Message <select id="say"></select></label>
-          <label>Model <select id="tmode"><option value="replay">recorded replay</option><option value="live">live call</option></select></label>
-        </div>
-        <p class="meta" id="agentNote"></p>
-        <textarea id="msg" rows="2" maxlength="1000" spellcheck="false"></textarea>
-        <div class="row-end"><button class="primary" id="send">Send</button></div>
-        <ol class="thread" id="thread"></ol>
-      </section>
-
-      <section class="card routine">
-        <div class="routine-head">
-          <div>
-            <h2>Weekly routine <span class="sub">the model proposes, code and contract decide</span></h2>
-            <p class="instruction" id="instruction"></p>
+      <div class="stage" id="hijack">
+        <div class="frag" data-ui>
+          <h2 class="frag-title">Hijack the agent</h2>
+          <p class="seg-label" id="segLabel">The attacker controls</p>
+          <div class="seg" aria-labelledby="segLabel" role="radiogroup" aria-label="What the attacker controls" id="agentSeg"></div>
+          <ol class="pipe" id="pipe" aria-label="What still checks the request"></ol>
+          <div class="says">
+            <div class="chips" role="radiogroup" aria-label="Message" id="sayChips"></div>
+            <div class="bubble msg" id="msgBubble"><p id="msgText"></p><textarea id="msg" rows="3" maxlength="1000" spellcheck="false" hidden aria-label="Your message"></textarea></div>
           </div>
-          <div class="controls">
-            <label>Prompt <select id="profile"><option value="guarded">guarded</option><option value="naive">naive (red-team control)</option></select></label>
-            <label>Model <select id="mode"><option value="replay">recorded replay</option><option value="live">live call</option></select></label>
-            <button class="primary" id="run">Run routine</button>
+          <div class="send-row">
+            <span class="mode" id="tmodeNote">recorded replay</span>
+            <select id="tmode" hidden aria-label="Model"><option value="replay">recorded replay</option><option value="live">live call</option></select>
+            <button class="go" id="send">Send to the agent</button>
           </div>
+          <ol class="thread" id="thread"></ol>
         </div>
-        <div class="routine-body">
-          <div>
-            <h3>Inbox <span class="sub">untrusted documents</span></h3>
-            <ol class="inbox" id="inbox"></ol>
-          </div>
-          <div>
-            <h3>Proposals</h3>
-            <div id="planMeta" class="meta">Run the routine to see what the agent wants to do.</div>
-            <blockquote id="summary" hidden></blockquote>
-            <ol class="proposals" id="proposals"></ol>
-          </div>
-        </div>
-      </section>
-
-      <section class="card" id="editor">
-        <h2>Mandate editor <span class="sub">write the rules in your own words; code shows what changes on-chain</span></h2>
-        <div class="controls compile-controls">
-          <label class="grow">Owner text <select id="sample"></select></label>
-          <label>Model <select id="cmode"><option value="replay">recorded replay</option><option value="live">live call</option></select></label>
-          <button class="primary" id="compile">Compile</button>
-        </div>
-        <textarea id="ownerText" rows="3" maxlength="2000" spellcheck="false"></textarea>
-        <div id="cMeta" class="meta"></div>
-        <form class="ask" id="cAsk" hidden>
-          <h3>LEASH asks before guessing</h3>
-          <div id="cQuestions"></div>
-          <div class="row-end"><button class="primary" id="answer" type="submit">Answer and compile again</button></div>
-        </form>
-        <table class="diff" id="diff" hidden>
-          <thead><tr><th>Setting</th><th>Now</th><th>Proposed</th><th></th></tr></thead>
-          <tbody id="diffBody"></tbody>
-        </table>
-        <table class="diff" id="worstDiff" hidden>
-          <thead><tr><th>Worst case if the agent is hijacked</th><th>Now</th><th>After</th><th></th></tr></thead>
-          <tbody id="worstBody"></tbody>
-        </table>
-        <ul class="cnotes" id="cNotes"></ul>
-        <div class="row-end"><button id="applyMandate" hidden>Apply as owner (demo key)</button></div>
-      </section>
-
-      <section class="card" id="sealCard">
-        <h2>Sealed invoice <span class="sub">the creditor seals who and how much; the agent only picks when</span></h2>
-        <div class="attacks" id="seal"></div>
-      </section>
-
-      <section class="card">
-        <h2>Red team <span class="sub">each attack is sent for real; the refusal is mined on-chain</span></h2>
-        <div class="attacks" id="attacks"></div>
-      </section>
+      </div>
     </section>
 
-    <aside class="col-side card">
-      <h2>Ledger <span class="sub">this session</span></h2>
-      <ol class="ledger" id="ledger"></ol>
-      <h3 class="evh">Last full campaign</h3>
-      <div id="evidence" class="meta">—</div>
-    </aside>
+    <!-- The routine: the owner's instruction, the untrusted inbox, what the agent proposes. -->
+    <section class="sec routine" id="routine">
+      <div class="sec-head">
+        <h2>A week of bills</h2>
+        <div class="controls">
+          <div class="seg small" role="radiogroup" aria-label="Prompt" id="profileSeg">
+            <button role="radio" aria-checked="true" data-v="guarded">Guarded prompt</button>
+            <button role="radio" aria-checked="false" data-v="naive">Naive prompt</button>
+          </div>
+          <select id="mode" hidden aria-label="Model"><option value="replay">recorded replay</option><option value="live">live call</option></select>
+          <button class="go" id="run">Run the week</button>
+        </div>
+      </div>
+      <blockquote class="instruction" id="instruction"></blockquote>
+      <div class="routine-body">
+        <div class="inbox-col">
+          <h3>Inbox</h3>
+          <ol class="inbox" id="inbox" data-ui></ol>
+        </div>
+        <div class="props-col">
+          <h3>The agent proposes</h3>
+          <p class="meta" id="planMeta">Run the week to see.</p>
+          <ol class="proposals" id="proposals"></ol>
+        </div>
+      </div>
+    </section>
+
+    <!-- The owner writes the rules in words; code shows what changes on-chain and what it does to the worst case. -->
+    <section class="sec rules" id="rules">
+      <div class="sec-head">
+        <h2>Rules in your words</h2>
+      </div>
+      <div class="rules-body">
+        <div class="now">
+          <h3>Enforced now</h3>
+          <ul class="mandate" id="mandate" data-ui></ul>
+        </div>
+        <div class="editor" id="editor">
+          <div class="chips wrap" role="radiogroup" aria-label="Owner text" id="sampleChips"></div>
+          <textarea id="ownerText" rows="4" maxlength="2000" spellcheck="false" aria-label="Owner text"></textarea>
+          <div class="send-row">
+            <span class="mode" id="cmodeNote">Model reading recorded</span>
+            <select id="cmode" hidden aria-label="Model"><option value="replay">recorded replay</option><option value="live">live call</option></select>
+            <button class="go" id="compile">Compile</button>
+          </div>
+          <p class="meta" id="cMeta"></p>
+          <form class="ask" id="cAsk" hidden>
+            <h3>LEASH asks before guessing</h3>
+            <div id="cQuestions"></div>
+            <div class="send-row"><button class="go" id="answer" type="submit">Answer and compile again</button></div>
+          </form>
+          <div class="worst-shift" id="worstShift" hidden></div>
+          <table class="diff" id="diff" hidden>
+            <thead><tr><th>Setting</th><th>Now</th><th>Proposed</th><th></th></tr></thead>
+            <tbody id="diffBody"></tbody>
+          </table>
+          <ul class="cnotes" id="cNotes"></ul>
+          <div class="send-row"><button id="applyMandate" hidden>Apply as owner</button></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Sealed invoices: the creditor's seal fixes who and how much; the money is held while it can be contested. -->
+    <section class="sec invoices" id="invoices">
+      <div class="sec-head">
+        <h2>Sealed bills</h2>
+        <p class="sec-line">The school seals who and how much. The agent only picks when.</p>
+      </div>
+      <div class="inv-body" data-ui>
+        <div class="bills">
+          <div class="allow" id="allow"></div>
+          <ol class="bill-list" id="bills"></ol>
+        </div>
+        <ol class="holds" id="holds" aria-live="polite"></ol>
+      </div>
+    </section>
+
+    <!-- The red team: every attack is sent for real and refused on-chain. -->
+    <section class="sec redteam" id="redteam">
+      <div class="sec-head">
+        <h2>Sixteen attacks</h2>
+        <p class="sec-line">Each one is sent for real. Watch who refuses it.</p>
+        <button class="go" id="runAll">Launch all sixteen</button>
+      </div>
+      <div class="rt-body">
+        <div class="score zero" id="score"><b id="scoreNum">0</b><span>of 16 refused</span></div>
+        <ol class="attacks" id="attacks"></ol>
+      </div>
+      <p class="evidence" id="evidence"></p>
+    </section>
   </main>
+
+  <footer class="foot">
+    <div class="tile word">LEASH</div>
+    <div class="tile note"><p>Test network, test tokens. No real money moves here.</p></div>
+    <a class="tile code" href="https://github.com/Brieuclerouxtardif/leash" target="_blank" rel="noopener"><span>Read the code</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19L19 5M9 5h10v10" fill="none" stroke="currentColor" stroke-width="2.4"/></svg></a>
+  </footer>
+
+  <aside class="drawer" id="receipts" aria-label="Receipts" hidden>
+    <div class="drawer-head"><h2>Receipts</h2><button class="light" id="receiptsClose">Close</button></div>
+    <ol class="ledger" id="ledger"></ol>
+  </aside>
 
   <dialog id="mandateDlg">
     <form method="dialog">
-      <h2>Owner signature requested</h2>
-      <p class="sub">This text is generated from the exact struct you sign, not written by the model.</p>
+      <h2>Owner signature</h2>
       <p class="mandate-text" id="mText"></p>
       <table class="typed" id="mTyped"></table>
       <div class="dlg-actions">
-        <button value="cancel" class="ghost">Reject</button>
-        <button value="sign" class="primary" id="mSign">Sign as owner (demo key)</button>
+        <button value="cancel" class="light">Reject</button>
+        <button value="sign" class="go" id="mSign">Sign as owner</button>
       </div>
     </form>
   </dialog>

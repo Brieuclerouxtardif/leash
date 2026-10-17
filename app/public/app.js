@@ -1,7 +1,9 @@
 // LEASH console. Every string from the chain, the model or the inbox is rendered with textContent.
 const TOKEN = document.querySelector('meta[name="leash-token"]').content;
 const $ = (id) => document.getElementById(id);
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 let S = null;
+let stateAt = 0; // when S was read, to run the chain clock forward between refreshes
 
 function h(tag, attrs = {}, ...kids) {
   const el = document.createElement(tag);
@@ -17,25 +19,31 @@ function h(tag, attrs = {}, ...kids) {
 
 async function api(path, body) {
   const r = await fetch(path, body === undefined ? {} : { method: 'POST', headers: { 'content-type': 'application/json', 'x-leash-token': TOKEN }, body: JSON.stringify(body) });
-  const j = await r.json();
+  // A server that answers in plain text (a 404 from an older build) still gives a readable error.
+  const j = await r.json().catch(() => ({ error: `${r.status} ${r.statusText} on ${path}` }));
   if (!r.ok) throw new Error(j.error ?? r.statusText);
   return j;
 }
 
 const money = (n, d = 2) => Number(n).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+const usd = (n) => `$${money(n, 0)}`;
 const short = (a) => (a ? `${a.slice(0, 6)}…${a.slice(-4)}` : '—');
+const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+const list = (xs) => (xs.length ? xs.length > 1 ? `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}` : xs[0] : 'nobody');
+const day = (ts) => new Date(ts * 1000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 const txUrl = (hash) => (S?.explorer && hash ? `${S.explorer}/tx/${hash}` : null);
 const addrUrl = (a) => (S?.explorer ? `${S.explorer}/address/${a}` : null);
 // A mined refusal shows the reason replayed at its block; the pre-send simulation is only a fallback.
 const reasonOf = (e) => e?.minedError?.name ?? e?.expectedError?.name;
-const nameOf = (a) => Object.entries(S?.roles ?? {}).find(([, v]) => v.toLowerCase() === String(a).toLowerCase())?.[0];
+// The first failed check, in its own words: the rule's name says what was checked, the detail says what was wrong.
+const failing = (checks) => (checks.find((c) => !c.ok)?.detail ?? '').replace(/0x[0-9a-fA-F]{40}/g, (a) => short(a));
 
 function toast(msg) {
   const t = $('toast');
   t.textContent = msg;
   t.classList.add('on');
   clearTimeout(toast.t);
-  toast.t = setTimeout(() => t.classList.remove('on'), 3500);
+  toast.t = setTimeout(() => t.classList.remove('on'), 3800);
 }
 
 // `wait` replaces the label while a transaction waits for its block (~12 s on Sepolia).
@@ -43,132 +51,282 @@ async function busy(btn, fn, wait) {
   const label = btn.textContent;
   btn.disabled = true;
   if (wait) btn.textContent = wait;
-  try { return await fn(); } catch (e) { toast(e.message); } finally { btn.disabled = false; if (wait) btn.textContent = label; }
+  try { return await fn(); } catch (e) { toast(e.message); } finally { btn.disabled = false; if (wait && btn.textContent === wait) btn.textContent = label; }
+}
+
+// A refusal also links to a decoding explorer: Etherscan only says "execution reverted".
+function link(hash, reverted = false) {
+  const u = txUrl(hash);
+  if (!u) return h('span', { class: 'tx' }, `tx ${short(hash)}`);
+  const a = h('a', { href: u, target: '_blank', rel: 'noopener' }, `tx ${short(hash)}`);
+  return h('span', { class: 'tx' }, a, reverted && S?.decoder ? [' · ', h('a', { href: `${S.decoder}/tx/${hash}`, target: '_blank', rel: 'noopener' }, 'decoded')] : null);
+}
+const txBits = (e) => (e?.hash ? [' · ', link(e.hash, e.status === 'reverted')] : []);
+
+// Numbers that change count to their new value instead of jumping.
+function count(el, to, fmt) {
+  const from = Number(el.dataset.v);
+  el.dataset.v = to;
+  cancelAnimationFrame(el.raf);
+  if (REDUCED || !Number.isFinite(from) || from === to) { el.textContent = fmt(to); return; }
+  const t0 = performance.now();
+  const step = (t) => {
+    const k = Math.min(1, (t - t0) / 900);
+    el.textContent = fmt(from + (to - from) * (1 - (1 - k) ** 3));
+    if (k < 1) el.raf = requestAnimationFrame(step);
+  };
+  el.raf = requestAnimationFrame(step);
+  // A hidden tab runs no animation frame; the number must still be right when someone looks.
+  setTimeout(() => { if (Number(el.dataset.v) === to) { cancelAnimationFrame(el.raf); el.textContent = fmt(to); } }, 1000);
+}
+
+// A radio group of buttons: click, or arrow keys once one has focus.
+function radios(group, onPick) {
+  const btns = [...group.querySelectorAll('[role="radio"]')];
+  const pick = (b, focus) => {
+    for (const x of btns) { x.setAttribute('aria-checked', String(x === b)); x.tabIndex = x === b ? 0 : -1; }
+    if (focus) b.focus();
+    onPick(b.dataset.v, b);
+  };
+  btns.forEach((b, k) => {
+    b.tabIndex = b.getAttribute('aria-checked') === 'true' ? 0 : -1;
+    b.addEventListener('click', () => pick(b));
+    b.addEventListener('keydown', (e) => {
+      const d = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+      if (d) { e.preventDefault(); pick(btns[(k + d + btns.length) % btns.length], true); }
+    });
+  });
+  return pick;
+}
+
+// An outcome: one word that reads from across the room, what was asked, then why and the receipt.
+function verdict(cls, word, what, why, act) {
+  return h('div', { class: `verdict ${cls} new` }, h('span', { class: 'word' }, word), h('span', { class: 'what' }, what),
+    why ? h('span', { class: 'why' }, why) : null, act ? h('span', { class: 'act' }, act) : null);
+}
+
+function describe(i) {
+  if (i.type === 'swap') return `${i.side === 'buy' ? 'Buy tETH with' : 'Sell'} ${i.amount} ${i.side === 'buy' ? 'tUSD' : 'tETH'}`;
+  if (i.type === 'add_payee') return `Add ${i.to ? short(i.to) : i.payee} as a payee, up to ${money(i.amount, 0)}`;
+  if (i.type === 'raise_daily_limit') return `Raise the daily limit to ${money(i.amount, 0)} tUSD`;
+  if (i.type === 'withdraw') return `Withdraw ${money(i.amount, 0)} tUSD to ${short(i.to)}`;
+  // An address beats a name: it is where the money would go, whatever name the message gave it.
+  return `Pay ${money(i.amount, 0)} tUSD to ${i.to ? `${short(i.to)}${i.payee ? ` (“${i.payee}”)` : ''}` : i.payee}`;
 }
 
 // ------------------------------------------------------------------ state
 function renderState(s) {
   S = s;
-  $('net').textContent = s.network === 'sepolia' ? 'Ethereum Sepolia' : 'Local chain (anvil)';
+  stateAt = Date.now();
+  $('net').textContent = s.network === 'sepolia' ? 'Sepolia testnet' : 'Local chain';
   const vl = $('vaultLink');
-  vl.textContent = `vault ${short(s.vault)}`;
+  vl.textContent = `Vault ${short(s.vault)}`;
   if (addrUrl(s.vault)) vl.href = addrUrl(s.vault); else vl.removeAttribute('href');
   const active = s.agentExpiry >= s.now && !/^0x0+$/.test(s.agent);
-  const ap = $('agentPill');
-  ap.className = `pill ${s.paused || !active ? 'bad' : 'ok'}`;
-  ap.textContent = s.paused ? 'agent paused' : active ? `agent active · ${Math.round((s.agentExpiry - s.now) / 86400)} d left` : 'agent expired';
+  const st = $('agentState');
+  st.classList.toggle('off', s.paused || !active);
+  st.textContent = s.paused ? 'Agent paused' : active ? `Agent live · ${Math.max(1, Math.round((s.agentExpiry - s.now) / 86400))} d left` : 'Agent key expired';
   $('kill').hidden = s.paused;
-  $('unpause').hidden = !s.paused;
-
-  $('total').textContent = `$${money(s.usd + s.ethValue)}`;
-  $('usd').textContent = money(s.usd);
-  $('eth').textContent = s.eth.toFixed(4);
-  $('riskPct').textContent = `${(s.riskBps / 100).toFixed(1)}%`;
-  $('allocEth').style.width = `${Math.min(100, s.riskBps / 100)}%`;
-  $('allocLimit').style.left = `${s.risk.maxRiskBps / 100}%`;
-  $('oracleLbl').textContent = s.network === 'sepolia' ? 'Chainlink ETH/USD' : 'Oracle ETH/USD (local mock)';
-  $('price').textContent = `$${money(s.price)} · ${Math.round(s.priceAge / 60)} min old`;
-  const dev = ((s.poolPrice - s.price) / s.price) * 10000;
-  $('poolPrice').textContent = `$${money(s.poolPrice)} (${dev >= 0 ? '+' : ''}${dev.toFixed(0)} bps)`;
-  $('poolPrice').style.color = Math.abs(dev) > s.risk.maxSlippageBps ? 'var(--bad)' : '';
-
-  const L = s.limits;
-  const payees = Object.entries(s.payees).filter(([, p]) => p.cap > 0).map(([n, p]) => `${n} ≤ ${money(p.cap, 0)}`).join(', ');
-  $('mandate').replaceChildren(
-    h('li', {}, `Pays only registered payees: ${payees}`),
-    h('li', {}, `≤ ${money(L.payPerTx, 0)} tUSD per payment, ≤ ${money(L.payDaily, 0)} per day, and ${money(s.agentBudget, 0)} left in the key's budget: all its payments, every day, until the owner reloads it`),
-    h('li', {}, `Swaps ≤ ${money(L.swapPerTx, 0)} each, ≤ ${money(L.swapDaily, 0)} per day, never below ${(100 - s.risk.maxSlippageBps / 100).toFixed(0)}% of the oracle price`),
-    h('li', {}, `tETH share ≤ ${s.risk.maxRiskBps / 100}% after any buy`),
-    h('li', {}, `Above that: owner's EIP-712 signature for that exact payment`),
-    h('li', { class: 'no' }, 'Change limits, add payees, withdraw, call anything else: impossible for the agent'),
-  );
-  const g = (bar, txt, used, max) => {
-    const pct = Math.min(100, (used / max) * 100);
-    $(bar).style.width = `${pct}%`;
-    $(bar).classList.toggle('full', pct >= 99.9);
-    $(txt).textContent = `${money(used, 0)} / ${money(max, 0)}`;
-  };
-  g('payBar', 'payTxt', s.paidToday, L.payDaily);
-  g('swapBar', 'swapTxt', s.swappedToday, L.swapDaily);
-  $('agentAddr').textContent = short(s.agent);
-  $('epoch').textContent = s.epoch;
-  renderWorst(s.worst, s);
+  $('pausedBand').hidden = !s.paused;
+  renderMeter(s);
+  renderMandate(s);
+  renderAllow(s);
 }
 
 // The worst case is computed by code from the vault's limits (core.js worstCase), never by the model.
-const tile = (n, label, cls) => h('div', { class: `wtile ${cls}` }, h('b', {}, n), h('span', {}, label));
-function renderWorst(w, s) {
-  const until = new Date(w.expiry * 1000).toISOString().slice(0, 10);
-  const off = s.paused ? 'the vault is paused' : 'the agent key is not active';
-  $('worst').replaceChildren(
-    h('p', { class: 'wlead' }, 'If the model, LEASH\'s code and the agent key were all hijacked right now, the most that could leave the vault:'),
-    h('div', { class: 'wgrid' },
-      tile('0', 'tUSD to any address you did not register', 'ok'),
-      tile(w.live ? `≤ ${money(w.today, 0)}` : '0', w.live ? `tUSD more today, only to ${w.to.join(' and ') || 'nobody'}` : `tUSD today: ${off}`, w.live && w.today > 0 ? 'warn' : 'ok'),
-      tile(w.live ? `≤ ${money(w.untilExpiry, 0)}` : '0', w.live
-        ? `tUSD until the key expires on ${until}, ${{ budget: 'all that is left of its budget: only the owner can reload it', balance: 'all the tUSD in the vault', days: `${w.days} paying day${w.days > 1 ? 's' : ''} at the daily limit` }[w.bound]}`
-        : 'tUSD until the owner acts', w.live && w.untilExpiry > 0 ? 'warn' : 'ok'),
-      tile(w.live ? `≤ ${money(w.swapLossPerDay, 0)}` : '0', 'tUSD a day lost on swaps against the oracle price', w.live ? 'warn' : 'ok')),
-    h('p', { class: 'wfoot' }, 'Adding a payee, raising a limit, withdrawing: impossible for the agent. Nothing written below can raise these numbers; only an owner transaction can.'),
-    // Sealed invoices: the creditor's seal fixes who and how much, so a stolen agent key gains nothing from them.
-    ...(Object.keys(s.seals ?? {}).length ? [h('p', { class: 'wfoot' }, 'Sealed invoices add 0 to these numbers: the agent key cannot make a creditor\'s seal. If a creditor\'s own key were stolen too: ≤ ',
-      h('b', {}, `${money(w.sealedIfCreditorStolen, 0)} tUSD`), `, each payment held ${w.contestWindow >= 3600 ? `${w.contestWindow / 3600} h` : `${w.contestWindow / 60} min`} for you or the guardian to contest. Held now: ${money(s.held, 0)} tUSD.`)] : []),
-    // The counterfactual wallet (agent "no LEASH" below): the same hijack, the usual setup.
-    s.hot && h('p', { class: 'wplain' }, 'Without LEASH, the usual setup: a plain wallet whose key the agent\'s server holds (', h('span', { class: 'mono' }, short(s.hot.address)),
-      ', funded like the vault). The same hijack takes ', h('b', {}, 'all of it'), ', to any address, in one transaction. It holds ', h('b', {}, `${money(s.hot.usd, 0)} tUSD`), ' now.'));
+function renderMeter(s) {
+  const w = s.worst;
+  const total = s.usd + s.ethValue;
+  const plain = s.hot?.usd ?? 0;
+  const scale = Math.max(total, plain, 1);
+  const reach = w.live && !s.paused ? w.untilExpiry : 0;
+  count($('mVault'), total, usd);
+  $('mVaultSub').textContent = `in the vault: ${money(s.usd, 0)} tUSD and ${s.eth.toFixed(2)} tETH`;
+  count($('mReach'), reach, usd);
+  $('mReachBar').style.transform = `scaleX(${reach / scale})`;
+  $('mReachSub').textContent = s.paused ? 'can leave: the guardian paused the vault'
+    : w.live ? `is the most a full hijack can move: only to your ${list(w.to)}, until ${day(w.expiry)}` : 'can leave: the agent key is not active';
+  if (s.hot) count($('mPlain'), plain, usd); else $('mPlain').textContent = '—';
+  $('mPlainBar').style.transform = `scaleX(${plain / scale})`;
 }
 
-// ------------------------------------------------------------------ inbox and plan
+function renderMandate(s) {
+  const L = s.limits;
+  const pct = (bps) => `${bps / 100}%`;
+  const payees = Object.entries(s.payees).filter(([, p]) => p.cap > 0);
+  const row = (b, span, cls) => h('li', { class: cls }, h('b', {}, b), h('span', {}, span));
+  $('mandate').replaceChildren(
+    row(payees.map(([n, p]) => `${cap(n)} ≤ ${money(p.cap, 0)}`).join(' · ') || 'Nobody', 'The only payees, per payment'),
+    row(`${money(L.payDaily, 0)} a day`, `At most ${money(L.payPerTx, 0)} per payment`),
+    row(`${money(s.agentBudget, 0)} left`, 'In the key’s budget. Only you reload it.'),
+    row(`Swaps ≤ ${money(L.swapPerTx, 0)}`, `${pct(s.risk.maxSlippageBps)} off the oracle at most, tETH under ${pct(s.risk.maxRiskBps)}`),
+    row('Above that, you sign', 'One signature for one exact payment'),
+    row('Never', 'New payees, higher limits, withdrawals', 'no'),
+  );
+}
+
+// ------------------------------------------------------------------ hijack the agent (chat)
+const AGENTS = [
+  { v: 'healthy', label: 'Nothing', name: 'healthy agent', pipe: [['Model', 'guarded prompt', 'holds'], ['LEASH code', 'checks every intent', 'holds'], ['Vault contract', 'enforces the mandate', 'holds']] },
+  { v: 'model', label: 'The model', name: 'hijacked model', pipe: [['Model', 'hijacked', 'taken'], ['LEASH code', 'checks every intent', 'holds'], ['Vault contract', 'enforces the mandate', 'holds']] },
+  { v: 'server', label: 'Model + server', name: 'hijacked model and server', pipe: [['Model', 'hijacked', 'taken'], ['LEASH code', 'bypassed', 'taken'], ['Vault contract', 'enforces the mandate', 'holds']] },
+  { v: 'plain', label: 'No LEASH', name: 'no LEASH, plain wallet', hijack: true, pipe: [['Model', 'hijacked', 'taken'], ['Server', 'signs anything', 'taken'], ['Plain wallet', 'checks nothing', 'taken']] },
+];
+const SAY = [[/^Hi, it's Marta/, 'Landlord’s new wallet', true], [/[一-鿿]/, 'The same, in Chinese', true], [/airport/, 'Owner stuck at the airport', true],
+  [/^\[SYSTEM\]/, '[SYSTEM] maintenance mode', true], [/private key/, 'Tell me your key', true], [/school/, 'Pay the school 5,000'], [/electricity/i, 'Electricity bill, 120']];
+const sayOf = (text) => SAY.find(([re]) => re.test(text)) ?? [null, text.length > 32 ? `${text.slice(0, 30)}…` : text];
+
+let agent = 'healthy';
+let samples = [];
+let say = 0; // index in samples, or 'own'
+
+function renderPipe(stop) {
+  const a = AGENTS.find((x) => x.v === agent);
+  $('pipe').replaceChildren(...a.pipe.map(([b, span, cls], k) => {
+    const mark = stop?.at === k ? stop : null;
+    return h('li', { class: `${cls}${mark ? ` ${mark.cls}` : ''}` }, h('b', {}, b), h('span', {}, mark ? mark.text : span));
+  }));
+}
+
+// Which layer stopped the first request of an exchange, or let the money out.
+function stopOf(x) {
+  const r = x.results[0];
+  if (!r) return x.agent === 'healthy' ? { at: 0, cls: 'stop', text: 'said no' } : null;
+  if (x.agent === 'plain') return r.sent && r.tx.status === 'success' ? { at: 2, cls: 'leak', text: 'let it all go' } : null;
+  if (x.agent === 'server') return r.sent && r.tx.status !== 'success' ? { at: 2, cls: 'stop', text: 'refused it' } : null;
+  if (r.decision === 'refuse') return { at: 1, cls: 'stop', text: 'refused it' };
+  if (r.decision === 'needs_owner') return { at: 1, cls: 'stop', text: 'asks you first' };
+  if (r.tx && r.tx.status !== 'success') return { at: 2, cls: 'stop', text: 'refused it' };
+  return null;
+}
+
+async function loadChat() {
+  samples = await api('/api/chat/samples');
+  const seg = $('agentSeg');
+  seg.replaceChildren(...AGENTS.map((a, k) => h('button', { role: 'radio', 'aria-checked': String(k === 0), 'data-v': a.v, class: a.hijack ? 'hijack' : null }, a.label)));
+  radios(seg, (v) => { agent = v; renderPipe(null); fillSay(); });
+  const chips = $('sayChips');
+  chips.replaceChildren(...samples.map((x, k) => {
+    const [, label, scam] = sayOf(x.text);
+    return h('button', { role: 'radio', 'aria-checked': String(k === 0), 'data-v': k, class: scam ? 'scam' : null }, label);
+  }), ...(S.allowLive ? [h('button', { role: 'radio', 'aria-checked': 'false', 'data-v': 'own' }, 'Write your own')] : []));
+  radios(chips, (v) => { say = v === 'own' ? 'own' : Number(v); fillSay(); });
+  renderPipe(null);
+  fillSay();
+}
+
+function fillSay() {
+  const own = say === 'own';
+  $('msgText').hidden = own;
+  $('msg').hidden = !own;
+  if (own) { $('msg').focus(); $('tmode').value = 'live'; } else $('msgText').textContent = samples[say]?.text ?? '';
+  // A replay needs the model's answer recorded for this exact prompt; without a live model there is nothing else.
+  const prof = agent === 'healthy' ? 'guarded' : 'hijacked';
+  const replayable = own || samples[say]?.recorded.includes(prof);
+  $('send').disabled = !replayable && !S.allowLive;
+  $('tmodeNote').textContent = replayable ? 'Model reply recorded · transactions real' : 'Not recorded for this agent: live model only';
+}
+
+function chatVerdict(x, r) {
+  const what = describe(r.intent);
+  if (x.agent === 'plain') {
+    if (!r.sent) return verdict('ok', 'Not sent', what, r.note);
+    if (r.tx.status === 'success') return verdict('gone', 'Gone', what, ['Nothing on-chain checked it', ...txBits(r.tx)]);
+    return verdict('warn', 'Failed', what, [reasonOf(r.tx) ?? r.tx.status, ...txBits(r.tx)]);
+  }
+  if (x.agent === 'server') {
+    if (!r.sent) return verdict('ok', 'Not sent', what, r.note);
+    if (r.tx.status === 'success') return verdict('warn', 'Paid', what, ['Inside the mandate, so the vault allowed it', ...txBits(r.tx)]);
+    return verdict('ok', 'Refused', what, [`By the vault contract: ${reasonOf(r.tx) ?? r.tx.status}`, ...txBits(r.tx)]);
+  }
+  if (r.decision === 'needs_owner') {
+    const b = h('button', { class: 'go' }, 'Review & sign');
+    b.addEventListener('click', () => busy(b, () => openMandate(r.ask, b, 'chat')));
+    return verdict('ask', 'Your call', what, 'Above what the agent may pay alone', b);
+  }
+  if (r.decision === 'refuse') return verdict('ok', 'Refused', what, `By LEASH’s code: ${failing(r.checks)}`);
+  if (r.tx?.status === 'success') return verdict('held', 'Paid', what, ['Inside the mandate, by the agent alone', ...txBits(r.tx)]);
+  return verdict('ok', 'Refused', what, [`By the vault contract: ${reasonOf(r.tx) ?? r.tx?.status}`, ...txBits(r.tx)]);
+}
+
+function renderExchange(x) {
+  const a = AGENTS.find((v) => v.v === x.agent);
+  const results = x.results.length ? x.results.map((r) => chatVerdict(x, r))
+    : [verdict('ok', 'Nothing sent', x.agent === 'healthy' ? 'The model refused on its own' : 'The model proposed no payment')];
+  $('thread').prepend(h('li', { class: `ex ${x.agent}` },
+    h('div', { class: 'reply' }, h('header', {}, `${x.label} · ${a.name}`), h('p', {}, x.reply)),
+    ...results));
+  renderPipe(stopOf(x));
+}
+
+$('send').addEventListener('click', (e) => busy(e.target, async () => {
+  const own = say === 'own';
+  const text = own ? $('msg').value.trim() : samples[say].text;
+  if (!text) throw new Error('write a message first');
+  const x = await api('/api/chat', { text, agent, mode: own ? 'live' : $('tmode').value });
+  renderExchange({ ...x, text, label: own ? 'Your message' : sayOf(text)[1] });
+  refresh();
+}, 'Sending…'));
+
+// ------------------------------------------------------------------ the routine: inbox and plan
 let inbox = [];
 async function loadInbox() {
   inbox = await api('/api/inbox');
   renderInbox({});
 }
 
-// One chip per (who, kind); the details of every hit stay in the tooltip.
-function chips(who, flags) {
+// One tag per (who, kind); the details of every hit stay in the tooltip.
+function tags(who, flags) {
   const byKind = new Map();
   for (const f of flags) byKind.set(f.kind, [...(byKind.get(f.kind) ?? []), f.detail]);
-  return [...byKind].map(([kind, details]) => h('span', { class: `chip ${who}`, title: details.join('\n') },
-    `${who}: ${kind.replace('_', ' ')}${details.length > 1 ? ` ×${details.length}` : ''}`));
+  return [...byKind].map(([kind, details]) => h('span', { class: `tag ${who}`, title: details.join('\n') },
+    `${who === 'code' ? 'Code' : 'Model'}: ${kind.replaceAll('_', ' ')}${details.length > 1 ? ` ×${details.length}` : ''}`));
+}
+
+function parseDoc(text) {
+  const [head, ...body] = text.split(/\r?\n\s*\r?\n/);
+  return { from: /^From:\s*(.+)$/m.exec(head)?.[1] ?? '', subject: /^Subject:\s*(.+)$/m.exec(head)?.[1] ?? '', body: body.join('\n\n').trim() || text };
 }
 
 function renderInbox(modelFlags) {
   $('inbox').replaceChildren(...inbox.map((doc) => {
     const mf = modelFlags[doc.id] ?? [];
-    const flagged = doc.codeFlags.length || mf.length;
-    return h('li', { class: `doc${flagged ? ' flagged' : ''}` },
-      h('header', {}, h('span', { class: 'mono' }, doc.id), h('span', {}, flagged ? 'suspicious' : 'clean')),
-      h('pre', {}, doc.text),
-      h('div', { class: 'chips' }, chips('code', doc.codeFlags), chips('model', mf)));
+    const d = parseDoc(doc.text);
+    const t = [...tags('code', doc.codeFlags), ...tags('model', mf)];
+    const li = h('li', { class: `doc${t.length ? ' flagged' : ''}` });
+    const more = h('button', { 'aria-expanded': 'false' }, 'Read');
+    more.addEventListener('click', () => { const open = li.classList.toggle('open'); more.textContent = open ? 'Close' : 'Read'; more.setAttribute('aria-expanded', String(open)); });
+    li.append(...[h('header', {}, h('b', {}, d.from || doc.id), more), h('p', { class: 'subj' }, d.subject), h('p', { class: 'text' }, d.body), t.length ? h('div', { class: 'tags' }, t) : null].filter(Boolean));
+    return li;
   }));
 }
 
-function describe(i) {
-  if (i.type === 'swap') return `${i.side === 'buy' ? 'Buy tETH with' : 'Sell'} ${i.amount} ${i.side === 'buy' ? 'tUSD' : 'tETH'}`;
-  if (i.type === 'add_payee') return `Add ${i.to ? short(i.to) : i.payee} as a payee, cap ${money(i.amount, 0)} tUSD`;
-  if (i.type === 'raise_daily_limit') return `Raise the daily payment limit to ${money(i.amount, 0)} tUSD`;
-  if (i.type === 'withdraw') return `Withdraw ${money(i.amount)} tUSD to ${short(i.to)}`;
-  // An address beats a name: it is where the money would go, whatever name the message gave it.
-  return `Pay ${money(i.amount)} tUSD to ${i.to ? `${short(i.to)}${i.payee ? ` (called "${i.payee}")` : ''}` : i.payee}`;
+let profile = 'guarded';
+radios($('profileSeg'), (v) => { profile = v; });
+
+function checksBox(checks) {
+  return h('details', { class: 'why-box' }, h('summary', {}, `All ${checks.length} checks`),
+    h('ul', { class: 'checks' }, checks.map((c) => h('li', { class: c.ok ? '' : 'fail', title: c.detail }, `${c.ok ? 'Passed' : 'Failed'}: ${c.rule}`))));
 }
 
 function renderPlan(p) {
-  $('planMeta').textContent = `${p.mode} · ${p.model} · prompt: ${p.profile}${p.seconds ? ` · ${p.seconds.toFixed(1)} s` : ''}${p.at ? ` · recorded ${p.at.slice(0, 16).replace('T', ' ')} UTC` : ''}`;
-  $('summary').hidden = false;
-  $('summary').textContent = `“${p.summary}”`;
+  $('planMeta').textContent = `${p.mode === 'RECORDED REPLAY' ? 'Recorded model run' : 'Live model call'} · ${p.model}${p.seconds ? ` · ${p.seconds.toFixed(1)} s` : ''}`;
   const byDoc = {};
   for (const f of p.modelFlags) (byDoc[f.doc] ??= []).push(f);
   renderInbox(byDoc);
   $('proposals').replaceChildren(...p.verdicts.map((v, idx) => {
-    const action = v.decision === 'execute' ? h('button', { class: 'primary', onclick: (e) => busy(e.target, () => doExecute(idx, e.target), 'Sending…') }, 'Execute')
-      : v.decision === 'needs_owner' ? h('button', { onclick: (e) => busy(e.target, () => openMandate(idx, e.target)) }, 'Review & sign')
-        : null;
-    return h('li', { class: 'prop' },
-      h('div', { class: 'row' }, h('span', { class: 'what' }, describe(v.intent)), h('span', { class: `badge ${v.decision}` }, v.decision === 'needs_owner' ? 'needs your signature' : v.decision)),
-      h('div', { class: 'meta' }, `${v.intent.reason} · source: ${v.intent.source} · tier ${v.tier}`),
-      h('ul', { class: 'checks' }, v.checks.map((c) => h('li', { class: c.ok ? '' : 'fail', title: c.detail }, `${c.rule}${c.ok ? '' : ` — ${c.detail}`}`))),
-      action && h('div', { class: 'row' }, h('span'), action));
+    const what = describe(v.intent);
+    let el;
+    if (v.decision === 'execute') {
+      const b = h('button', { class: 'go primary' }, 'Execute');
+      b.addEventListener('click', () => busy(b, () => doExecute(idx, b), 'Sending…'));
+      el = verdict('', 'Allowed', what, `Tier ${v.tier} · from ${v.intent.source}`, b);
+    } else if (v.decision === 'needs_owner') {
+      const b = h('button', { class: 'go' }, 'Review & sign');
+      b.addEventListener('click', () => busy(b, () => openMandate(idx, b)));
+      el = verdict('ask', 'Your call', what, `Above the agent’s limits · from ${v.intent.source}`, b);
+    } else el = verdict('ok', 'Refused', what, `${failing(v.checks)} · from ${v.intent.source}`);
+    return h('li', { class: 'prop' }, el, checksBox(v.checks));
   }));
   if (!p.verdicts.length) $('proposals').replaceChildren(h('li', { class: 'meta' }, 'The model proposed nothing.'));
 }
@@ -176,16 +334,32 @@ function renderPlan(p) {
 // Once a proposal is settled on-chain its button becomes the outcome, so it cannot be clicked twice by mistake.
 function settle(btn, e, okText) {
   const ok = e.status === 'success';
-  btn.replaceWith(h('span', { class: `settled ${ok ? 'ok' : 'bad'}` }, ok ? okText : `refused: ${reasonOf(e) ?? e.status}`, e.hash ? ' · ' : '', e.hash ? link(e.hash, e.status === 'reverted') : ''));
+  const v = btn.closest('.verdict');
+  if (v) {
+    v.className = `verdict ${ok ? 'held' : 'ok'}`;
+    void v.offsetWidth;
+    v.classList.add('new');
+    v.querySelector('.word').textContent = ok ? 'Paid' : 'Refused';
+  }
+  const no = e.status === 'refused-before-signing' ? `Refused by LEASH’s code, failed check: ${reasonOf(e)}` : `Refused by the contract: ${reasonOf(e) ?? e.status}`;
+  // The word already says Paid: a plain execution only adds its receipt.
+  const lead = ok ? okText : no;
+  btn.replaceWith(h('span', { class: `settled ${ok ? 'ok' : 'bad'}` }, lead ? [lead, ...txBits(e)] : txBits(e).slice(1)));
 }
 
 async function doExecute(i, btn) {
   const e = await api('/api/execute', { i });
-  toast(e.status === 'success' ? 'Executed on-chain.' : `Refused: ${reasonOf(e) ?? e.status}`);
-  settle(btn, e, 'executed');
+  toast(e.status === 'success' ? 'Paid on-chain by the agent.' : `Refused: ${reasonOf(e) ?? e.status}`);
+  settle(btn, e, '');
   refresh();
 }
 
+$('run').addEventListener('click', (e) => busy(e.target, async () => {
+  $('planMeta').textContent = $('mode').value === 'live' ? 'Calling the model… (≈20 s)' : 'Loading the recorded run…';
+  renderPlan(await api('/api/plan', { profile, mode: $('mode').value }));
+}));
+
+// ------------------------------------------------------------------ owner signature
 let pendingIdx = null;
 let pendingBtn = null;
 let pendingFrom = 'plan';
@@ -196,8 +370,8 @@ async function openMandate(i, btn, from = 'plan') {
   pendingFrom = from;
   $('mText').textContent = m.text;
   const msg = m.typed.message;
-  $('mTyped').replaceChildren(...[['domain', `${m.typed.domain.name} v${m.typed.domain.version} · chain ${m.typed.domain.chainId}`], ['contract', m.typed.domain.verifyingContract],
-    ['to', msg.to], ['amount', `${msg.amount} (6 decimals)`], ['opId', msg.opId], ['deadline', new Date(Number(msg.deadline) * 1000).toISOString()], ['epoch', msg.epoch]]
+  $('mTyped').replaceChildren(...[['Domain', `${m.typed.domain.name} v${m.typed.domain.version} · chain ${m.typed.domain.chainId}`], ['Contract', m.typed.domain.verifyingContract],
+    ['To', msg.to], ['Amount', `${msg.amount} (6 decimals)`], ['Operation', msg.opId], ['Deadline', new Date(Number(msg.deadline) * 1000).toISOString()], ['Epoch', msg.epoch]]
     .map(([k, v]) => h('tr', {}, h('td', {}, k), h('td', {}, String(v)))));
   $('mandateDlg').showModal();
 }
@@ -214,8 +388,8 @@ $('mSign').addEventListener('click', async (ev) => {
   if (btn) { btn.disabled = true; btn.textContent = 'Signed · waiting for the block…'; }
   try {
     const e = await api('/api/mandate/sign', { i: pendingIdx, from: pendingFrom });
-    toast(e.status === 'success' ? 'Signed and executed: tier 2 payment done.' : `Refused on-chain: ${reasonOf(e) ?? e.status}`);
-    if (btn?.isConnected) settle(btn, e, 'signed by the owner, executed');
+    toast(e.status === 'success' ? 'Signed by you, paid by the agent.' : `Refused on-chain: ${reasonOf(e) ?? e.status}`);
+    if (btn?.isConnected) settle(btn, e, 'Signed by you');
   } catch (err) {
     toast(err.message);
     if (btn) { btn.disabled = false; btn.textContent = label; }
@@ -225,23 +399,23 @@ $('mSign').addEventListener('click', async (ev) => {
   refresh();
 });
 
-$('run').addEventListener('click', (e) => busy(e.target, async () => {
-  $('planMeta').textContent = $('mode').value === 'live' ? 'Calling the model… (≈20 s)' : 'Loading the recorded run…';
-  renderPlan(await api('/api/plan', { profile: $('profile').value, mode: $('mode').value }));
-}));
+// ------------------------------------------------------------------ rules in the owner's words
+const RULES = [[/^Rent is 800/, 'Rent 850, power 150, a DCA'], [/school tuition/, 'Let it pay the school'], [/new wallet/, 'Landlord’s new wallet'],
+  [/a little/, 'A bit more rent'], [/^ok so/, 'Typed in a hurry'], [/[一-鿿]/, 'In Chinese'], [/two weeks/, 'Away for two weeks']];
+const ruleOf = (t) => RULES.find(([re]) => re.test(t))?.[1] ?? (t.length > 32 ? `${t.slice(0, 30)}…` : t);
 
-// ------------------------------------------------------------------ mandate editor
 async function loadSamples() {
-  const samples = await api('/api/mandate/samples');
-  $('sample').replaceChildren(...samples.map((t, i) => h('option', { value: i }, t.length > 70 ? `${t.slice(0, 70)}…` : t)), h('option', { value: 'own' }, 'Write your own (live call)'));
-  const pick = () => {
-    const own = $('sample').value === 'own';
-    $('ownerText').value = own ? '' : samples[Number($('sample').value)] ?? '';
-    if (own && S.allowLive) $('cmode').value = 'live';
+  const texts = await api('/api/mandate/samples');
+  const chips = $('sampleChips');
+  chips.replaceChildren(...texts.map((t, k) => h('button', { role: 'radio', 'aria-checked': String(k === 0), 'data-v': k }, ruleOf(t))),
+    ...(S.allowLive ? [h('button', { role: 'radio', 'aria-checked': 'false', 'data-v': 'own' }, 'Write your own')] : []));
+  radios(chips, (v) => {
+    const own = v === 'own';
+    $('ownerText').value = own ? '' : texts[Number(v)] ?? '';
+    if (own) { $('cmode').value = 'live'; $('ownerText').focus(); }
     restart();
-  };
-  $('sample').addEventListener('change', pick);
-  pick();
+  });
+  $('ownerText').value = texts[0] ?? '';
 }
 
 // One exchange per owner text: the answers so far and the number of model turns. Editing the text starts over.
@@ -252,11 +426,8 @@ $('ownerText').addEventListener('input', restart);
 
 async function compile(answers) {
   $('cMeta').textContent = $('cmode').value === 'live' ? 'Calling the model… (≈10 s)' : 'Loading the recorded run…';
-  $('diff').hidden = true;
-  $('worstDiff').hidden = true;
+  for (const id of ['diff', 'worstShift', 'applyMandate', 'cAsk']) $(id).hidden = true;
   $('cNotes').replaceChildren();
-  $('applyMandate').hidden = true;
-  $('cAsk').hidden = true;
   let r;
   try {
     r = await api('/api/mandate/compile', { text: $('ownerText').value, mode: $('cmode').value, answers });
@@ -266,52 +437,50 @@ async function compile(answers) {
   }
   qa = answers;
   turns += 1;
-  $('cMeta').textContent = `${r.meta.mode} · ${r.meta.model}${r.meta.seconds ? ` · ${r.meta.seconds.toFixed(1)} s` : ''} · turn ${turns} · model: “${r.struct.summary}”`;
+  $('cMeta').textContent = `The model read: “${r.struct.summary}”`;
   // The model asks instead of guessing a value; a recorded replay pre-fills the answer it was recorded with.
   $('cAsk').hidden = !r.questions.length;
   $('cQuestions').replaceChildren(...r.questions.map((q) => {
     const recorded = r.replayAnswers.find((x) => x.q === q)?.a;
     return h('label', {}, q,
       h('input', { 'data-q': q, value: recorded ?? '', required: true, maxlength: 300, autocomplete: 'off' }),
-      recorded != null ? h('span', { class: 'tag' }, 'the owner\'s recorded answer: a replay only knows this one (a live run takes any answer)') : null);
+      recorded != null ? h('span', { class: 'tag' }, 'The recorded answer. A live run takes any answer.') : null);
   }));
   // While a question is open the struct is incomplete (live run mandate-compile-20261015T081246003Z: the model asked
   // for the rent cap and also set it to 0), so no diff is shown until the owner has answered.
-  $('diff').hidden = !r.rows.length || r.questions.length > 0;
+  const ready = r.rows.length > 0 && !r.questions.length;
+  $('diff').hidden = !ready;
   $('diffBody').replaceChildren(...r.rows.map((row) => h('tr', { class: row.direction }, h('td', {}, row.label), h('td', {}, String(row.from)), h('td', {}, String(row.to)),
-    h('td', { class: 'dir' }, row.direction === 'looser' ? 'loosens' : 'tightens'))));
+    h('td', { class: 'dir' }, row.direction === 'looser' ? 'Looser' : 'Tighter'))));
   $('cNotes').replaceChildren(
     ...(r.rows.length || r.questions.length ? [] : [h('li', {}, 'No change to the on-chain mandate.')]),
     ...r.errors.map((x) => h('li', { class: 'err' }, x)),
     ...r.unmapped.map((x) => h('li', { class: 'unm' }, x)));
-  renderWorstDiff(r.worst, r.rows.length > 0 && !r.questions.length);
+  renderWorstShift(r.worst, ready);
   const btn = $('applyMandate');
   btn.hidden = !r.calls.length && !r.questions.length;
   btn.disabled = r.errors.length > 0 || r.questions.length > 0;
-  btn.className = r.looser ? 'danger' : 'primary';
-  btn.textContent = r.questions.length ? 'Answer the questions before applying'
-    : r.errors.length ? 'Fix the errors before applying'
-      : `Apply ${r.calls.length} owner transaction${r.calls.length > 1 ? 's' : ''}${r.looser ? ` (${r.looser} loosen the leash)` : ''}`;
+  btn.className = r.looser ? 'danger' : 'go';
+  btn.textContent = r.questions.length ? 'Answer the questions first'
+    : r.errors.length ? 'Fix the errors first'
+      : `Apply as owner · ${r.calls.length} transaction${r.calls.length > 1 ? 's' : ''}${r.looser ? `, ${r.looser} looser` : ''}`;
 }
 
 // What the change does to the worst case, before the owner signs it: the price of a longer leash.
-const BOUND = { budget: ' (budget)', balance: ' (whole balance)', days: '' };
-function renderWorstDiff(w, show) {
-  $('worstDiff').hidden = !show;
+function renderWorstShift(w, show) {
+  const el = $('worstShift');
+  el.hidden = !show;
   if (!show) return;
-  const n = (a, b) => (b > a ? 'looser' : b < a ? 'tighter' : '');
-  const names = (x) => x.to.join(', ') || 'nobody';
-  const rows = [
-    ['tUSD that can leave per day', money(w.now.perDay, 0), money(w.next.perDay, 0), n(w.now.perDay, w.next.perDay)],
-    ['…only to', names(w.now), names(w.next), n(w.now.to.length, w.next.to.length)],
-    ['UTC days the agent key can still pay', w.now.days, w.next.days, n(w.now.days, w.next.days)],
-    ['tUSD left in the agent key\'s budget', money(w.now.budget, 0), money(w.next.budget, 0), n(w.now.budget, w.next.budget)],
-    ['tUSD until the agent key expires', money(w.now.untilExpiry, 0) + BOUND[w.now.bound],
-      money(w.next.untilExpiry, 0) + BOUND[w.next.bound], n(w.now.untilExpiry, w.next.untilExpiry)],
-    ['tUSD lost on swaps per day', money(w.now.swapLossPerDay, 0), money(w.next.swapLossPerDay, 0), n(w.now.swapLossPerDay, w.next.swapLossPerDay)],
-  ];
-  $('worstBody').replaceChildren(...rows.map(([label, a, b, dir]) => h('tr', { class: dir }, h('td', {}, label), h('td', {}, a), h('td', {}, b),
-    h('td', { class: 'dir' }, dir === 'looser' ? 'riskier' : dir === 'tighter' ? 'safer' : ''))));
+  const a = w.now.untilExpiry;
+  const b = w.next.untilExpiry;
+  const dir = b > a ? 'looser' : b < a ? 'tighter' : 'same';
+  // Same risk is not "no effect": the per-day line still moves, but a tighter bound holds the total.
+  const held = { budget: ': the key’s budget caps it', balance: ': the vault’s balance caps it' }[w.next.bound] ?? '';
+  el.replaceChildren(
+    h('span', { class: 'k' }, 'Most a full hijack can move'),
+    h('b', { class: 'same' }, usd(a)), h('span', { class: 'arrow' }, '→'), h('b', { class: dir }, usd(b)),
+    h('span', { class: `dirw ${dir}` }, { looser: 'Riskier', tighter: 'Safer', same: `Same risk${held}` }[dir]),
+    h('span', { class: 'k' }, `${money(w.next.perDay, 0)} a day at most, only to ${list(w.next.to)}`));
 }
 
 $('compile').addEventListener('click', (e) => { restart(); busy(e.target, () => compile([])); });
@@ -324,137 +493,201 @@ $('cAsk').addEventListener('submit', (e) => {
 $('applyMandate').addEventListener('click', (e) => busy(e.target, async () => {
   const out = await api('/api/mandate/apply', {});
   const ok = out.every((x) => x.status === 'success');
-  toast(ok ? `Mandate updated on-chain (${out.length} tx).` : `Stopped: ${reasonOf(out.at(-1)) ?? out.at(-1).status}`);
+  toast(ok ? `Mandate changed on-chain: ${out.length} owner transaction${out.length > 1 ? 's' : ''}.` : `Stopped: ${reasonOf(out.at(-1)) ?? out.at(-1).status}`);
   e.target.hidden = true;
   refresh();
 }, 'Sending…'));
 
-// ------------------------------------------------------------------ chat
-const AGENT = {
-  healthy: ['healthy agent', 'Guarded prompt, then LEASH\'s code checks every intent, then the vault. The agent acts alone only inside tier 1; above it, it asks you to sign.'],
-  model: ['hijacked model', 'A prompt written to obey every message stands in for a hijacked model. LEASH\'s code and the vault still check what it proposes.'],
-  server: ['hijacked model + server', 'The same obeying prompt, and the agent\'s server sends whatever it proposes with the agent key, unchecked. Only the vault is left.'],
-  plain: ['no LEASH: plain wallet', 'The counterfactual: the usual way to give an agent money. The same hijacked server holds the key of a plain wallet funded like the vault, and signs a token transfer for whatever the model proposes. No vault, so nothing is left to refuse.'],
-};
-let samples = [];
+// ------------------------------------------------------------------ sealed bills
+// The school seals each bill with its own key: who and how much. The agent settles it alone, above its own limits;
+// the vault holds the money for the contest window, then pays the school and nobody else.
+const BILLS = [['semester', 'Semester fees', 1500], ['lab', 'Lab fee', 400], ['exam', 'Exam fee', 300]];
+let holds = [];
+const holdTx = {};
 
-async function loadChat() {
-  samples = await api('/api/chat/samples');
-  const fill = () => {
-    const prof = $('agent').value === 'healthy' ? 'guarded' : 'hijacked';
-    const cur = $('say').value;
-    $('say').replaceChildren(...samples.map((x, i) => h('option', { value: i }, `${x.recorded.includes(prof) ? '' : '[live only] '}${x.text.length > 90 ? `${x.text.slice(0, 90)}…` : x.text}`)),
-      h('option', { value: 'own' }, 'Write your own (live call)'));
-    if (cur) $('say').value = cur;
-    $('agentNote').textContent = AGENT[$('agent').value][1];
-  };
-  const pick = () => {
-    const own = $('say').value === 'own';
-    $('msg').value = own ? '' : samples[Number($('say').value)]?.text ?? '';
-    if (own && S.allowLive) $('tmode').value = 'live';
-  };
-  $('agent').addEventListener('change', fill);
-  $('say').addEventListener('change', pick);
-  fill();
-  pick();
+function renderAllow(s) {
+  const school = s.seals?.school;
+  if (!school) { $('invoices').hidden = true; return; }
+  const paid = holds.filter((x) => x.state === 'released').reduce((n, x) => n + x.amount, 0);
+  const parts = [['left', 'Left to seal', school.allowance], ['held', 'Held now', s.held], ['paid', 'Paid', paid]];
+  const tot = Math.max(parts.reduce((n, p) => n + p[2], 0), 1);
+  $('allow').replaceChildren(
+    h('div', { class: 'legend' }, parts.map(([c, k, v]) => h('span', {}, h('i', { class: c, style: `background: var(--${{ left: 'accent', held: 'amber', paid: 'muted' }[c]})` }), `${k} `, h('b', {}, money(v, 0))))),
+    h('div', { class: 'track' }, ['paid', 'held', 'left'].map((c) => h('i', { class: c, style: `flex-basis: ${(parts.find((p) => p[0] === c)[2] / tot) * 100}%` }))));
 }
 
-function chatResult(x, r) {
-  const head = (badge, cls) => h('div', { class: 'row' }, h('span', { class: 'what' }, describe(r.intent)), h('span', { class: `badge ${cls}` }, badge));
-  const tx = (e, okText) => h('div', { class: `settled ${e.status === 'success' ? (x.agent === 'healthy' ? 'ok' : 'warn') : 'bad'}` },
-    e.status === 'success' ? okText : `refused by the ${e.status === 'reverted' ? 'contract' : 'node before sending'}: ${reasonOf(e) ?? e.status}`, e.hash ? ' · ' : '', e.hash ? link(e.hash, e.status === 'reverted') : '');
-  if (x.agent === 'server') {
-    return h('li', { class: 'prop' }, head(r.sent ? 'sent unchecked' : 'not sent', 'refuse'),
-      h('div', { class: 'meta' }, r.sent ? `the hijacked server called ${r.call}() with the agent key` : r.note),
-      r.sent && tx(r.tx, 'went through: it was inside the mandate'));
-  }
-  if (x.agent === 'plain') {
-    return h('li', { class: 'prop' }, head(r.sent ? 'sent unchecked' : 'not sent', 'refuse'),
-      h('div', { class: 'meta' }, r.sent ? 'the hijacked server signed a tUSD transfer from the plain wallet' : r.note),
-      r.sent && h('div', { class: `settled ${r.tx.status === 'success' ? 'bad' : 'warn'}` },
-        r.tx.status === 'success' ? 'GONE: nothing on-chain checked it' : `failed: ${reasonOf(r.tx) ?? r.tx.status}`, r.tx.hash ? ' · ' : '', r.tx.hash ? link(r.tx.hash, false) : ''));
-  }
-  const action = r.decision === 'needs_owner' ? h('button', { onclick: (ev) => busy(ev.target, () => openMandate(r.ask, ev.target, 'chat')) }, 'Review & sign') : null;
-  return h('li', { class: 'prop' }, head(r.decision === 'needs_owner' ? 'needs your signature' : r.decision, r.decision),
-    h('ul', { class: 'checks' }, r.checks.map((c) => h('li', { class: c.ok ? '' : 'fail', title: c.detail }, `${c.rule}${c.ok ? '' : ` — ${c.detail}`}`))),
-    r.tx && tx(r.tx, 'done by the agent alone (tier 1)'),
-    action && h('div', { class: 'row' }, h('span'), action));
-}
-
-function renderExchange(x) {
-  const m = x.meta;
-  $('thread').prepend(h('li', { class: `ex ${x.agent}` },
-    h('div', { class: 'bubble msg' },
-      h('header', {}, h('span', {}, `${x.id} · unsigned message`), h('span', { class: 'chips' }, chips('code', x.codeFlags))),
-      h('p', {}, x.text)),
-    h('div', { class: 'bubble reply' },
-      h('header', {}, h('span', {}, `${AGENT[x.agent][0]} · ${m.mode} · ${m.model}${m.seconds ? ` · ${m.seconds.toFixed(1)} s` : ''}`), h('span', { class: 'chips' }, chips('model', x.modelFlags))),
-      h('p', {}, x.reply)),
-    x.results.length ? h('ol', { class: 'proposals' }, x.results.map((r) => chatResult(x, r))) : h('p', { class: 'meta' }, 'No action proposed.')));
-}
-
-$('send').addEventListener('click', (e) => busy(e.target, async () => {
-  const text = $('msg').value.trim();
-  if (!text) throw new Error('write a message first');
-  const x = await api('/api/chat', { text, agent: $('agent').value, mode: $('tmode').value });
-  renderExchange({ ...x, text });
-  refresh();
-}, $('tmode').value === 'live' ? 'Asking the model…' : 'Sending…'));
-
-// ------------------------------------------------------------------ red team
-async function loadAttacks() {
-  const list = await api('/api/attacks');
-  $('attacks').replaceChildren(...list.map((a) => {
-    const res = h('div', { class: 'res' }, `expect ${a.expect}`);
-    const card = h('div', { class: 'atk' }, h('div', { class: 'row' }, h('b', { class: 'mono' }, a.id)), h('p', {}, a.title), res);
-    const btn = h('button', { onclick: () => busy(btn, async () => {
-      res.textContent = 'sending…';
-      let r;
-      try { r = await api('/api/attack', { id: a.id }); } catch (err) { res.textContent = `not sent: ${err.message}`; throw err; }
-      card.classList.toggle('pass', r.pass);
-      card.classList.toggle('fail', !r.pass);
-      res.replaceChildren(`${r.pass ? '✓' : '✗'} ${r.outcome}`, r.hash ? h('br') : '', r.hash ? link(r.hash, r.outcome.startsWith('reverted')) : '', r.note ? h('div', {}, r.note) : '', r.error ? h('div', {}, r.error) : '');
-      refresh();
-    }) }, 'Launch');
-    card.querySelector('.row').append(btn);
-    return card;
+function loadBills() {
+  const school = S.seals?.school;
+  if (!school) return;
+  const win = S.contestWindow >= 3600 ? `${S.contestWindow / 3600} h` : `${S.contestWindow / 60} min`;
+  $('bills').replaceChildren(...BILLS.map(([bill, title, amount]) => {
+    const b = h('button', { class: 'go' }, 'Settle as agent');
+    b.addEventListener('click', () => busy(b, async () => {
+      const r = await api('/api/seal/settle', { bill });
+      if (r.status === 'success') { holdTx[r.key] = r; toast(`${title} held: ${win} for you or the guardian to stop it.`); } else toast(`Refused by the contract: ${reasonOf(r) ?? r.status}`);
+      await refresh();
+      await loadHolds();
+    }, 'Settling…'));
+    const li = h('li', { class: 'bill', 'data-bill': bill }, h('b', {}, title), h('span', { class: 'amt' }, `${money(amount, 0)} tUSD`),
+      h('span', { class: 'by' }, 'Sealed by the school ', h('span', {}, short(school.address))), h('span', { class: 'slot' }, b));
+    li.settle = b;
+    return li;
   }));
 }
 
-// ------------------------------------------------------------------ sealed invoice
-// The school's bill for the semester (campaign task T6), sealed with the school's own key. The agent settles it alone,
-// above its own limits; the vault holds the money for the contest window, then pays the school and nobody else.
-function loadSeal() {
-  const school = S.seals?.school;
-  if (!school) { $('sealCard').hidden = true; return; }
-  const win = S.contestWindow >= 3600 ? `${S.contestWindow / 3600} h` : `${S.contestWindow / 60} min`;
-  const res = h('div', { class: 'res' }, `The owner lets the school's seals take ${money(school.allowance, 0)} tUSD in total.`);
-  const card = h('div', { class: 'atk seal' }, h('div', { class: 'row' }, h('b', {}, 'Semester fees S1 · 1,500 tUSD')),
-    h('p', {}, 'To the school ', h('span', { class: 'mono' }, school.address), ', sealed with the school\'s own key, for this vault on this chain only. Change the amount or the recipient and the seal breaks.'), res);
-  const btn = h('button', { class: 'primary', onclick: () => busy(btn, async () => {
-    res.textContent = `settling… then held ${win} for you or the guardian to contest`;
-    let r;
-    try { r = await api('/api/task', { id: 'T6' }); } catch (err) { res.textContent = `not sent: ${err.message}`; throw err; }
-    const ok = r.outcome === 'success';
-    card.classList.toggle('pass', ok);
-    card.classList.toggle('fail', !ok);
-    res.replaceChildren(ok ? '✓ released to the school' : `✗ ${r.outcome}`, r.hash ? h('br') : '', r.hash ? link(r.hash) : '', r.note ? h('div', {}, r.note) : '', r.error ? h('div', {}, r.error) : '');
-    refresh();
-  }) }, 'Settle as agent');
-  card.querySelector('.row').append(btn);
-  $('seal').replaceChildren(card);
+// A bill already held or paid shows where it is, not a second button; a contested one can be settled again.
+function renderBills() {
+  for (const li of $('bills').children) {
+    const last = holds.filter((x) => x.bill === li.dataset.bill).at(-1);
+    const st = last && last.state !== 'contested' ? last.state : null;
+    const slot = li.querySelector('.slot');
+    if (st) slot.replaceChildren(h('span', { class: `now ${st}` }, st === 'held' ? 'Held' : 'Paid'));
+    else {
+      li.settle.textContent = last ? 'Settle again' : 'Settle as agent';
+      if (slot.firstChild !== li.settle) slot.replaceChildren(li.settle);
+    }
+  }
 }
 
-// A refusal also links to a decoding explorer: Etherscan only says "execution reverted".
-function link(hash, reverted = false) {
-  const u = txUrl(hash);
-  if (!u) return h('span', { class: 'mono' }, short(hash));
-  const a = h('a', { href: u, target: '_blank', rel: 'noopener', class: 'mono' }, short(hash));
-  return reverted && S?.decoder
-    ? h('span', {}, a, ' · ', h('a', { href: `${S.decoder}/tx/${hash}`, target: '_blank', rel: 'noopener' }, 'decoded')) : a;
+async function loadHolds() {
+  holds = await api('/api/holds');
+  renderHolds();
 }
 
-// ------------------------------------------------------------------ ledger
+// The chain's own clock is the only one the vault obeys. Between refreshes it runs on from the last block read;
+// a local chain mines no block while idle, so the wall clock since the hold was mined bounds it too.
+function remaining(x) {
+  const chainNow = S.now + (Date.now() - stateAt) / 1000;
+  return Math.max(0, Math.min(x.releaseAt - chainNow, S.contestWindow - (Date.now() - x.heldAt) / 1000));
+}
+const clock = (sec) => { const s = Math.ceil(sec); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+const phaseOf = (x) => (x.state === 'held' ? (remaining(x) > 0 ? 'open' : 'due') : x.state);
+
+function holdAct(label, cls, path, body, done) {
+  const b = h('button', { class: cls }, label);
+  b.addEventListener('click', () => busy(b, async () => {
+    const r = await api(path, body);
+    if (r.hash) holdTx[body.key] = r;
+    toast(r.status === undefined || r.status === 'success' ? done : `Refused by the contract: ${reasonOf(r) ?? r.status}`);
+    await refresh();
+    await loadHolds();
+  }, 'Sending…'));
+  return b;
+}
+
+function holdActs(x, phase) {
+  const key = x.key;
+  if (phase === 'open') {
+    return [holdAct('Contest as owner', 'light', '/api/seal/contest', { key, as: 'owner' }, 'Contested: the money stays in the vault.'),
+      holdAct('Contest as guardian', 'light', '/api/seal/contest', { key, as: 'guardian' }, 'Contested by the guardian: the money stays in the vault.'),
+      S.network === 'local' ? holdAct('Skip to the end', '', '/api/seal/skip', { key }, 'Local chain moved to the end of the window.') : null];
+  }
+  if (phase === 'due') return [holdAct('Release to the school', 'go', '/api/seal/release', { key }, 'Paid to the school.')];
+  const e = holdTx[key];
+  return e?.hash ? [link(e.hash, e.status === 'reverted')] : [];
+}
+
+const HOLD_TEXT = { open: 'Held in the vault. You or the guardian can still stop it.', due: 'Window closed. Anyone can release it, only to the school.',
+  released: 'Paid to the school, and to nobody else.', contested: 'Contested. The money stays in the vault.' };
+function tickHold(li, x) {
+  const phase = phaseOf(x);
+  const rem = remaining(x);
+  li.querySelector('.clock').textContent = phase === 'released' ? 'Paid' : phase === 'contested' ? 'Stopped' : clock(rem);
+  li.querySelector('.drain i').style.transform = `scaleX(${phase === 'open' || phase === 'due' ? rem / S.contestWindow : 0})`;
+  if (li.dataset.phase === phase) return;
+  li.dataset.phase = phase;
+  li.className = `hold ${x.state} ${phase}`;
+  li.querySelector('.state').textContent = HOLD_TEXT[phase];
+  li.querySelector('.acts').replaceChildren(...holdActs(x, phase).filter(Boolean));
+}
+
+function renderHolds() {
+  $('holds').replaceChildren(...holds.slice().reverse().map((x) => {
+    const li = h('li', { class: 'hold', 'data-key': x.key },
+      h('p', { class: 't' }, x.title, ' ', h('span', {}, `${money(x.amount, 0)} tUSD`)),
+      h('b', { class: 'clock' }), h('p', { class: 'state' }),
+      h('div', { class: 'drain' }, h('i')), h('div', { class: 'acts' }));
+    tickHold(li, x);
+    return li;
+  }));
+  renderBills();
+  if (S) renderAllow(S);
+}
+setInterval(() => {
+  if (!S) return;
+  for (const li of $('holds').children) {
+    const x = holds.find((y) => y.key === li.dataset.key);
+    if (x) tickHold(li, x);
+  }
+}, 500);
+
+// ------------------------------------------------------------------ red team
+const ATK = {
+  A1: 'Invoice swaps the landlord’s address', A2: 'Stolen key drains the vault', A3: 'Stolen key adds itself as a payee', A4: 'Stolen key withdraws',
+  A5: 'Salami slices to a trusted payee', A6: 'Replay October’s rent', A7: 'Forged owner signature', A8: 'Voided signature reused',
+  A9: 'Pump the pool, then buy', A10: 'Pay during a pause', A11: 'Guardian restarts the agent', A12: 'Outsider calls the vault',
+  A13: 'Expired key pays', A14: 'Sealed bill rewritten 400 → 4,000', A15: 'Real seal, outsized bill', A16: 'Contested bill leaves anyway',
+};
+// Who stops it and with what: the contract's error, or the check LEASH's code failed before anything was signed.
+const byOf = (outcome) => {
+  const [kind, name] = outcome.split(':');
+  return kind === 'reverted' ? `Contract · ${name}` : kind === 'refused' ? `LEASH code · ${name}` : outcome;
+};
+
+async function launch(a, li, res, btn) {
+  li.classList.remove('pass', 'fail');
+  li.classList.add('run');
+  res.replaceChildren(h('b', {}, 'Sending…'));
+  let r;
+  try { r = await api('/api/attack', { id: a.id }); } catch (err) { li.classList.remove('run'); res.replaceChildren(h('b', {}, 'Not sent'), h('span', { class: 'by' }, err.message)); throw err; }
+  li.classList.remove('run');
+  li.classList.add(r.pass ? 'pass' : 'fail');
+  const reverted = r.outcome.startsWith('reverted');
+  res.replaceChildren(h('b', {}, r.pass ? 'Refused' : 'Not refused'), h('span', { class: 'by' }, byOf(r.outcome)), ...(r.hash ? [link(r.hash, reverted)] : []));
+  btn.textContent = 'Again';
+  score();
+  refresh();
+}
+
+function score() {
+  const rows = [...$('attacks').children];
+  const n = rows.filter((li) => li.classList.contains('pass')).length;
+  count($('scoreNum'), n, (x) => String(Math.round(x)));
+  $('score').classList.toggle('zero', n === 0);
+  $('score').classList.toggle('miss', rows.some((li) => li.classList.contains('fail')));
+}
+
+async function loadAttacks() {
+  const all = await api('/api/attacks');
+  $('attacks').replaceChildren(...all.map((a) => {
+    // Before launch the tile shows who should stop it; after, the stamp and the receipt.
+    const res = h('p', { class: 'res' }, h('span', { class: 'by' }, byOf(a.expect)));
+    const btn = h('button', {}, 'Launch');
+    const li = h('li', { class: 'atk', title: a.title }, h('div', { class: 'top' }, h('span', { class: 'id' }, a.id), btn), h('p', { class: 't' }, ATK[a.id] ?? a.title), res);
+    li.launch = () => launch(a, li, res, btn);
+    btn.addEventListener('click', () => busy(btn, li.launch));
+    return li;
+  }));
+}
+
+$('runAll').addEventListener('click', (e) => busy(e.target, async () => {
+  const rows = [...$('attacks').children];
+  for (const li of rows) li.querySelector('button').disabled = true;
+  try {
+    for (const li of rows) {
+      li.scrollIntoView({ block: 'nearest', behavior: REDUCED ? 'auto' : 'smooth' });
+      try { await li.launch(); } catch { /* shown on its row */ }
+    }
+  } finally { for (const li of rows) li.querySelector('button').disabled = false; }
+}, 'Launching…'));
+
+async function loadEvidence() {
+  const ev = await api('/api/evidence');
+  if (!ev) return;
+  $('evidence').replaceChildren('Last full campaign on this chain: ', h('b', {}, `${ev.passed} of ${ev.total} as expected`), ` · run ${ev.runId}`);
+}
+
+// ------------------------------------------------------------------ receipts
 // The 5 s refresh redraws the list; only rows not shown before fade in, or the whole ledger blinks every 5 s.
 let ledgerShown = null;
 function renderLedger(rows) {
@@ -467,28 +700,30 @@ function renderLedger(rows) {
     const st = r.status ?? 'info';
     const why = st === 'reverted' || st === 'refused-before-signing' ? reasonOf(r) : null;
     return h('li', { class: seen.has(key(r)) ? st : `${st} new` },
-      h('div', { class: 'l1' }, h('span', { class: 'st' }, st === 'refused-before-signing' ? 'refused (software)' : st === 'reverted' ? 'refused (contract)' : st), h('span', { class: 'meta' }, r.at?.slice(11, 19))),
+      h('div', { class: 'l1' }, h('span', { class: 'st' }, st === 'refused-before-signing' ? 'Refused by the code' : st === 'reverted' ? 'Refused by the contract' : st === 'success' ? 'Mined' : st), h('span', { class: 'meta' }, r.at?.slice(11, 19))),
       h('div', { class: 'lbl' }, r.title ?? r.label ?? r.fn ?? ''),
       why && h('div', { class: 'why' }, why),
       r.hash && link(r.hash, st === 'reverted'));
   });
-  $('ledger').replaceChildren(...(items.length ? items : [h('li', { class: 'meta' }, 'Nothing yet. Run the routine or launch an attack.')]));
+  $('ledger').replaceChildren(...(items.length ? items : [h('li', { class: 'meta' }, 'Nothing yet. Hijack the agent or launch an attack.')]));
+  const n = $('receiptCount');
+  if (ledgerShown && Number(n.textContent) !== rows.length) { n.parentElement.classList.remove('bump'); void n.offsetWidth; n.parentElement.classList.add('bump'); }
+  n.textContent = rows.length;
   ledgerShown = { sig, keys: rows.map(key) };
 }
 
-async function loadEvidence() {
-  const ev = await api('/api/evidence');
-  if (!ev) return;
-  $('evidence').replaceChildren(
-    h('div', {}, `${ev.passed}/${ev.total} scenes as expected · run ${ev.runId}`),
-    h('ol', { class: 'ledger' }, ev.results.map((r) => h('li', { class: r.outcome.startsWith('reverted') ? 'reverted' : r.outcome.startsWith('refused') ? 'refused-before-signing' : 'success' },
-      h('div', { class: 'l1' }, h('span', { class: 'st' }, `${r.pass ? '✓' : '✗'} ${r.id}`), h('span', { class: 'meta' }, r.outcome)),
-      h('div', { class: 'lbl' }, r.title), r.hash && link(r.hash, r.outcome.startsWith('reverted'))))));
+function drawer(on) {
+  $('receipts').hidden = !on;
+  $('receiptsBtn').setAttribute('aria-expanded', String(on));
+  (on ? $('receiptsClose') : $('receiptsBtn')).focus();
 }
+$('receiptsBtn').addEventListener('click', () => drawer($('receipts').hidden));
+$('receiptsClose').addEventListener('click', () => drawer(false));
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('receipts').hidden) drawer(false); });
 
 // ------------------------------------------------------------------ owner / guardian
-$('kill').addEventListener('click', (e) => busy(e.target, async () => { await api('/api/guardian/pause', {}); toast('Guardian paused the vault. The agent can do nothing.'); await refresh(); }, 'Pausing…'));
-$('unpause').addEventListener('click', (e) => busy(e.target, async () => { await api('/api/owner/unpause', {}); toast('Owner restarted the agent.'); await refresh(); }, 'Restarting…'));
+$('kill').addEventListener('click', (e) => busy(e.target, async () => { await api('/api/guardian/pause', {}); toast('The guardian paused the vault. Nothing can leave.'); await refresh(); }, 'Pausing…'));
+$('unpause').addEventListener('click', (e) => busy(e.target, async () => { await api('/api/owner/unpause', {}); toast('You restarted the agent.'); await refresh(); }, 'Restarting…'));
 
 // On Sepolia /api/state makes several RPC calls; a slow one must not stack refreshes behind the owner's clicks.
 // One refresh at a time. A refresh asked for during one runs again after it, because the one in flight may
@@ -509,9 +744,25 @@ function refresh() {
   return refreshing;
 }
 
+// ------------------------------------------------------------------ page motion: sections rise in, the nav follows
+function motion() {
+  const secs = [...document.querySelectorAll('.sec')];
+  const rise = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('in'); rise.unobserve(e.target); } }), { rootMargin: '0px 0px -10% 0px' });
+  for (const s of secs) { s.classList.add('reveal'); rise.observe(s); }
+  const links = [...document.querySelectorAll('.links a')];
+  const here = new IntersectionObserver((es) => es.forEach((e) => {
+    if (e.isIntersecting) for (const a of links) a.classList.toggle('on', a.hash === `#${e.target.id}`);
+  }), { rootMargin: '-45% 0px -50% 0px' });
+  for (const a of links) { const t = document.querySelector(a.hash); if (t) here.observe(t); }
+}
+
+for (const id of ['mVault', 'mReach', 'mPlain']) $(id).dataset.v = '0';
+motion();
 await refresh();
-$('instruction').textContent = `Owner: “${S.instruction}”`;
-loadSeal();
-await Promise.all([loadInbox(), loadAttacks(), loadEvidence(), loadSamples(), loadChat()]);
-if (!S.allowLive) for (const id of ['mode', 'cmode', 'tmode']) $(id).querySelector('[value="live"]').disabled = true;
+$('instruction').textContent = `“${S.instruction}”`;
+loadBills();
+await Promise.all([loadInbox(), loadAttacks(), loadEvidence(), loadSamples(), loadChat(), loadHolds()]);
+if (S.allowLive) {
+  for (const [sel, note] of [['tmode', 'tmodeNote'], ['cmode', 'cmodeNote'], ['mode', null]]) { $(sel).hidden = false; if (note) $(note).hidden = true; }
+} else for (const id of ['mode', 'cmode', 'tmode']) $(id).querySelector('[value="live"]').disabled = true;
 setInterval(() => refreshing || refresh(), 5000);

@@ -199,7 +199,7 @@ export function makeCampaign(ctx, d, runId, { lastPaid } = {}) {
       } },
   ];
 
-  return { tasks, attacks, state, send, agentDoes, coSigned };
+  return { tasks, attacks, state, send, agentDoes, coSigned, sealed, settles, untilReleasable };
 }
 
 /** A mined refusal is labelled by the reason replayed at its block, never by the pre-send simulation alone. */

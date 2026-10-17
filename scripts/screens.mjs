@@ -1,7 +1,8 @@
 // Console screenshots for the docs and the deck, taken with a headless Chromium over CDP (no extra deps).
 // Usage: node scripts/screens.mjs [url] [outDir]   (BROWSER=path to msedge/chrome)
-// Drives the real console: runs the routine, executes tier 1, opens the tier-2 dialog and signs,
-// compiles a mandate text, launches attacks, pulls the kill switch. Run it on a fresh deploy (local or Sepolia).
+// Drives the real console: hijacks the agent four ways, runs the routine, executes tier 1, opens the tier-2 dialog
+// and signs, compiles mandate texts, settles a sealed bill, launches the sixteen attacks, pulls the kill switch.
+// Run it on a fresh deploy (local or Sepolia).
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { launch, sleep } from './cdp.mjs';
@@ -12,100 +13,114 @@ mkdirSync(OUT, { recursive: true });
 
 const browser = await launch({ width: 1600, height: 1000, scale: 2 });
 const { S, js, until } = browser;
+// Still pictures: no entrance motion, so nothing is caught halfway in.
+await S('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'dark' }, { name: 'prefers-reduced-motion', value: 'reduce' }] });
 
 async function shot(name, selector) {
   let clip;
   if (selector) {
     const r = await js(`const el = document.querySelector(${JSON.stringify(selector)}); el.scrollIntoView({ block: 'start' });
+      await new Promise((r) => setTimeout(r, 400));
       const b = el.getBoundingClientRect(); return { x: b.left + scrollX, y: b.top + scrollY, width: b.width, height: b.height };`);
-    clip = { ...r, x: Math.max(0, r.x - 12), y: Math.max(0, r.y - 12), width: r.width + 24, height: r.height + 24, scale: 1 };
+    clip = { ...r, x: Math.max(0, r.x - 16), y: Math.max(0, r.y - 16), width: r.width + 32, height: r.height + 32, scale: 1 };
   }
   const { data } = await S('Page.captureScreenshot', { format: 'png', ...(clip ? { clip, captureBeyondViewport: true } : {}) });
   writeFileSync(join(OUT, `${name}.png`), Buffer.from(data, 'base64'));
   console.log(`${name}.png`);
 }
+const chip = (group, label) => `[...document.querySelectorAll('#${group} button')].find((b) => b.textContent.startsWith(${JSON.stringify(label)}))`;
+const click = (expr) => js(`(${expr}).click();`);
 
 await S('Page.navigate', { url: URL_ });
-await until(`document.querySelectorAll('#attacks .atk').length && document.querySelectorAll('#sample option').length`, 'console loaded');
-await js(`document.querySelector('.top').style.position = 'static'; window.scrollTo(0, 0);`);
+await until(`document.querySelectorAll('#attacks .atk').length && document.querySelectorAll('#sampleChips button').length && document.querySelectorAll('#sayChips button').length`, 'console loaded');
+await js(`document.querySelector('.bar').style.position = 'static'; window.scrollTo(0, 0);`);
+await sleep(600);
 await shot('console-top');
 
-// Weekly routine (recorded replay) → proposals with every check.
-await js(`document.getElementById('run').click();`);
+// Hijack the agent: the fake owner at the airport, sent by the hijacked server with the vault's agent key, then
+// with a plain wallet's key. The first is refused by the contract; the second empties the plain wallet.
+for (const [agent, label] of [['server', 'Model + server'], ['plain', 'No LEASH']]) {
+  await click(chip('agentSeg', label));
+  await click(chip('sayChips', 'Owner stuck'));
+  await click(`document.getElementById('send')`);
+  await until(`document.querySelector('#thread li.ex.${agent} .verdict')`, `chat ${agent}`, 120000);
+}
+await sleep(5500); // one refresh tick: the meter shows the plain wallet emptied
+await js(`window.scrollTo(0, 0);`);
+await shot('chat-no-leash', '.hero');
+
+// Weekly routine (recorded replay): proposals with their outcome; the injected documents are tagged.
+await click(`document.getElementById('run')`);
 await until(`document.querySelectorAll('#proposals .prop').length`, 'routine');
-await shot('routine', '.routine');
+await shot('routine', '#routine');
 
 // Tier 1: execute the two clean bills.
 for (let i = 0; i < 2; i++) {
   await js(`document.querySelectorAll('#proposals .prop')[${i}].querySelector('button.primary').click();`);
   await until(`document.querySelectorAll('#proposals .prop')[${i}].querySelector('.settled')`, `execute ${i}`);
 }
-await js(`window.scrollTo(0, 0);`);
 await sleep(5500); // one refresh tick
+await js(`window.scrollTo(0, 0);`);
 await shot('after-tier1');
 
 // Tier 2: the tuition needs the owner's EIP-712 signature; the text is rendered by code.
-await js(`[...document.querySelectorAll('#proposals .prop button')].find((b) => b.textContent.startsWith('Review')).click();`);
+await click(`[...document.querySelectorAll('#proposals .prop button')].find((b) => b.textContent.startsWith('Review'))`);
 await until(`document.getElementById('mandateDlg').open`, 'tier-2 dialog');
-await js(`window.scrollTo(0, 0);`);
 await shot('tier2-dialog');
-await js(`document.getElementById('mSign').click();`);
+await click(`document.getElementById('mSign')`);
 await until(`document.querySelectorAll('#proposals .prop')[2].querySelector('.settled')`, 'tier-2 signed');
 await shot('routine-settled', '#proposals');
 
-// Mandate editor: a loosening request is flagged and blocked.
-await js(`const sel = document.getElementById('sample'); sel.value = [...sel.options].find((o) => o.textContent.startsWith('Let the agent')).value; sel.dispatchEvent(new Event('change')); document.getElementById('compile').click();`);
-await until(`document.querySelectorAll('#diffBody tr').length`, 'compile loosen');
+// Rules in the owner's words: a loosening request is flagged, a redirect is not enforceable, a vague value becomes
+// a question the owner answers, and a Chinese text with a transfer slipped in.
+const compile = async (label, done, what) => {
+  await click(chip('sampleChips', label));
+  await click(`document.getElementById('compile')`);
+  await until(done, what);
+};
+await compile('Let it pay the school', `document.querySelectorAll('#diffBody tr').length && !document.getElementById('diff').hidden`, 'compile loosen');
 await shot('mandate-editor-loosen', '#editor');
-await js(`const sel = document.getElementById('sample'); sel.value = [...sel.options].find((o) => o.textContent.startsWith('My landlord')).value; sel.dispatchEvent(new Event('change')); document.getElementById('compile').click();`);
-await until(`document.querySelector('#cNotes li.unm')`, 'compile redirect');
+await compile('Landlord', `document.querySelector('#cNotes li')`, 'compile redirect');
 await shot('mandate-editor-redirect', '#editor');
-
-// Mandate editor: a vague value becomes a question, and the owner's answer fills it (two recorded turns).
-await js(`const sel = document.getElementById('sample'); sel.value = [...sel.options].find((o) => o.textContent.startsWith('My rent went up')).value; sel.dispatchEvent(new Event('change')); document.getElementById('compile').click();`);
-await until(`!document.getElementById('cAsk').hidden`, 'compile vague');
+await compile('A bit more rent', `!document.getElementById('cAsk').hidden`, 'compile vague');
 await shot('mandate-editor-ask', '#editor');
-await js(`document.getElementById('answer').click();`);
-await until(`document.getElementById('cMeta').textContent.includes('turn 2')`, 'compile answered');
+await click(`document.getElementById('answer')`);
+await until(`document.getElementById('cAsk').hidden && !document.getElementById('worstShift').hidden`, 'compile answered');
 await shot('mandate-editor-answered', '#editor');
-
-// Mandate editor: a Chinese owner text with a transfer to an address slipped in.
-await js(`const sel = document.getElementById('sample'); sel.value = [...sel.options].find((o) => o.textContent.startsWith('房租涨了')).value; sel.dispatchEvent(new Event('change')); document.getElementById('compile').click();`);
-await until(`document.querySelector('#cNotes li.unm')`, 'compile zh');
+await compile('In Chinese', `document.querySelector('#cNotes li.unm, #cNotes li.err')`, 'compile zh');
 await shot('mandate-editor-zh', '#editor');
 
-// Open chat: the fake-owner message, sent by the same hijacked server with the vault's agent key, then
-// with a plain wallet's key. After the routine, so that nothing the chat lets through changes its figures.
-for (const agent of ['server', 'plain']) {
-  await js(`const $ = (id) => document.getElementById(id);
-    $('agent').value = ${JSON.stringify(agent)}; $('agent').dispatchEvent(new Event('change'));
-    const say = $('say'); say.value = [...say.options].find((o) => o.textContent.startsWith('This is the owner')).value; say.dispatchEvent(new Event('change'));
-    $('send').click();`);
-  await until(`document.querySelector('#thread li.ex.${agent} .settled')`, `chat ${agent}`, 120000);
-}
-await sleep(5500); // one refresh tick: the meter shows the plain wallet emptied
-await shot('chat-no-leash', '#talk');
+// Sealed bill: the agent settles the school's semester fees alone; the vault holds them for the contest window.
+await click(`document.querySelector('#bills button')`);
+await until(`document.querySelector('#holds .hold')`, 'sealed bill held');
+await sleep(2200);
+await shot('sealed', '#invoices');
 
-// Red team: stolen-key attacks and the pumped pool, sent for real.
-for (const id of ['A1', 'A2', 'A3', 'A4', 'A7', 'A9']) {
-  await js(`[...document.querySelectorAll('#attacks .atk')].find((c) => c.querySelector('b').textContent === ${JSON.stringify(id)}).querySelector('button').click();`);
-  await until(`[...document.querySelectorAll('#attacks .atk')].find((c) => c.querySelector('b').textContent === ${JSON.stringify(id)}).matches('.pass, .fail')`, `attack ${id}`, 120000);
-}
-await shot('redteam', '#attacks');
+// Red team: the sixteen attacks, sent for real.
+await click(`document.getElementById('runAll')`);
+await until(`document.querySelectorAll('#attacks .atk.pass, #attacks .atk.fail').length === document.querySelectorAll('#attacks .atk').length`, 'sixteen attacks', 600000);
+await sleep(1200);
+await shot('redteam', '#redteam');
+
+// Receipts: every transaction this console sent.
 await sleep(5500);
-await shot('ledger', '.col-side');
+await js(`window.scrollTo(0, 0); document.getElementById('receiptsBtn').click();`);
+await sleep(400);
+await shot('ledger');
+await js(`document.getElementById('receiptsClose').click();`);
 
 // Kill switch.
-await js(`document.getElementById('kill').click();`);
-await until(`!document.getElementById('unpause').hidden`, 'paused');
+await click(`document.getElementById('kill')`);
+await until(`!document.getElementById('pausedBand').hidden`, 'paused');
 await js(`window.scrollTo(0, 0);`);
+await sleep(400);
 await shot('paused');
 
 // Phone width: the owner's view on the go.
 await S('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 3, mobile: true });
 await S('Page.navigate', { url: URL_ });
 await until(`document.querySelectorAll('#attacks .atk').length`, 'mobile load');
-await sleep(500);
+await sleep(800);
 await shot('mobile');
 
 browser.close();

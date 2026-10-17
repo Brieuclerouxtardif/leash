@@ -6,7 +6,7 @@ FinTechathon 2026, Topic F: Agent Wallet (autonomous on-chain wallet).
 
 An AI agent that pays your bills and manages a small portfolio needs a key. A key can be stolen, and a model can be talked into things: a fake "new bank details" invoice, a prompt injection hidden in an email. LEASH accepts that the agent will one day be wrong or compromised, and makes sure that **the worst it can do is bounded by a contract, not by the model's good behaviour.**
 
-![The LEASH console on the local chain: the vault, the mandate the contract enforces, today's limits, and the last full campaign with a hash for every payment and every refusal](docs/screens/console-top.png)
+![The LEASH console on the local chain: what the vault holds, the most a full hijack can move, what the same hijack takes from a plain wallet, and the agent to hijack](docs/screens/console-top.png)
 
 ```
  owner instruction + inbox (untrusted)
@@ -38,7 +38,7 @@ The guardian (a second key, e.g. a phone) can **pause** instantly but cannot unp
 
 ## Writing the leash in plain words
 
-The owner does not type basis points. In the console's Mandate editor they write *"let the agent pay my landlord up to 850, never more than 1,200 a day, keep ETH under 35 %"*, or the same in casual English or in Chinese (recorded runs of all three). The model fills a struct; **code** diffs it against the chain and marks every change that loosens the leash in red. Code also blocks inconsistent mandates. The owner then sends the transactions. The struct has no address field: when the owner text says *"my landlord has a new wallet, 0x5DF4…"*, the console lists the request as not enforceable on-chain. Details: [TECHNICAL.md §3.6](docs/TECHNICAL.md).
+The owner does not type basis points. In the console's *Rules in your words* panel they write *"let the agent pay my landlord up to 850, never more than 1,200 a day, keep ETH under 35 %"*, or the same in casual English or in Chinese (recorded runs of all three). The model fills a struct; **code** diffs it against the chain and marks every change that loosens the leash in red. Code also blocks inconsistent mandates. The owner then sends the transactions. The struct has no address field: when the owner text says *"my landlord has a new wallet, 0x5DF4…"*, the console lists the request as not enforceable on-chain. Details: [TECHNICAL.md §3.6](docs/TECHNICAL.md).
 
 ![Mandate editor: three loosening rows in red, blocked by an inconsistency](docs/screens/mandate-editor-loosen.png)
 
@@ -54,7 +54,7 @@ In Chinese, with a transfer to "my friend" at the attacker's address slipped in:
 
 A "my bank details changed" email to an accountant and a prompt injection to an agent are the same attack: a message that gets treated as an order. In LEASH a message carries no authority at all. Authority is a signature from the owner's key. A message can at most get the agent to act inside the limits the owner already signed on-chain.
 
-The console's **Talk to the agent** panel is open to anyone. You choose how much of the agent is hijacked, then send a message:
+The console's **Hijack the agent** panel is open to anyone. You choose how much of the agent is hijacked, then send a message:
 
 | Agent | What runs | What stops the fake "new wallet" message |
 |---|---|---|
@@ -63,7 +63,7 @@ The console's **Talk to the agent** panel is open to anyone. You choose how much
 | Model and server hijacked | the same prompt; the server sends whatever the model asks, signed with the agent key, with no check | the vault: `PayeeNotAllowed`, `NotOwner`, mined as reverted transactions |
 | No LEASH (the counterfactual) | the same prompt and the same hijacked server, but the money sits in a plain wallet whose key the server holds, funded like the vault | nothing: the server signs a token transfer and it is mined. The 9,000 tUSD the vault refused leave in one transaction |
 
-Above the chat, a **worst-case meter**, computed by code from the chain, says what a fully hijacked agent could still move: today, in total, and on swaps. Nothing written in the chat can raise these numbers; only an owner transaction can. The mandate editor shows the same meter before and after each change.
+Beside the chat, a **worst-case meter**, computed by code from the chain, says the most a fully hijacked agent could still move before its key expires, and to whom, next to what the same hijack takes from a plain wallet. Nothing written in the chat can raise that number; only an owner transaction can. The rules panel shows it before and after each change.
 
 ### A budget, not only a rate
 
@@ -89,7 +89,7 @@ Paying on a stranger's word is risky, so the vault stands between the two partie
 | the creditor's | at most what is left of its allowance, paid to itself, each invoice held for the contest window first. A15 uses the school's real seal on 50,000 tUSD: `AboveSealAllowance` |
 | the guardian's | it can contest, so it can delay a creditor; it can never move money |
 
-Bills without a seal still go through tiers 1 and 2, unchanged. The worst-case meter shows both numbers: 0 tUSD more for a stolen agent key, and the sum of the allowances if a creditor's key is stolen too.
+Bills without a seal still go through tiers 1 and 2, unchanged. The console's sealed-bills panel shows what is held now and what the school's seals can still take: the most a stolen school key adds. A stolen agent key adds nothing (`worstCase` in `core.js` computes both).
 
 ## Why a contract, and not a well-secured backend?
 
@@ -258,17 +258,17 @@ npm run server -- --network local --port 8791
 
 Open http://127.0.0.1:8791. Then:
 
-1. Run the weekly routine (recorded replay by default).
-2. Execute the tier-1 proposals.
-3. Review and sign the tier-2 tuition mandate.
-4. Compile an owner text in the Mandate editor and read the diff.
-5. Launch any of the 16 attacks.
-6. Talk to the agent: pick a message and how much of the agent is hijacked, and watch the worst-case meter. Then send the same message with *No LEASH*: the plain wallet pays.
+1. Hijack the agent: pick how much of it the attacker controls and a message, then send. Send the same message with *No LEASH*: the plain wallet pays.
+2. Run the week (recorded replay by default) and execute the allowed bills.
+3. Review and sign the tuition mandate (tier 2).
+4. Compile an owner text in *Rules in your words* and read the diff.
+5. Settle a sealed bill, then contest it or let it be released.
+6. Launch the sixteen attacks, one by one or all at once.
 7. Pull the kill switch.
 
 Live model calls need `--allow-live` and a logged-in Codex CLI.
 
-![The weekly routine: two hostile documents flagged by code and by the model; rent and electricity within the agent's limits, tuition waiting for the owner's signature](docs/screens/routine.png)
+![The weekly routine: two hostile documents flagged by code and by the model; rent and electricity allowed, tuition waiting for the owner's signature](docs/screens/routine.png)
 
 `node scripts/screens.mjs` re-takes every screenshot in `docs/screens/` by driving the console in a headless Edge or Chrome (`BROWSER=` path). Run it on a fresh deployment. The screenshots in `docs/screens/` were taken on the local chain.
 
