@@ -8,8 +8,8 @@ let sending = false;
 const body = document.body;
 const agentEl = $('agent');
 
-const NAMES = { landlord: ['Marta', 'rent'], utility: ['Lumen', 'power'], school: ['School', 'tuition'] };
-const nameOf = (k) => NAMES[k]?.[0] ?? k;
+const NAMES = { landlord: 'Marta', utility: 'Lumen', school: 'the school' };
+const nameOf = (k) => NAMES[k] ?? k;
 const payeeAt = (a) => Object.keys(S.payees).find((k) => S.payees[k].address.toLowerCase() === String(a).toLowerCase());
 
 // ------------------------------------------------------------------ state
@@ -27,24 +27,12 @@ function render(s) {
   count($('reach'), reach, usd, 1200);
   $('reachBar').style.transform = `scaleX(${reach / Math.max(total, 1)})`;
   $('reachSub').textContent = s.paused ? 'can move: the guardian paused the vault'
-    : w.live ? `is the most it can move, even hijacked, only to ${w.to.map(nameOf).join(' and ')}, until ${day(w.expiry)}` : 'can move: the agent key is not active';
+    : w.live ? `is the most it can move, even hijacked, only to your payees, until ${day(w.expiry)}` : 'can move: the agent key is not active';
   body.classList.toggle('paused', s.paused);
   $('kill').hidden = s.paused || body.classList.contains('door');
   $('pausedBand').hidden = !s.paused;
-  renderPayees(s);
   if (!sending && !rec) agentState();
 }
-
-function renderPayees(s) {
-  const ul = $('payees');
-  if (ul.children.length) {
-    for (const li of ul.children) li.querySelector('span').textContent = capOf(s, li.dataset.p);
-    return;
-  }
-  ul.replaceChildren(...Object.keys(NAMES).filter((k) => s.payees[k]).map((k) =>
-    h('li', { 'data-p': k }, h('b', {}, nameOf(k)), h('span', {}, capOf(s, k)))));
-}
-const capOf = (s, k) => (s.payees[k].cap > 0 ? `${NAMES[k][1]} · up to ${money(s.payees[k].cap, 0)}` : `${NAMES[k][1]} · you sign`);
 
 async function refresh() {
   try { render(await api('/api/state')); } catch (e) { toast(e.message); }
@@ -111,24 +99,18 @@ function tug() {
   line.querySelector('i').animate(steps.map(([k, offset]) => ({ transform: stretch(k), offset })), timing);
 }
 
-// The amount leaves the vault's balance and lands on the payee it was paid to.
-function fly(amount, payee) {
-  const to = $('payees').querySelector(`[data-p="${payee}"]`);
-  if (!to) return;
-  const land = () => {
-    to.classList.remove('got');
-    void to.offsetWidth;
-    to.classList.add('got');
-    to.querySelector('em')?.remove();
-    to.append(h('em', {}, `+${money(amount, 0)}`));
-  };
+// The amount leaves the vault's balance and lands on the line that says where it went. When that line is off
+// screen, the amount drops out of the vault and fades.
+function fly(amount, to) {
+  const land = () => { to.classList.remove('got'); void to.offsetWidth; to.classList.add('got'); };
   if (REDUCED) { land(); return; }
   const a = $('bal').getBoundingClientRect();
   const b = to.getBoundingClientRect();
+  const seen = b.top >= 0 && b.bottom <= innerHeight;
   const coin = h('span', { class: 'coin' }, `−${money(amount, 0)}`);
   body.append(coin);
   const from = `translate(${a.left + 8}px, ${a.top + a.height / 2 - 16}px)`;
-  const end = `translate(${b.left + b.width - 70}px, ${b.top + 6}px) scale(.8)`;
+  const end = seen ? `translate(${b.left + 12}px, ${b.top + 10}px) scale(.8)` : `translate(${a.left + 40}px, ${a.bottom + 120}px) scale(.8)`;
   const anim = coin.animate([{ transform: `${from} scale(1.15)`, opacity: 0 }, { transform: from, opacity: 1, offset: 0.15 }, { transform: end, opacity: 1, offset: 0.85 }, { transform: end, opacity: 0 }],
     { duration: 900, easing: 'cubic-bezier(.65, 0, .35, 1)' });
   anim.onfinish = () => { coin.remove(); land(); };
@@ -149,16 +131,14 @@ function whatOf(i) {
 // What happened to one request, and what the mark does about it: the coin flies, or the leash pulls taut.
 function outcome(x, r) {
   const what = whatOf(r.intent);
-  // Where a payment went: the address the call carried, or the registered payee the name stands for.
-  const paidTo = r.intent.type === 'pay' ? payeeAt(r.intent.to || S.payees[r.intent.payee]?.address) : null;
   if (x.agent === 'server') {
     if (!r.sent) return { el: v('ok', 'Not sent', what, r.note) };
-    if (r.tx.status === 'success') return { el: v('held', 'Paid', what, ['Inside your rules, so the vault let it go', ...txBits(r.tx)]), paid: [r.intent.amount, paidTo] };
+    if (r.tx.status === 'success') return { el: v('held', 'Paid', what, ['Inside your rules, so the vault let it go', ...txBits(r.tx)]), paid: r.intent.amount };
     return { el: v('ok', 'Refused', what, [`The contract held · ${reasonOf(r.tx) ?? r.tx.status}`, ...txBits(r.tx)]), held: true };
   }
   if (r.decision === 'needs_owner') return { el: v('ask', 'Your call', what, 'More than it may pay alone', signButton(r.ask, r.intent)) };
   if (r.decision === 'refuse') return { el: v('ok', 'Refused', what, `LEASH’s code · ${failing(r.checks)}`), held: true };
-  if (r.tx?.status === 'success') return { el: v('held', 'Paid', what, ['By the agent, inside your rules', ...txBits(r.tx)]), paid: [r.intent.amount, paidTo] };
+  if (r.tx?.status === 'success') return { el: v('held', 'Paid', what, ['By the agent, inside your rules', ...txBits(r.tx)]), paid: r.intent.amount };
   return { el: v('ok', 'Refused', what, [`The contract held · ${reasonOf(r.tx) ?? r.tx?.status}`, ...txBits(r.tx)]), held: true };
 }
 function v(cls, word, what, why, act) {
@@ -169,17 +149,19 @@ function v(cls, word, what, why, act) {
 function renderAnswer(x) {
   const outs = x.results.map((r) => outcome(x, r));
   const none = !outs.length;
+  // A message the agent flagged, as opposed to one it only needs more words for.
+  const refusedAlone = x.modelFlags.length + x.codeFlags.length > 0;
   $('answer').replaceChildren(
     h('p', { class: 'said' }, h('span', {}, x.how === 'voice' ? 'You said' : 'You'), h('q', {}, x.text)),
     h('p', { class: 'replied' }, h('span', {}, x.agent === 'server' ? 'Hijacked' : 'Agent'), h('p', {}, x.reply), h('span', {}, SOURCE[x.meta.mode] ?? x.meta.mode)),
-    ...(none ? [v('ok', 'Not sent', x.agent === 'server' ? 'Nothing the contract could take' : 'The agent said no on its own')] : outs.map((o) => o.el)),
-    ...(none && x.agent !== 'server' ? [h('p', { class: 'hint' }, 'Hijack the agent to see the contract hold.')] : []));
+    ...(none ? [v('ok', 'Not sent', x.agent === 'server' ? 'Nothing the contract could take' : refusedAlone ? 'The agent said no on its own' : 'It needs to know who and how much')] : outs.map((o) => o.el)),
+    ...(none && refusedAlone && x.agent !== 'server' ? [h('p', { class: 'hint' }, 'Hijack the agent to see the contract hold.')] : []));
   if (outs.some((o) => o.held)) { tug(); stamp('Held'); }
-  for (const o of outs.filter((o) => o.paid?.[1])) { fly(...o.paid); stamp('Paid', 'paid'); }
+  for (const o of outs.filter((o) => o.paid)) { fly(o.paid, o.el); stamp('Paid', 'paid'); }
 }
 
 async function send(text, how = 'typed') {
-  text = text.trim();
+  text = tidy(text.trim());
   if (!text || sending) return;
   sending = true;
   agentState('think');
@@ -215,8 +197,11 @@ let rec = null;
 let lang = (navigator.language ?? 'en').startsWith('fr') ? 'fr-FR' : (navigator.language ?? '').startsWith('zh') ? 'zh-CN' : 'en-US';
 const VOICE_ERR = { 'not-allowed': 'Microphone blocked. Allow it in the address bar, or type.', 'service-not-allowed': 'This browser has no speech service. Type instead.',
   network: 'Voice needs the browser’s speech service online. Type instead.', 'no-speech': 'Nothing heard. Tap and speak.', 'audio-capture': 'No microphone found. Type instead.' };
+// Sent after this much quiet once something was said, and in any case after the cap.
+const SILENCE = 3000;
+const CAP = 45000;
 // Dictation writes "5 000" with a space or a no-break space; the code reads the amount from the text as sent.
-const tidy = (t) => t.replace(/(\d)[\s\u00a0\u202f](?=\d{3}\b)/g, '$1');
+const tidy = (t) => t.replace(/(\d)[\s\u00a0\u202f](?=\d{3}\b)/g, '$1').replace(/\s+/g, ' ').trim();
 
 function listen() {
   if (S?.paused) { toast('The vault is paused. Restart it as owner first.'); return; }
@@ -225,12 +210,19 @@ function listen() {
   if (rec) { rec.stop(); return; }
   rec = new SR();
   rec.lang = lang;
+  // It keeps listening through pauses: a tap sends, or a quiet spell once something was said.
+  rec.continuous = true;
   rec.interimResults = true;
   rec.maxAlternatives = 1;
   let failed = false;
-  rec.onresult = (e) => { $('say').value = tidy([...e.results].map((r) => r[0].transcript).join(' ')); };
+  let quiet = null;
+  const me = rec;
+  const cap = setTimeout(() => me.stop(), CAP);
+  const hush = () => { clearTimeout(quiet); quiet = setTimeout(() => me.stop(), SILENCE); };
+  rec.onresult = (e) => { $('say').value = tidy([...e.results].map((r) => r[0].transcript).join(' ')); hush(); };
   rec.onerror = (e) => { failed = true; if (e.error !== 'aborted') toast(VOICE_ERR[e.error] ?? `Voice stopped: ${e.error}`); if (e.error !== 'no-speech') $('say').focus(); };
-  rec.onend = () => { rec = null; agentState(); if (!failed) send($('say').value, 'voice'); };
+  // Whatever was heard is sent, even if the service then stopped with an error.
+  rec.onend = () => { clearTimeout(quiet); clearTimeout(cap); rec = null; agentState(); const t = $('say').value; if (!failed || t.trim()) send(t, 'voice'); };
   try { rec.start(); agentState('listen'); $('say').value = ''; } catch (e) { rec = null; toast(e.message); }
 }
 $('mic').addEventListener('click', listen);
@@ -265,9 +257,9 @@ $('mSign').addEventListener('click', async (ev) => {
   try {
     const e = await api('/api/mandate/sign', { i: p.ask, from: 'chat' });
     const ok = e.status === 'success';
-    const verdictEl = p.btn.closest('.verdict');
-    verdictEl.replaceWith(v(ok ? 'held' : 'ok', ok ? 'Paid' : 'Refused', whatOf(p.intent), ok ? ['Signed by you, paid by the agent', ...txBits(e)] : [`The contract held · ${reasonOf(e) ?? e.status}`, ...txBits(e)]));
-    if (ok) { fly(p.intent.amount, p.intent.payee); stamp('Paid', 'paid'); } else { tug(); stamp('Held'); }
+    const paidEl = v(ok ? 'held' : 'ok', ok ? 'Paid' : 'Refused', whatOf(p.intent), ok ? ['Signed by you, paid by the agent', ...txBits(e)] : [`The contract held · ${reasonOf(e) ?? e.status}`, ...txBits(e)]);
+    p.btn.closest('.verdict').replaceWith(paidEl);
+    if (ok) { fly(p.intent.amount, paidEl); stamp('Paid', 'paid'); } else { tug(); stamp('Held'); }
     await refresh();
   } catch (err) { toast(err.message); p.btn.disabled = false; p.btn.textContent = 'Review & sign'; }
 });

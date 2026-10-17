@@ -249,7 +249,7 @@ The full threat model, attack catalogue and known-risk list are in [SECURITY.md]
 |---|---|---|
 | Contract | unit and fuzz (`LeashVault.t.sol`) | 51 |
 | Contract | invariants with a rogue-agent handler (`Invariant.t.sol`) | 9 invariants, 16,384 calls |
-| Off-chain | policy (including the budget), sealed-invoice check, scanner, simulated hostile model output, recorded runs, mandate compiler (including the two-turn question, casual English and Chinese, the budget row), open chat (code's verdict, the hijacked server's raw calls, the plain wallet's transfers), the offline reader (English, French, Chinese; guarded and obeying), worst case with its three bounds, revert labelling, no secret in any prompt sent to the model | 40 |
+| Off-chain | policy (including the budget), sealed-invoice check, scanner, simulated hostile model output, recorded runs, mandate compiler (including the two-turn question, casual English and Chinese, the budget row), open chat (code's verdict, the hijacked server's raw calls, the plain wallet's transfers), the offline reader (English, French, Chinese; guarded and obeying; "my new wallet" said with no address), worst case with its three bounds, revert labelling, no secret in any prompt sent to the model | 41 |
 | End to end | `scenes.js` on a fresh chain | 22 scenes |
 | UI | 16 attacks fired from the console on a fresh chain | 16 |
 

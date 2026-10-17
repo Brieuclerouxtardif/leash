@@ -81,13 +81,6 @@ body:not(.door) .leash i { transform: scaleX(1); transition: transform .55s cubi
 .reach p { font-size: var(--step-lead); }
 .reach p b { color: var(--accent); font-weight: 600; }
 .reach p span { color: var(--muted); }
-.payees { list-style: none; margin: 0; padding: 0; display: flex; gap: 6px; flex-wrap: wrap; }
-.payees li { background: var(--surface); padding: 10px 14px; display: grid; gap: 1px; min-width: 128px; position: relative; }
-.payees b { font-size: var(--step-body); font-weight: 600; }
-.payees span { font-size: var(--step-small); color: var(--muted); }
-.payees em { position: absolute; top: 8px; right: 10px; font-style: normal; font-weight: 700; font-size: var(--step-small); color: var(--accent); animation: rise .4s var(--ease) both; }
-.payees li.got { animation: got .9s var(--ease); }
-@keyframes got { 0% { transform: scale(1); } 25% { transform: scale(1.06); } 100% { transform: scale(1); } }
 
 /* The agent you talk to: the white square of the mark. */
 .talk { position: absolute; inset: 0; display: grid; }
@@ -162,6 +155,9 @@ body.paused .agent { opacity: .5; }
 .said q { font-size: var(--step-lead); overflow-wrap: anywhere; }
 .replied p { color: var(--muted); overflow-wrap: anywhere; flex: 1; min-width: 0; }
 .answer .verdict .word { font-size: var(--step-sub); }
+/* The coin lands on the payment it paid. */
+.answer .verdict.got { animation: got .9s var(--ease); transform-origin: left center; }
+@keyframes got { 0% { transform: scale(1); } 25% { transform: scale(1.03); } 100% { transform: scale(1); } }
 .answer .hint { color: var(--faint); font-size: var(--step-small); }
 
 @media (prefers-reduced-motion: reduce) {
@@ -186,7 +182,4 @@ body.paused .agent { opacity: .5; }
   .hbar .how { font-size: var(--step-small); }
   .composer input { font-size: var(--step-body); }
   .composer button { padding: 14px 18px; }
-  .payees { display: grid; }
-  .payees li { display: flex; align-items: baseline; gap: 10px; padding: 10px 56px 10px 14px; }
-  .payees em { top: 50%; transform: translateY(-50%); animation: none; }
 }

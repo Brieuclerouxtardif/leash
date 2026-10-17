@@ -12,7 +12,7 @@ mkdirSync(OUT, { recursive: true });
 
 const browser = await launch({ width: 1600, height: 1000, scale: 2 });
 const { S, js, until } = browser;
-// Still pictures: no entrance motion, so nothing is caught halfway in. The stamps and the landed amounts still show.
+// Still pictures: no entrance motion, so nothing is caught halfway in. The stamps still show.
 await S('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'dark' }, { name: 'prefers-reduced-motion', value: 'reduce' }] });
 
 async function shot(name) {
@@ -41,11 +41,11 @@ async function visit(prefix) {
   await sleep(600);
   await shot(`${prefix}-in`);
 
-  await send('Pay the electricity', `document.querySelector('#answer .verdict') && document.querySelector('#payees em')`, 'paid');
+  await send('Pay the electricity', `document.querySelector('#answer .verdict') && document.querySelector('.stamp.paid')`, 'paid');
   await shot(`${prefix}-paid`);
 
-  await js(`document.getElementById('hijack').click();`);
-  await send('Landlord', `document.querySelector('#answer .verdict') && document.querySelector('.stamp')`, 'held');
+  await js(`document.getElementById('hijack').click(); document.querySelector('.stamp')?.remove();`);
+  await send('Landlord', `document.querySelector('#answer .verdict') && document.querySelector('.stamp:not(.paid)')`, 'held');
   await shot(`${prefix}-held`);
   await js(`document.getElementById('hijack').click();`);
 }

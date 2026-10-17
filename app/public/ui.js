@@ -20,6 +20,8 @@ export async function api(path, body) {
   const r = await fetch(path, body === undefined ? {} : { method: 'POST', headers: { 'content-type': 'application/json', 'x-leash-token': TOKEN }, body: JSON.stringify(body) });
   // A server that answers in plain text (a 404 from an older build) still gives a readable error.
   const j = await r.json().catch(() => ({ error: `${r.status} ${r.statusText} on ${path}` }));
+  // Each server start makes a new token, so a page left open across a restart is refused: say what to do.
+  if (r.status === 403 && j.error === 'bad token or origin') throw new Error('LEASH restarted. Reload the page.');
   if (!r.ok) throw new Error(j.error ?? r.statusText);
   return j;
 }

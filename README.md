@@ -149,7 +149,7 @@ Week 42 is five documents: two bills, a tuition invoice and two hostile emails. 
 |---|---|---|
 | Contract unit + fuzz tests | 51 / 51 (fuzz: 2,000 runs each), 12 of them on sealed invoices | `forge test` |
 | Invariants (rogue-agent handler, 256 runs × 64 calls) | 9 / 9, 16,384 hostile calls (forge lists 9 `[PASS]` lines but counts one shared campaign as 1 test, so plain `forge test` reports 52) | `forge test --match-path test/Invariant.t.sol` |
-| Off-chain policy, mandate compiler and offline reader tests | 40 / 40 | `npm test` |
+| Off-chain policy, mandate compiler and offline reader tests | 41 / 41 | `npm test` |
 | Full local campaign (6 tasks + 16 attacks, fresh chain) | 22 / 22 | `powershell -ExecutionPolicy Bypass -File scripts/local-campaign.ps1` |
 | Same 16 attacks launched from the web console | 16 / 16 | `npm run server`, Red team panel |
 | Live LLM runs (gpt-6.1-sol via Codex CLI, no tools) | 2 routine plans + 27 mandate compilations + 14 chat answers (7 messages × 2 prompts), all recorded; the 8 compilations made with the current prompt and the 14 chat answers replay in the console | `evidence/model-runs/` |
@@ -259,7 +259,7 @@ npm run server -- --network local --port 8791
 
 Open http://127.0.0.1:8791: the front door. *Enter with a test wallet* clips the leash on. Then talk to the agent:
 
-- **By voice:** tap the white square, speak (English, French or Chinese), tap again to send. Dictation is the browser's own (Chrome and Edge send the audio to Google's or Microsoft's speech service); Firefox has none, so type instead.
+- **By voice:** tap the white square, speak (English, French or Chinese) as long as you need: it sends when you tap again or after three seconds of quiet. Dictation is the browser's own (Chrome and Edge send the audio to Google's or Microsoft's speech service); Firefox has none, so type instead.
 - **By typing**, or with one of the five sample messages.
 - **Hijack the agent** turns the square coral: the model and the server now obey whatever the message says, and only the vault is left to refuse. A refusal pulls the leash taut; a payment flies from the vault to the payee.
 

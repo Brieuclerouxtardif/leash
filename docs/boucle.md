@@ -618,3 +618,14 @@ Ce ne sont pas des promesses du prompt : c'est le contrat qui refuse. Chaque ref
     - La voix n'a pas été testée avec un vrai micro : seulement le code et les chemins d'erreur. À faire à la main avant la vidéo.
     - Le lecteur hors ligne comprend peu : un payé connu, un montant, une adresse. Une phrase tordue tombe sur « je ne sais pas faire ça ».
     - `record-demo.mjs` vise maintenant `/console`, mais toujours l'ancien DOM : la vidéo de demain doit être refaite sur la porte.
+
+- **2026-10-17 17:56 — Retour de Brieuc après son test au micro.**
+  - **Fait.**
+    - Puces Marta / Lumen / école retirées de l'écran d'entrée, et les noms aussi sous la jauge (« only to your payees »). Le montant payé vole maintenant vers le verdict « Paid » de la réponse.
+    - Voix : écoute continue. Elle s'arrête quand on retape ou après 3 s de silence une fois qu'on a parlé (plafond 45 s). Ce qui a été entendu part même si le service s'arrête sur une erreur.
+    - « Ça fait rien » avait deux causes : la page gardait l'ancien jeton après mon redémarrage du serveur (403), et la phrase dite (« envoie 9 000 à mon nouveau wallet ») n'avait ni adresse ni bénéficiaire, donc le lecteur ne produisait rien. Le 403 dit maintenant « LEASH restarted. Reload the page. » ; le lecteur comprend « nouveau wallet » (gardé : refus seul + drapeau d'adresse ; piraté : l'attaquant met son adresse, le contrat refuse `PayeeNotAllowed`) et demande « Lequel ? » pour un montant sans bénéficiaire.
+    - Vérifié dans le navigateur sur un vault neuf : électricité 120 payée, nouveau wallet refusé seul, « Envoie 500 euros » → « Lequel ? », piraté → `PayeeNotAllowed`. Captures `home-*` refaites.
+    - Tests : node 41/41, forge 52/52. Inspecteur : porte 1 FAIL (`few-pictures`, accepté).
+  - **Critique.**
+    - Pas de clé d'API : un message libre passe par le lecteur à règles, pas par un modèle. Le mode live demande `--allow-live` et le CLI Codex sur le PATH (son forfait) : pas activé sans l'accord de Brieuc.
+    - La voix continue n'a pas été testée avec un vrai micro de mon côté.
