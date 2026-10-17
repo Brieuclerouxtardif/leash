@@ -83,7 +83,7 @@ Ce ne sont pas des promesses du prompt : c'est le contrat qui refuse. Chaque ref
   - **Corrigé.** Le montant doit être un « N tUSD » présent dans la source, et un document qui nomme un payee ne peut payer que lui. Test simulé ajouté, plus un test anti-faux-refus sur les deux plans live enregistrés : 12/12.
   - **Limite.** Ces règles s'appuient sur le format de nos documents (« N tUSD », nom du rôle). Sur de vraies factures, il faudrait un extracteur structuré. On le dit tel quel.
   - **Vérification sans écart.** La suite d'invariants s'affiche « 1 passed » dans Forge 1.8, mais c'est une seule campagne qui liste bien 7 invariants à [PASS] (16 384 appels, 1 390 reverts, tous dans `manipulate`). La doc dit « 7 invariants », pas « 41 tests ».
-- 05:10 — TECHNICAL.md et SECURITY.md écrits (13 risques connus chiffrés). Commit local 54d833b.
+- 05:10 — TECHNICAL.md et SECURITY.md écrits (13 risques connus chiffrés). Commit local 1276aad.
   - **Deux défauts de plus trouvés en relisant `judge()` pour la doc.** Un payee inconnu sans adresse partait en `needs_owner` avec un destinataire `undefined`. Un montant NaN ou `1e21` faisait planter `parseUnits` au lieu d'un refus. Corrigé : adresse validée, montant fini et positif. Test « sortie malformée » ajouté (13/13).
   - **Analyse statique externe.** Slither 0.11.6 installé dans un venv isolé.
     - Premier passage : 1 résultat (`LeashPool` doit hériter de `ILeashPool`) → interfaces sorties dans `Interfaces.sol`.
@@ -168,7 +168,7 @@ Ce ne sont pas des promesses du prompt : c'est le contrat qui refuse. Chaque ref
     - Sur un vault neuf : « Ready to record ».
     - Sans lui, une prise aurait pu être perdue en plein milieu sur un opId déjà dépensé.
 
-- 17:04 (réel) — Vidéo de secours, sans ffmpeg ni narrateur (commit 04948f3).
+- 17:04 (réel) — Vidéo de secours, sans ffmpeg ni narrateur (commit 03e97ca).
   - **Pourquoi.** La vidéo est le livrable le plus à risque : elle dépend de Brieuc, d'un micro et d'un logiciel de montage. Il n'y a pas d'ffmpeg sur la machine, et je ne télécharge rien.
   - **Ce qui existe.**
     - `record-demo.mjs` joue les scènes de VIDEO.md dans un Edge headless et garde chaque image du screencast DevTools, avec des repères horodatés.
@@ -187,7 +187,7 @@ Ce ne sont pas des promesses du prompt : c'est le contrat qui refuse. Chaque ref
     - pas la durée : 3 min de screencast et de requêtes tiennent en local.
     - **Cause : inconnue à ce stade.** Désormais, une fermeture rejette les appels en cours avec son code, et `CDP_LOG` trace chaque appel et chaque événement. Prise 2 sur un vault neuf avec la trace.
 
-- 17:15 (réel) — Vidéo de secours sur Sepolia : prise 2 réussie (vault `0xe30d…dd82`, commit 9c382c2 pour le durcissement DevTools).
+- 17:15 (réel) — Vidéo de secours sur Sepolia : prise 2 réussie (vault `0xe30d…dd82`, commit a9ae5e4 pour le durcissement DevTools).
   - **La prise.** 3 min 37 de capture, 577 images, attaques A2, A7, A9, A10 refusées on-chain. Huit attentes de bloc, de 8 à 60 s (A9). La trace : 3 043 lignes, aucune erreur, aucune fermeture.
   - **Ce que je n'ai pas résolu (à 17:15).** La fermeture de la prise 1 ne s'est pas reproduite, donc sa cause restait inconnue. Je ne prétendais pas l'avoir corrigée. Ce qui avait changé : un échec éventuel ne bloque plus 10 min en silence, il s'arrête net avec son code et laisse la timeline partielle.
   - **Montage.** 3:00, dont 142 s d'attente coupées et signalées, et 80 s d'image gelée pendant la voix (même ratio qu'en local).
@@ -293,7 +293,7 @@ Ce ne sont pas des promesses du prompt : c'est le contrat qui refuse. Chaque ref
   - **Aussi relevé :** l'adresse des organisateurs (info@ican-x.com), absente du message prêt à coller. La finale a lieu à Shenzhen du 21 au 23 nov., avec au moins un membre présent. Les licences tierces (OpenZeppelin et viem en MIT, forge-std en MIT ou Apache) sont listées dans le README.
   - **Deck v15.** Je l'ai comparé chiffre par chiffre au README : rien ne diverge. J'ai ajouté une phrase dans les notes de la diapo des niveaux (un banquier reconnaît ces contrôles ; ici, le contrat les applique), et « no KYC or sanctions screening yet » sur la ligne mainnet de la diapo d'honnêteté, avec un texte plus court qu'avant pour ne pas risquer de débordement.
   - **Critique.** C'est l'erreur la plus coûteuse du projet, et elle n'a rien de technique. J'ai optimisé pendant deux jours sur ma propre idée de ce que le jury veut (des preuves, de l'honnêteté) sans lire ce qu'il note. La preuve était bien orientée : réalisation et sécurité couvrent 70 %. Mais il manquait un mot qui pèse jusqu'à 15 points, et une règle d'éligibilité que personne n'a vérifiée. **Lire la grille de notation avant d'écrire la première ligne du livrable.**
-- 02:09 (réel, 15/10) — Le site contredit le docx, et je l'avais cru trop vite. Commit 98054f8.
+- 02:09 (réel, 15/10) — Le site contredit le docx, et je l'avais cru trop vite. Commit 93a34fa.
   - **Le docx était périmé.** La page `#/rule` du site (la version chinoise fait foi) dit deux choses :
     - la vidéo est **obligatoire** ;
     - l'inscription et le rendu se font par un seul mail à fintechathon@ican-x.com, pas à info@.
@@ -311,14 +311,14 @@ Ce ne sont pas des promesses du prompt : c'est le contrat qui refuse. Chaque ref
   - **Critique.**
     - Même faute deux fois en une heure : à 01:51, j'ai pris le premier document trouvé pour la règle, sans chercher la source qui fait foi. Le docx avait trois jours et sortait d'un dossier de travail ; le site était à un clic. J'ai même assoupli un contrôle (vidéo ✗ → !) sur cette base. **Une règle externe se lit à la source officielle, et un contrôle ne s'assouplit qu'avec cette source citée.**
     - Ma relecture croisée deck ↔ README avait laissé passer le 15 de TECHNICAL. **Relire le livrable sous la forme où le jury le lira**, pas seulement sa source.
-- 02:17 (réel, 15/10) — Même lecture pour le README, la première page qu'un juré ouvre. Commit 306132b.
+- 02:17 (réel, 15/10) — Même lecture pour le README, la première page qu'un juré ouvre. Commit 3e7327d.
   - **Ce que les 7 pages ont montré :**
     - le schéma de tête avait les murs d'un caractère à droite des coins ;
     - l'arborescence alignait ses descriptions sur trois colonnes différentes, et omettait `scripts/`, `deployments/`, `app/test/`, `routine.js` et `plan.js`. C'est là qu'un juré cherche l'audit de la chaîne.
   - **Le tableau des livrables n'avait ni la vidéo ni le deck**, alors que le règlement les exige. Je n'ai pas mis de ligne vide « à venir » qu'un juré pourrait lire : presubmit avertit tant que le README ne les lie pas, et l'étape 9 de SUBMISSION dit quand les ajouter.
   - `2-video.cmd` rend aussi les PDF avec l'URL du repo, une seule saisie. Je l'ai testé par cmd avec une fausse URL. Les PDF de `work/pdf` pointaient alors vers ce faux repo : je les ai re-rendus aussitôt, et il ne reste aucun lien faux. LISEZ-MOI dit maintenant que la vidéo est obligatoire et comment soumettre.
-  - **Critique.** Ces deux schémas étaient faux depuis le premier jour. Je les ai relus des dizaines de fois en Markdown, où l'œil complète les colonnes. Seul un rendu les a montrés. Le test qui aurait dû exister : mesurer les colonnes des caractères de cadre, ce qui prend 10 lignes de script. Il est maintenant dans presubmit (1654ef2). Je l'ai vérifié sur les versions d'avant la correction : il signale bien les deux schémas.
-- 02:31 (réel, 15/10) — La « valeur mesurable » du Challenge Brief n'avait aucun chiffre. Commit dc8b0f5.
+  - **Critique.** Ces deux schémas étaient faux depuis le premier jour. Je les ai relus des dizaines de fois en Markdown, où l'œil complète les colonnes. Seul un rendu les a montrés. Le test qui aurait dû exister : mesurer les colonnes des caractères de cadre, ce qui prend 10 lignes de script. Il est maintenant dans presubmit (8750a50). Je l'ai vérifié sur les versions d'avant la correction : il signale bien les deux schémas.
+- 02:31 (réel, 15/10) — La « valeur mesurable » du Challenge Brief n'avait aucun chiffre. Commit f10c428.
   - **Le trou.** Le brief demande un agent qui montre une « measurable value ». Le README racontait la semaine 42 sans chiffrer ce qu'elle apporte. Nouvelle section « Measured on week 42 », chaque ligne avec sa source (run 4, campagne locale, runs modèle enregistrés) :
     - une instruction et une signature pour la semaine ;
     - 9 800 tUSD demandés par les deux documents hostiles, rien payé ;
@@ -332,7 +332,7 @@ Ce ne sont pas des promesses du prompt : c'est le contrat qui refuse. Chaque ref
   - **Critique.**
     - « Sepolia coûte environ 3× plus » était écrit dans quatre fichiers et un générateur, sans mesure. La mesure donne 2–2,4× pour un swap et ~6× pour une création de stockage : selon l'opération, le « 3× » était trop haut ou trop bas. **Un ratio qui sert d'explication se mesure avant de s'écrire.**
     - Pour la v17, j'ai repris la racine de mémoire au lieu de relire ma note. C'est la liste des fichiers renvoyée par le publish qui a montré l'erreur. **Lire cette liste après chaque publish.**
-- 02:37 (réel, 15/10) — Contre-vérification du tableau de 02:31, chiffre par chiffre, depuis `evidence/`. Deux erreurs, dans l'entrée même qui critiquait le « 3× ». Commits 7c97ed6 et suivant.
+- 02:37 (réel, 15/10) — Contre-vérification du tableau de 02:31, chiffre par chiffre, depuis `evidence/`. Deux erreurs, dans l'entrée même qui critiquait le « 3× ». Commits 5439c6e et suivant.
   - **« Un swap : 2–2,4× »** oubliait le débouclage de l'attaquant (1,58×). Et un commentaire de `chain.js` disait encore « ~3x (T3 : 384k contre 130k) », alors que T3 a coûté 159 560 sur anvil. Partout, on cite maintenant un seul chiffre vérifiable : T3, 384 184 contre 159 560 (2,4×).
   - **« Les écritures sur un emplacement existant coûtent pareil à 4 % près »** est faux. A8, A10 et les changements de mandat de T5 coûtent tous exactement 1 200 gaz de plus sur Sepolia (+4,0 à 4,3 %). C'est écrit tel quel ; je n'en connais pas la cause et je n'en invente pas.
   - **Confirmés :** A10 29 050, A8 29 152, 80–114k et 184–380k, T1−T2 et T2−A5, plan en 18,673 s (13 813 / 586 tokens), compilations de 5,532 à 9,524 s, 12 000 tUSD et 1,2 tETH (`config.js`), 9 800 = 9 000 + 800.
@@ -353,7 +353,7 @@ Ce ne sont pas des promesses du prompt : c'est le contrat qui refuse. Chaque ref
   - **Un chiffre faux dans l'entrée de 10:20 et dans TECHNICAL §3.6 :** « ETH 35 → 30 % ». La capture du 2e tour montre 40 % → 30 % : le mandat sur la chaîne est à 40 % (`config.js`), et 35 % est la consigne du propriétaire pour le DCA, pas un réglage. Corrigé dans TECHNICAL ; l'entrée de 10:20 reste telle quelle, cette ligne la corrige.
   - **Deck v19–v20.** Diapo éditeur : la capture de la question remplace celle de l'adresse redirigée (déjà dans l'encadré), une phrase sur le modèle (« A vague value becomes a question, never a guess »), notes réécrites dans l'ordre de l'écran (134 mots). Diapo preuves : 19 tests hors chaîne. Rendu vérifié par Edge headless avec les vraies captures. Liste des fichiers relue après chaque publish.
   - **Critique.** J'ai écrit « 35 → 30 » de mémoire, d'après la consigne de la routine, au lieu de lire la ligne du diff que je venais de capturer. C'est la même faute qu'à 02:37. **Un chiffre qui décrit une capture se lit sur la capture.**
-- 10:29 (réel, 15/10) — « Entrée familière » (colloquial input), autre critère du barème innovation et interaction. Commit 830dfc0.
+- 10:29 (réel, 15/10) — « Entrée familière » (colloquial input), autre critère du barème innovation et interaction. Commit 66d28ad.
   - **Le trou.** Les six échantillons du compilateur étaient en anglais soigné. Les jurés lisent le chinois.
   - **Deux runs live :**
     - anglais relâché (« ok so the bot can do rent up to 850 n … a third of the vault pls ») : 3 lignes qui resserrent, « a third » devient 33,33 %, aucune question ;
@@ -361,7 +361,7 @@ Ce ne sont pas des promesses du prompt : c'est le contrat qui refuse. Chaque ref
   - **Test 20** fige les lignes exactes des deux. Le test des adresses ne vérifiait que le premier échantillon contenant l'adresse (`find`) ; il boucle maintenant sur tous.
   - Sous-titre de l'éditeur : « in your own words » au lieu de « in English ». Toutes les captures de l'éditeur sont refaites par `work/check/shots-editor.mjs` (compilations seules, aucune transaction). Capture chinoise ajoutée au README et à `screens.mjs`. Deck v21 : titre « in plain words », encadré en chinois, 20 tests.
   - **Critique.** J'ai écrit « 4 lignes » dans TECHNICAL avant d'avoir vu le diff : le plafond utility était déjà à 150, donc 3 lignes. C'est la troisième fois aujourd'hui (02:37, 10:24, ici). Cette fois je l'ai vu avant le commit, parce que j'ai écrit le test avec les lignes exactes au lieu de `every(tighter)`, qui passait aussi avec la mauvaise phrase. **Un test qui fige la sortie exacte attrape la phrase fausse ; un test de propriété la laisse passer.**
-- 11:10 (réel, 15/10) — Vidéo refaite sur Sepolia avec la question au propriétaire et le texte chinois (commit 106ba99). Prise `work/demo-sepolia3`.
+- 11:10 (réel, 15/10) — Vidéo refaite sur Sepolia avec la question au propriétaire et le texte chinois (commit c1c75ac). Prise `work/demo-sepolia3`.
   - **Script.** La scène de l'éditeur montre maintenant le texte flou (« My rent went up a little… »), la question, la réponse (ligne rouge 900 → 950), puis le texte chinois avec le virement vers l'adresse de l'attaquant, listé comme non applicable. 32 phrases, cible 3:50 avec une vraie voix. `record-demo.mjs` et les ancres de `compose-video.mjs` suivent le script (« When a value is vague », « The answer comes back », « It reads Chinese too »).
   - **Répétition d'abord.** Prise locale `work/demo-local6` (3:11) avant de toucher Sepolia, dont chaque prise consomme des opIds et du gaz.
   - **Serveur périmé attrapé.** Le serveur Sepolia de l'aperçu, réutilisé, tenait encore l'ancien coffre et l'ancien `server.js`. Arrêté et relancé avant la prise. Nouveau coffre `0x52a9…f224` ; ses opIds sont consommés, la prochaine prise demande `--fresh`.
@@ -376,13 +376,13 @@ Ce ne sont pas des promesses du prompt : c'est le contrat qui refuse. Chaque ref
     - J'avais écrit « Around 90 MB » dans SUBMISSION.md avant le rendu, d'après la prise du 14. Le rendu a donné 116,8 Mo. **Une taille de fichier se lit sur le fichier.** Quatrième chiffre écrit de mémoire aujourd'hui ; celui-là, je l'ai vu avant le commit.
     - Le rendu à 6 Mb/s était un essai à l'aveugle. Le rendu à 10 Mb/s visait 10 et sortait à 4,8 Mb/s : j'avais déjà de quoi voir que la consigne ne mordait pas, mais je n'ai fait la division qu'après. **Avant de changer un réglage, comparer la valeur visée à la valeur obtenue.**
     - La prise du 14 (`demo-sepolia2`) ne peut plus être remontée : son script a disparu de VIDEO.md. Si la nouvelle prise posait problème, il faudrait en refaire une, pas revenir à l'ancienne.
-- 11:22 (réel, 15/10) — Relecture du README et du deck contre le site. Commits 41d1d41, 12c9e41.
+- 11:22 (réel, 15/10) — Relecture du README et du deck contre le site. Commits e912090, 8c920ec.
   - **Grille → tableau d'interaction.** Le tableau « How the agent deals with the owner » couvrait peu de tours, demande de précision, correction et hors périmètre. L'« entrée familière » nommée par la grille n'y figurait pas : ligne « Everyday words » ajoutée, avec la citation du run enregistré, vérifiée mot pour mot par grep.
   - **Nom du sujet.** README et couverture du deck disaient « Autonomous On-chain Wallet ». Le site dit « 方向 F：Agent Wallet ». L'autre nom venait du sous-titre du vieux docx. Corrigé dans le README et le deck (v22 : liste des 13 fichiers relue après publication).
   - **Fausse alerte sur l'adresse de soumission.** Le pied de page du site affichait fintechathon@g-ican.com, et nos docs disent ican-x.com. J'ai rechargé la page et ouvert l'onglet international : il affiche bien fintechathon@ican-x.com. g-ican.com est l'adresse de la piste domestique, sur laquelle le site s'ouvre. SUBMISSION et LISEZ-MOI le disent maintenant : c'est le genre de détail qui fait partir le dossier au mauvais endroit le dernier soir.
   - **Lu au passage :** date limite le 20/10 à 24:00 UTC+8, soit 16:00 UTC, comme prévu. Examen de conformité le 21/10, évaluation en ligne les 22–23/10, top 10 en finale.
   - **Critique.** Le nom du sujet était faux sur la première ligne du README et sur la première diapo depuis le début. Il a traversé toutes mes relectures sans être vérifié, parce qu'il venait d'un document que je savais périmé pour d'autres points. **Un document périmé sur un point est suspect sur tous ; tout ce qui en vient se revérifie à la source.**
-- 11:27 (réel, 15/10) — Plan B sur Base mainnet, branche `base-mainnet` (commit 503d59e), hors de `main`.
+- 11:27 (réel, 15/10) — Plan B sur Base mainnet, branche `base-mainnet` (commit d434548), hors de `main`.
   - **Pourquoi.** La grille note le sujet F « 以真实链上交易哈希为依据 » (sur de vrais hashes de transactions). Les hashes Sepolia sont réels, mais un juré peut vouloir un mainnet. La question aux organisateurs n'est pas encore envoyée (c'est à Brieuc de le faire) ; en attendant, la branche est prête.
   - **Coût, lu sur la chaîne (lecture seule).** Gaz à 0,006 gwei, flux Chainlink ETH/USD sur Base `0x7104…Bb70` frais de 4 min. Run 4 Sepolia : 29 transactions, 3,1 M de gaz. Déploiement plus campagne complète : 12 à 15 M de gaz, soit environ 0,20 $. Frais de données L1, lus sur le GasPriceOracle avec nos bytecodes : 0,0002 $ pour les quatre déploiements. Il faut approvisionner le propriétaire avec 0,002 ETH (environ 5 $).
   - **Verrou.** `network('base')` lève une erreur si `LEASH_REAL_FUNDS` ne vaut pas 8453. Base signe avec `secrets/base-keys.json`, jamais avec les clés de test. Un test fige les deux. Mutation à la main (accepter n'importe quelle valeur) : le test casse. 21/21 sur la branche.
@@ -391,7 +391,7 @@ Ce ne sont pas des promesses du prompt : c'est le contrat qui refuse. Chaque ref
     - J'ai d'abord estimé le coût sans les frais L1 de Base, que `getGasPrice` ne montre pas. Je l'ai vu en relisant la doc, puis je l'ai mesuré : ils sont négligeables. Ça aurait pu ne pas l'être, et le chiffre était déjà écrit.
     - Dans le script de mesure, j'ai d'abord qualifié d'« incompressible » une charge `abab…`, alors que Base compresse avant de facturer. Ce chiffre-là n'est pas dans la doc.
     - Le plan B n'a jamais tourné, même sur un fork. Si on l'utilise, le premier vrai déploiement servira aussi de première répétition. Il faut le lancer tôt, pas le 20.
-- 11:35 (réel, 15/10) — Relecture des pièces jointes de l'e-mail, comme un juré les verrait. Commit 02e53d7.
+- 11:35 (réel, 15/10) — Relecture des pièces jointes de l'e-mail, comme un juré les verrait. Commit 74c491e.
   - **PDF périmés.** `LEASH-TECHNICAL.pdf` et `LEASH-SECURITY.pdf` dataient de 02:32, mais les sources avaient changé à 10:28. `presubmit` ne le voyait pas. Il échoue maintenant si un PDF est plus vieux que son Markdown, ou, une fois le remote créé, si ses liens ne pointent pas vers le dépôt. Les deux cas sont vérifiés : PDF périmé attrapé ; HTML rendu avec `--repo https://github.com/example/leash` contenant `/blob/main/`, et sans `--repo` n'en contenant aucun.
   - **Bug trouvé en relisant la page 5 du nouveau PDF.** Les lignes « anglais familier » et « chinois » du tableau du compilateur s'affichaient en texte brut, barres comprises. Cause : une ligne vide à `TECHNICAL.md:153` coupait le tableau. GitHub l'aurait affiché pareil. Je l'avais introduite moi-même à 10:28. Corrigé ; page relue : les deux lignes sont dans le tableau, le chinois est lisible, l'en-tête se répète au saut de page.
   - **Nouveau contrôle dans `presubmit` : une ligne de tableau après une ligne vide.** Essayé sur l'ancienne version : il signale bien la ligne 154. Tous les autres .md du dépôt sont propres. Contrôle à part dans le scratchpad : chaque ligne de tableau a autant de cellules que son en-tête.
@@ -401,7 +401,7 @@ Ce ne sont pas des promesses du prompt : c'est le contrat qui refuse. Chaque ref
   - **Critique.**
     - J'ai relu le diff Markdown de 10:28 ligne par ligne sans voir la ligne vide. Une ligne vide ne se voit pas dans un diff ; elle se voit sur la page rendue. **Ce que le juré lit, c'est le rendu : relire le rendu.**
     - Mon premier contrôle de liens disait « tout résout » sans dire combien il en avait vérifié. J'ai ajouté le compte (25) avant d'y croire. **Un contrôle qui passe doit dire ce qu'il a contrôlé.**
-- 11:36 (réel, 15/10) — Grille d'interaction contre le README, critère par critère. Commit 0fb3c6f.
+- 11:36 (réel, 15/10) — Grille d'interaction contre le README, critère par critère. Commit 65e2cc3.
   - Peu de tours, demande de précision, langage courant et hors périmètre avaient chacun leur ligne. Pour « 错误恢复 » (reprise sur erreur), seule la ligne « Correcting » répondait, et seulement du côté du propriétaire qui corrige son texte.
   - Ce que fait le code côté agent, vérifié dans le code avant de l'écrire :
     - chaque proposition est rejugée contre la chaîne au moment du clic (`rejudge`, `server.js:52`) ;
@@ -414,7 +414,7 @@ Ce ne sont pas des promesses du prompt : c'est le contrat qui refuse. Chaque ref
   - Contenu : la règle des 60 % arrondie au supérieur, d'après le site (2 → 2, 3 → 2, 4 → 3, 5 → 3) ; les universités de Hong Kong, Macao et Taïwan ne comptent pas comme étrangères ; ce qu'il faut de chaque membre ; un message de 84 mots en anglais à copier. Rien n'est envoyé. `LISEZ-MOI.txt` le met en premier.
   - **Erreurs attrapées avant de le montrer.** J'avais écrit « samedi 18 » et « lundi 20 ». `Get-Date` dit dimanche 18 et mardi 20. La cible est maintenant le samedi 17, et la limite le mardi 20 à 18:00, heure de Paris. J'avais aussi écrit que chaque membre « doit » pouvoir expliquer le projet en finale. Le règlement ne le dit pas : c'est devenu un conseil, présenté comme tel. Recherche des autres jours de la semaine dans les docs : aucun associé à une date.
   - **Critique.** Le jour de la semaine est une donnée comme une autre. Je l'ai écrite de tête, juste après avoir noté trois fois aujourd'hui « un chiffre se lit sur sa source ». **Une date avec son jour se vérifie aussi.**
-- 11:55 (réel, 15/10) — Console locale relancée, plan B répété sur un fork de Base. Commits 1af612a (main) et a571ea0 (branche `base-mainnet`).
+- 11:55 (réel, 15/10) — Console locale relancée, plan B répété sur un fork de Base. Commits 18b962d (main) et 3b8464b (branche `base-mainnet`).
   - **Console.** `leash-console-local` ne démarrait plus : rien sur 8545, l'anvil du 14 s'était arrêté sans redémarrage du PC. `anvil.exe` se relance : le blocage d'hier n'était pas permanent. Anvil neuf, `deploy.js local --fresh`, console sur 8791 avec le nouveau coffre `0x3733…4a45`, sans erreur.
   - **Répétition Base.** Worktree `leash-base` pour la branche, afin que `main` reste en place pour la console et les .cmd ; `node_modules`, `secrets` et `contracts/out` y sont des jonctions, et les contrats sont identiques entre les branches. Fork de Base au bloc 52 637 784 (chain id 31337, pas d'argent réel), avec le vrai flux Chainlink à 2 366,07. `deploy.js basefork` puis `scenes.js basefork` : 18/18. `audit-chain.mjs basefork` le confirme depuis la chaîne (17 minées, A1 refusée avant signature).
   - **Coût mesuré.** 48 transactions, 6 768 849 de gaz, soit 0,10 $ à 0,006 gwei. Mon estimation de 11:27 (12 à 15 M de gaz, 0,20 $) était deux fois trop haute.
@@ -529,7 +529,7 @@ Ce ne sont pas des promesses du prompt : c'est le contrat qui refuse. Chaque ref
     - 3 tests Node rouges : les enregistrements du compilateur ne correspondent plus au prompt (nouveau champ budget). Codex est en limite d'usage jusqu'à 03:46 ; à réenregistrer.
     - Sepolia porte encore l'ancien contrat (run 4, pire cas 6 080, borné par le solde). Les chiffres de gaz du README mélangent run 4 et le contrat local actuel : run 5 à faire après 00:15 UTC.
     - Le contre-factuel n'a pas encore de hash public : en local seulement.
-- 08:41 (réel, 16/10) — Run 5 sur Sepolia, sur le contrat avec budget : c'est la référence (commit a3bcacf).
+- 08:41 (réel, 16/10) — Run 5 sur Sepolia, sur le contrat avec budget : c'est la référence (commit 05d7c7b).
   - Vault `0x8487…3e15` : 18/18, audit de la chaîne 18/18, Blockscout décode les 12 refus. A5 est désormais refusé par `AboveAgentBudget`. Le run 4 reste dans `evidence/` comme le run sur l'ancien contrat.
   - `verify.mjs` envoie les sources à l'API de Sourcify au lieu d'appeler forge (bloqué par le contrôle d'applications de Windows) : 4 correspondances exactes.
   - 8 compilations de mandat réenregistrées avec le prompt actuel, dont le texte « 1,000 in total » ; 31 tests Node verts.
@@ -537,7 +537,7 @@ Ce ne sont pas des promesses du prompt : c'est le contrat qui refuse. Chaque ref
   - Prise vidéo lancée à 08:52 sur un vault neuf (`0xd90c…f7f9`) : tuée par un redémarrage du PC après le loyer. Vault archivé, prise dans `work/demo-sepolia4-aborted-0853/`.
 - 20:27 (réel, 16/10) — Nouvelle prise Sepolia avec la scène du chat. Les deux issues du chat ont maintenant un hash public. Commit qui suit.
   - **Fait.**
-    - preflight (commit 6e8e9d6) : le budget de l'agent doit couvrir les factures de tier 1 de la semaine, et le portefeuille simple doit tenir les 9 000 de la scène.
+    - preflight (commit 028b96e) : le budget de l'agent doit couvrir les factures de tier 1 de la semaine, et le portefeuille simple doit tenir les 9 000 de la scène.
     - Déploiement frais : vault `0x3b0b…d2d6`. La prise a duré 5:10, avec 15 transactions. Le chat y donne : serveur détourné, refusé `PayeeNotAllowed` (`0xd6be…c1a5`) ; sans LEASH, transfert miné (`0xebd2…5c74`).
     - Vidéo de secours : `work/demo-sepolia4/leash-demo-sepolia.mp4`, 3:50, 10 attentes de bloc coupées, 72 Mo.
     - Deck v29 : 13 diapos, 9:45 de notes, run 5, et une diapo « Same hijack, two wallets » avec la vraie capture Sepolia et les deux hashes.
