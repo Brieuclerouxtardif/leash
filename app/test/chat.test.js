@@ -2,7 +2,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { worstCase } from '../src/core.js';
 import { diffMandate } from '../src/compiler.js';
-import { chatPrompt, chatSamples, judgeChat, rawCall, plainCall, amountsLoose } from '../src/chat.js';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { chatPrompt, chatSamples, judgeChat, rawCall, plainCall, amountsLoose, recordedProfiles, SCAM, CHAT_SCHEMA } from '../src/chat.js';
+import { callModelAsync } from '../src/planner.js';
 
 const A = {
   landlord: '0xDAB5071EAf37Bf4D564e6a33da3F9E6A74687B82',
@@ -79,6 +82,20 @@ test('the chat prompt carries no secret and no vault state; the message stays in
     assert.doesNotMatch(p, /\b(12,?000|1,?500|900)\b/, 'no balance or limit: code checks the numbers');
     assert.match(p, /<<<MESSAGE\nhello\nMESSAGE>>>/);
   }
+  // The only address in a prompt is the attacker's own, written into the hijacked instructions; the guarded one has none.
+  assert.deepEqual([chatPrompt('guarded', 'hello').match(/0x[0-9a-fA-F]{40}/g), chatPrompt('hijacked', 'hello').match(/0x[0-9a-fA-F]{40}/g)], [null, [SCAM]]);
+  // Every scripted message replays under both prompts as they are now: a button never waits on a live model.
+  for (const text of chatSamples()) assert.deepEqual(recordedProfiles(text).sort(), ['guarded', 'hijacked'], text);
+});
+
+test('with no model CLI on the machine, a live chat call fails at once, and the server reads the message by rules', async () => {
+  const was = process.env.LEASH_CODEX;
+  process.env.LEASH_CODEX = join(tmpdir(), 'no-such-dir', 'codex.exe');
+  try {
+    const t0 = Date.now();
+    await assert.rejects(callModelAsync(chatPrompt('guarded', 'hello'), { schema: CHAT_SCHEMA, timeoutMs: 20000 }), /ENOENT/);
+    assert.ok(Date.now() - t0 < 5000, 'no wait for a timeout');
+  } finally { if (was === undefined) delete process.env.LEASH_CODEX; else process.env.LEASH_CODEX = was; }
 });
 
 test('LEASH\'s code refuses what a hijacked model proposes from a chat message, and asks the owner for the rest', () => {

@@ -155,7 +155,7 @@ $('send').addEventListener('click', (e) => busy(e.target, async () => {
   const own = say === 'own';
   const text = own ? $('msg').value.trim() : samples[say].text;
   if (!text) throw new Error('write a message first');
-  const x = await api('/api/chat', { text, agent, mode: own ? 'live' : $('tmode').value });
+  const x = await api('/api/chat', { text, agent, mode: own ? 'auto' : $('tmode').value });
   renderExchange({ ...x, text, label: own ? 'Your message' : sayOf(text)[1] });
   refresh();
 }, 'Sending…'));

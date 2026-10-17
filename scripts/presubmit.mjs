@@ -202,7 +202,7 @@ const node = spawnSync(process.execPath, ['--test', 'app/test/*.test.js'], { cwd
 const pass = node.stdout.match(/^(?:# |ℹ )pass (\d+)/m)?.[1]; // tap or spec reporter
 if (node.status === 0) ok(`npm test: ${pass} passed`); else fail(`npm test failed:\n${node.stdout.slice(-1500)}`);
 // A test added without touching the README leaves a stale count where a judge reads it.
-for (const [label, re] of [['README', /mandate compiler tests \| (\d+) \/ \d+/], ['SECURITY.md', /Off-chain policy \| (\d+) Node tests/]]) {
+for (const [label, re] of [['README', /mandate compiler (?:and offline reader )?tests \| (\d+) \/ \d+/], ['SECURITY.md', /Off-chain policy \| (\d+) Node tests/]]) {
   const said = readFileSync(join(ROOT, label === 'README' ? 'README.md' : join('docs', label)), 'utf8').match(re)?.[1];
   if (said !== pass) fail(`${label} says ${said ?? 'no number of'} Node tests, npm test ran ${pass}`);
   else ok(`${label} states the ${pass} Node tests that ran`);

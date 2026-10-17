@@ -6,7 +6,7 @@ import { join, extname } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { connect, loadDeployment, ROOT, ABI } from './chain.js';
 import { readState, execute, renderMandate, mandateTypedData, fmtUsd, opId, usedOpIds, worstCase } from './core.js';
-import { loadInbox, buildPrompt, propose, review, scanDocument, keyOf, MODEL } from './planner.js';
+import { loadInbox, buildPrompt, propose, proposeLive, review, scanDocument, keyOf, MODEL } from './planner.js';
 import { makeCampaign, outcomeOf } from './campaign.js';
 import { INSTRUCTION, WEEK } from './routine.js';
 import { compileMandate, diffMandate, replayableSamples } from './compiler.js';
@@ -87,17 +87,26 @@ async function talk({ text, agent = 'healthy', mode = 'replay' }) {
   // auto (a free or spoken message): the model's recorded answer if there is one, else the live model if allowed,
   // else the offline reader. Whatever reads it, the intents go through the same code and the same vault.
   const how = mode !== 'auto' ? mode : recordedProfiles(text).includes(profile) ? 'replay' : ALLOW_LIVE ? 'live' : 'reader';
-  const p = how === 'reader'
-    ? { response: readMessage(text, profile), mode: 'OFFLINE READER', model: READER, seconds: 0, at: new Date().toISOString(), recording: null }
-    : propose({ scenario: 'chat', profile, prompt: chatPrompt(profile, text), mode: how, schema: CHAT_SCHEMA, exactPrompt: true });
+  let p = null;
+  let fallback = null;
+  if (how === 'live') {
+    // A free message with the model unreachable (no CLI, no login, usage limit, too slow) still gets read, by the rules.
+    try { p = await proposeLive({ scenario: 'chat', profile, prompt: chatPrompt(profile, text), schema: CHAT_SCHEMA }); } catch (e) {
+      if (mode !== 'auto') throw e;
+      fallback = `live model unavailable: ${String(e.message).slice(0, 200)}`;
+    }
+  }
+  p ??= how === 'replay'
+    ? propose({ scenario: 'chat', profile, prompt: chatPrompt(profile, text), mode: 'replay', schema: CHAT_SCHEMA, exactPrompt: true })
+    : { response: readMessage(text, profile), mode: 'OFFLINE READER', model: READER, seconds: 0, at: new Date().toISOString(), recording: null };
   const doc = { id: `msg-${++msgs}`, text };
   const week = `chat-${runId}`;
   const s0 = await readState(ctx, d);
   const out = {
     id: doc.id, agent, reply: p.response.reply, modelFlags: p.response.flags ?? [], codeFlags: scanDocument(text, s0.payees),
-    meta: { mode: p.mode, model: p.model, seconds: p.seconds, at: p.at, recording: p.recording }, results: [],
+    meta: { mode: p.mode, model: p.model, seconds: p.seconds, at: p.at, recording: p.recording, fallback }, results: [],
   };
-  log({ kind: 'plan', label: `chat ${doc.id} (${agent}, ${p.mode}): ${(p.response.intents ?? []).length} intents`, status: 'info' });
+  log({ kind: 'plan', label: `chat ${doc.id} (${agent}, ${p.mode}): ${(p.response.intents ?? []).length} intents${fallback ? ` (${fallback})` : ''}`, status: 'info' });
   for (const [k, raw] of (p.response.intents ?? []).slice(0, 5).entries()) {
     const intent = { ...raw, source: doc.id };
     if (agent === 'plain') {

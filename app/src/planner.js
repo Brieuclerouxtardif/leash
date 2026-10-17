@@ -4,7 +4,7 @@ import { readFileSync, readdirSync, existsSync, mkdirSync, writeFileSync, mkdtem
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { ROOT } from './chain.js';
 import { judge, fmtUsd, opId } from './core.js';
 
@@ -111,29 +111,66 @@ function findCodex() {
   return 'codex';
 }
 
+let cli = null;
+const cliVersion = (exe) => (cli ??= spawnSync(exe, ['--version'], { encoding: 'utf8' }).stdout?.trim());
+
+function codexArgs(dir, schema) {
+  writeFileSync(join(dir, 'schema.json'), JSON.stringify(schema));
+  const args = ['exec', '--ignore-user-config', '--ephemeral', '--sandbox', 'read-only', '--model', MODEL, '--skip-git-repo-check',
+    '--json', '--output-schema', join(dir, 'schema.json'), '--output-last-message', join(dir, 'response.json'), '--cd', dir];
+  for (const f of DISABLED) args.push('--disable', f);
+  args.push('-');
+  return args;
+}
+
+// What a finished run gives: the answer, or why there is none.
+function answerOf(exe, dir, run, t0) {
+  const events = (run.stdout ?? '').split('\n').flatMap((l) => { try { return [JSON.parse(l)]; } catch { return []; } });
+  const tools = events.filter((e) => e.item && !['agent_message', 'reasoning'].includes(e.item.type)).map((e) => e.item.type);
+  if (tools.length) throw new Error(`model attempted tool calls (${tools.join(',')}); run rejected`);
+  // The CLI reports a failed turn (usage limit, login) on stdout as an event, not on stderr.
+  const failed = events.filter((e) => e.type === 'error').map((e) => e.message).at(-1);
+  if (run.status !== 0 || !existsSync(join(dir, 'response.json'))) throw new Error(`codex failed (${run.status}): ${failed ?? (run.stderr ?? '').slice(-400)}`);
+  const response = JSON.parse(readFileSync(join(dir, 'response.json'), 'utf8'));
+  return { response, seconds: (Date.now() - t0) / 1000, cli: cliVersion(exe), usage: events.filter((e) => e.type === 'turn.completed').map((e) => e.usage), toolCalls: 0 };
+}
+
 /** One live model call. No tools, read-only sandbox, ephemeral, user config ignored. */
 export function callModel(prompt, { timeoutMs = 240000, schema = SCHEMA } = {}) {
   const exe = findCodex();
   const dir = mkdtempSync(join(tmpdir(), 'leash-plan-'));
   try {
-    writeFileSync(join(dir, 'schema.json'), JSON.stringify(schema));
-    const args = ['exec', '--ignore-user-config', '--ephemeral', '--sandbox', 'read-only', '--model', MODEL, '--skip-git-repo-check',
-      '--json', '--output-schema', join(dir, 'schema.json'), '--output-last-message', join(dir, 'response.json'), '--cd', dir];
-    for (const f of DISABLED) args.push('--disable', f);
-    args.push('-');
+    const args = codexArgs(dir, schema);
     const t0 = Date.now();
-    const run = spawnSync(exe, args, { input: prompt, encoding: 'utf8', timeout: timeoutMs, maxBuffer: 64 * 1024 * 1024 });
-    const events = (run.stdout ?? '').split('\n').flatMap((l) => { try { return [JSON.parse(l)]; } catch { return []; } });
-    const tools = events.filter((e) => e.item && !['agent_message', 'reasoning'].includes(e.item.type)).map((e) => e.item.type);
-    if (tools.length) throw new Error(`model attempted tool calls (${tools.join(',')}); run rejected`);
-    // The CLI reports a failed turn (usage limit, login) on stdout as an event, not on stderr.
-    const failed = events.filter((e) => e.type === 'error').map((e) => e.message).at(-1);
-    if (run.status !== 0 || !existsSync(join(dir, 'response.json'))) throw new Error(`codex failed (${run.status}): ${failed ?? (run.stderr ?? '').slice(-400)}`);
-    const response = JSON.parse(readFileSync(join(dir, 'response.json'), 'utf8'));
-    const version = spawnSync(exe, ['--version'], { encoding: 'utf8' }).stdout?.trim();
-    return { response, seconds: (Date.now() - t0) / 1000, cli: version, usage: events.filter((e) => e.type === 'turn.completed').map((e) => e.usage), toolCalls: 0 };
+    return answerOf(exe, dir, spawnSync(exe, args, { input: prompt, encoding: 'utf8', timeout: timeoutMs, maxBuffer: 64 * 1024 * 1024 }), t0);
   } finally {
     rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+/** The same call, without holding the server while the model thinks: the chat waits for it, the page does not. */
+export async function callModelAsync(prompt, { timeoutMs = 90000, schema = SCHEMA } = {}) {
+  const exe = findCodex();
+  const dir = mkdtempSync(join(tmpdir(), 'leash-plan-'));
+  try {
+    const args = codexArgs(dir, schema);
+    const t0 = Date.now();
+    const run = await new Promise((resolve, reject) => {
+      const p = spawn(exe, args, { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+      let stdout = '';
+      let stderr = '';
+      const timer = setTimeout(() => { p.kill(); reject(new Error(`no answer from the model in ${timeoutMs / 1000} s`)); }, timeoutMs);
+      p.stdout.setEncoding('utf8').on('data', (c) => { stdout += c; });
+      p.stderr.setEncoding('utf8').on('data', (c) => { stderr += c; });
+      p.on('error', (e) => { clearTimeout(timer); reject(e); });
+      p.on('close', (status) => { clearTimeout(timer); resolve({ status, stdout, stderr }); });
+      p.stdin.on('error', () => {});
+      p.stdin.end(prompt);
+    });
+    return answerOf(exe, dir, run, t0);
+  } finally {
+    // A killed run may still hold its folder for a moment on Windows.
+    try { rmSync(dir, { recursive: true, force: true }); } catch {}
   }
 }
 
@@ -151,12 +188,21 @@ export function propose({ scenario, profile, prompt, mode, schema = SCHEMA, exac
     const rec = JSON.parse(readFileSync(join(RUNS, files.at(-1)), 'utf8'));
     return { ...rec, mode: 'RECORDED REPLAY', recording: files.at(-1), promptMatches: rec.promptSha256 === sha(prompt) };
   }
-  const out = callModel(prompt, { schema });
+  return record({ scenario, profile, prompt, schema }, callModel(prompt, { schema }));
+}
+
+/** A live call that does not block the server (the chat). Recorded like any other. */
+export async function proposeLive({ scenario, profile, prompt, schema = SCHEMA, timeoutMs }) {
+  return record({ scenario, profile, prompt, schema }, await callModelAsync(prompt, { schema, timeoutMs }));
+}
+
+function record({ scenario, profile, prompt, schema }, out) {
+  mkdirSync(RUNS, { recursive: true });
   const rec = {
     scenario, profile, mode: 'live', model: MODEL, cli: out.cli, at: new Date().toISOString(), seconds: out.seconds,
     promptSha256: sha(prompt), schemaSha256: sha(JSON.stringify(schema)), usage: out.usage, toolCalls: out.toolCalls, prompt, response: out.response,
   };
-  const file = `${tag}-${rec.at.replace(/[-:.]/g, '')}.json`;
+  const file = `${scenario}-${profile}-${rec.at.replace(/[-:.]/g, '')}.json`;
   writeFileSync(join(RUNS, file), JSON.stringify(rec, null, 2));
   return { ...rec, recording: file, promptMatches: true };
 }

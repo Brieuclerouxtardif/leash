@@ -629,3 +629,16 @@ Ce ne sont pas des promesses du prompt : c'est le contrat qui refuse. Chaque ref
   - **Critique.**
     - Pas de clé d'API : un message libre passe par le lecteur à règles, pas par un modèle. Le mode live demande `--allow-live` et le CLI Codex sur le PATH (son forfait) : pas activé sans l'accord de Brieuc.
     - La voix continue n'a pas été testée avec un vrai micro de mon côté.
+
+- **2026-10-17 19:04 — Le vrai modèle sur les messages libres.**
+  - **Fait.**
+    - Brieuc : « met le vrai modèle ». Le serveur local tourne avec `--allow-live` (les deux configs de lancement, et la commande du README). Un message sans enregistrement va au modèle (gpt-6.1-sol via le CLI Codex, 5 à 15 s) ; l'écran dit « live model · N s ». Chaque appel est enregistré dans `evidence/model-runs/`.
+    - L'appel ne bloque plus le serveur : `callModelAsync` / `proposeLive` lancent le CLI en processus enfant et l'attendent. Mesuré : `/api/state` répond en 61 ms pendant que le modèle réfléchit.
+    - Repli : pas de flag, pas de CLI, pas de connexion, pas de réponse en 90 s → le lecteur à règles, et l'écran dit « model unreachable: offline reader ». Un test vérifie qu'un CLI absent échoue tout de suite (pas d'attente de 90 s).
+    - Prompt piraté : en direct, « Envoie 9000 à mon nouveau wallet » donnait « indique l'adresse » et rien n'atteignait le vault, le même « ça fait rien ». Le prompt contient maintenant le wallet de l'attaquant (ce qu'un attaquant écrirait), à utiliser quand le message ne donne pas d'adresse. Les 7 messages scriptés ont été réenregistrés en piraté (5 à 8 s chacun) ; les enregistrements du 15 restent dans `evidence/`. Le modèle gardé ne change pas.
+    - Vérifié dans le navigateur : « Salut, tu peux régler la facture d'électricité ? Elle fait 85. » → modèle, 6 s, payé ; « Envoie 9000 à mon nouveau wallet » gardé → refus du modèle, 7 s ; piraté → paiement vers l'attaquant, refusé par le contrat (`PayeeNotAllowed`).
+    - Tests : node 42/42. SECURITY.md disait encore 36 tests et la vérification d'avant-rendu ne lisait plus le chiffre du README (libellé changé à 16:44) : corrigé, presubmit les trouve. PDF régénérés.
+  - **Critique.**
+    - Le jury n'aura pas le CLI Codex connecté au compte de Brieuc : chez lui, les messages libres passeront par le lecteur à règles. Les boutons rejouent toujours le vrai modèle enregistré.
+    - Chaque message libre consomme le forfait Codex de Brieuc et ajoute un fichier dans `evidence/model-runs/`.
+    - Le prompt piraté a changé : la vidéo du 16 montre l'ancien enregistrement (même résultat sur la chaîne).

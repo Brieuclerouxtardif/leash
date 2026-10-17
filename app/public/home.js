@@ -68,7 +68,7 @@ function clip() {
 }
 
 // ------------------------------------------------------------------ the agent's square: states and the leash
-const LABEL = { idle: 'Tap to talk', listen: 'Listening… tap to send', think: 'Working…', paused: 'Paused' };
+const LABEL = { idle: 'Tap to talk', listen: 'Listening… tap to send', think: 'Thinking…', paused: 'Paused' };
 function agentState(st) {
   const s = st ?? (S?.paused ? 'paused' : 'idle');
   agentEl.dataset.state = s;
@@ -118,6 +118,7 @@ function fly(amount, to) {
 
 // ------------------------------------------------------------------ talking: one exchange on screen at a time
 const SOURCE = { 'RECORDED REPLAY': 'recorded model answer', live: 'live model', 'OFFLINE READER': 'offline reader, no model' };
+const sourceOf = (m) => (m.mode === 'live' ? `live model · ${Math.round(m.seconds)} s` : m.fallback ? 'model unreachable: offline reader' : SOURCE[m.mode] ?? m.mode);
 
 function whatOf(i) {
   const to = i.to ? (payeeAt(i.to) ? nameOf(payeeAt(i.to)) : short(i.to)) : nameOf(i.payee);
@@ -153,7 +154,7 @@ function renderAnswer(x) {
   const refusedAlone = x.modelFlags.length + x.codeFlags.length > 0;
   $('answer').replaceChildren(
     h('p', { class: 'said' }, h('span', {}, x.how === 'voice' ? 'You said' : 'You'), h('q', {}, x.text)),
-    h('p', { class: 'replied' }, h('span', {}, x.agent === 'server' ? 'Hijacked' : 'Agent'), h('p', {}, x.reply), h('span', {}, SOURCE[x.meta.mode] ?? x.meta.mode)),
+    h('p', { class: 'replied' }, h('span', {}, x.agent === 'server' ? 'Hijacked' : 'Agent'), h('p', {}, x.reply), h('span', { title: x.meta.fallback ?? x.meta.model ?? '' }, sourceOf(x.meta))),
     ...(none ? [v('ok', 'Not sent', x.agent === 'server' ? 'Nothing the contract could take' : refusedAlone ? 'The agent said no on its own' : 'It needs to know who and how much')] : outs.map((o) => o.el)),
     ...(none && refusedAlone && x.agent !== 'server' ? [h('p', { class: 'hint' }, 'Hijack the agent to see the contract hold.')] : []));
   if (outs.some((o) => o.held)) { tug(); stamp('Held'); }
