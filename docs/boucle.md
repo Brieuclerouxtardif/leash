@@ -583,3 +583,21 @@ Ce ne sont pas des promesses du prompt : c'est le contrat qui refuse. Chaque ref
     - `settleInvoice` a consommé 495 347 gas, sept fois le `release` (70 600). Pas expliqué, pas optimisé.
     - 85 Mo, 4:22 : plus près des 5:00 et plus lourd. La copie 720p n'est pas faite.
     - Toujours la voix de synthèse et pas d'URL de repo sur la carte de fin : à refaire après la publication du repo.
+
+- 2026-10-17 15:32 — **Refonte de la console (commit `196412e`, poussé).**
+  - **Incident.** Le nettoyage du worktree `leash-base` a suivi ses jonctions vers `leash/secrets` et `leash/node_modules` et a effacé leur contenu. Les clés Sepolia sont perdues : testnet seulement, environ 0,19 ETH Sepolia, et le contrôle des vaults Sepolia. Les preuves on-chain et le code sont intacts. Dépendances réinstallées, nouvelles clés jetables pour le local. Règle ajoutée : jamais `git worktree remove` sur un worktree qui a des jonctions.
+  - **Fait.**
+    - `SCAM` devient une constante dans `chat.js` : les attaques rejouées gardent l'adresse du fraudeur de l'inbox, même avec des clés neuves.
+    - Skill taste, direction « The product performs », palette forêt et citron vert. Le refus est en citron vert partout ; l'argent perdu est en corail.
+    - Premier écran : la phrase, le compteur de pire cas (vault, plafond d'un détournement complet, ce que perd un wallet simple) et l'agent à détourner, avec les contrôles encore debout dessinés en tuyau.
+    - Panneau « Rules in your words » : quand un changement laisse le total identique, il dit quelle borne tient (« Same risk: the key's budget caps it »).
+    - Factures scellées : trois factures de l'école, chaque ligne affiche Held ou Paid ; les retenues avec compte à rebours et l'allowance restante.
+    - Red team : 16 tuiles, chacune dit qui refuse (erreur du contrat ou contrôle LEASH) et lie la transaction revert.
+    - 16 captures refaites ; README, SECURITY R18 et TECHNICAL alignés.
+    - Lint taste : 0 FAIL. Inspecteur : 0 FAIL, 3 WARN défendus.
+    - Tests : node 36/36, forge 52/52. Déploiement local neuf.
+  - **Critique.**
+    - `record-demo.mjs`, `compose-video.mjs` et VIDEO.md visent encore l'ancien DOM : la vidéo de demain ne peut pas être tournée sans les mettre à jour.
+    - Une nouvelle prise Sepolia demande des clés neuves alimentées au faucet.
+    - Les WARN restants (pas de photos, rangées de cartes) sont voulus : le produit, c'est l'interface. Un juré peut quand même trouver la page sèche.
+    - Rien ne montre au visiteur comment brancher son propre wallet : la console montre le mécanisme, pas l'entrée.
