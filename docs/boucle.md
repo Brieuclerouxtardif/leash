@@ -642,3 +642,16 @@ Ce ne sont pas des promesses du prompt : c'est le contrat qui refuse. Chaque ref
     - Le jury n'aura pas le CLI Codex connecté au compte de Brieuc : chez lui, les messages libres passeront par le lecteur à règles. Les boutons rejouent toujours le vrai modèle enregistré.
     - Chaque message libre consomme le forfait Codex de Brieuc et ajoute un fichier dans `evidence/model-runs/`.
     - Le prompt piraté a changé : la vidéo du 16 montre l'ancien enregistrement (même résultat sur la chaîne).
+
+- **2026-10-18 03:22 — Le vault à clé agent publique (action 1).**
+  - **Fait.**
+    - Brieuc a miné 1,033 SepETH sur pk910 vers l'owner `0xBFf3…50cd` (clés neuves du 17, `secrets/testnet-keys.json`), et a dit oui pour publier la clé agent.
+    - Vault `0x47ddcf2ce672da586c244c5ed2947e9108aa01c0` déployé sur Sepolia, sources vérifiées sur Sourcify (exact match). Même mandat que les autres : budget 1 000 tUSD, clé active jusqu'au 2026-11-01 01:13 UTC. `deployments/sepolia-public-key.json` ; `sepolia.json` reste le vault de référence (run 6).
+    - La clé privée de l'agent est dans le README, avec les commandes `cast` d'un juré. La clé owner n'est sur aucun serveur.
+    - Huit essais avec cette clé et `cast` seulement (`scripts/public-key-tries.ps1`), tous minés : 7 refus (`PayeeNotAllowed`, `AbovePayeeCap`, `NotOwner` ×2, `BadMandateSignature`, `BrokenSeal`, `SlippageAboveMandate`) et la facture d'électricité de 120 payée (le résiduel). Étiquettes rejouées sur l'état juste avant chaque transaction, identiques au décodage de Blockscout. `evidence/sepolia-public-key-20261018.jsonl`.
+    - README : l'intro dit que la primitive n'est pas neuve et que notre vault n'est pas audité ; les notes d'honnêteté disent que plafond par période = un débit, pas un total. SECURITY : R6 dit que la démo « serveur piraté » suppose la clé owner ailleurs ; R19 (le gaz de l'agent n'est pas protégé).
+    - Répétition en local d'abord : les mêmes 8 appels donnent les mêmes erreurs.
+  - **Critique.**
+    - Le règlement relu le 17 au soir était l'ancien .docx. J'en ai tiré « vidéo optionnelle » dans ma réponse à Brieuc ; la page officielle (SUBMISSION.md:7) l'exige. Corrigé ici et en mémoire. **Vérifier la date et la source d'un règlement avant de le citer.**
+    - Une clé publiée sur GitHub attire les robots : l'ETH de gaz de l'agent (0,002) peut partir vite. `cast call` montre alors les refus sans gaz ; le README le dit.
+    - Personne d'autre que nous n'a encore essayé. Le vault prouve ce qu'il refuse à cette clé, pas qu'il n'existe aucune autre attaque.

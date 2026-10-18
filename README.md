@@ -6,6 +6,8 @@ FinTechathon 2026, Topic F: Agent Wallet (autonomous on-chain wallet).
 
 An AI agent that pays your bills and manages a small portfolio needs a key. A key can be stolen, and a model can be talked into things: a fake "new bank details" invoice, a prompt injection hidden in an email. LEASH accepts that the agent will one day be wrong or compromised, and makes sure that **the worst it can do is bounded by a contract, not by the model's good behaviour.**
 
+Capped spending keys are not new, and the existing ones are audited: Safe's Allowance module, Coinbase Spend Permissions, MetaMask delegations. Our vault is not audited. What LEASH adds is a loss limit anyone can read from the chain at any time: the most a fully hijacked agent can still move, and to whom. Below is a vault whose agent key we published, so you can try to beat that limit yourself.
+
 ![LEASH on the local chain: the vault, the leash, and the hijacked agent (coral). It asked to pay the fake landlord's new wallet; the contract refused (PayeeNotAllowed) and the leash held](docs/screens/home-held.png)
 
 ```
@@ -24,6 +26,40 @@ An AI agent that pays your bills and manages a small portfolio needs a key. A ke
    │   LeashVault.sol    │
    └─────────────────────┘
 ```
+
+## The agent's key is public. Try to empty the vault.
+
+This vault on Ethereum Sepolia answers to an agent key we published on purpose. Holding it is the worst case: a stolen key, or a model and server that do whatever an attacker says. Use any tool: `cast`, Blockscout's *Write contract*, your own code. The owner key is not published and sits on no internet-facing server.
+
+| | |
+|---|---|
+| Vault | [`0x47ddcf2ce672da586c244c5ed2947e9108aa01c0`](https://eth-sepolia.blockscout.com/address/0x47ddcf2ce672da586c244c5ed2947e9108aa01c0?tab=write_contract) (sources verified on Sourcify), holding 12,000 tUSD and 1.2 tETH (test tokens) |
+| Agent private key | `0xb8c55591e5017e34b25912e93142b4ccd9d6a65b3a3eecb24ba06ac6dca5f4c4` (address `0x405169736720e7900Dd16e18e943BDb9C62E9B48`), active until 2026-11-01 01:13 UTC |
+| What the key can still move | `agentBudget()` in tUSD (1,000 at deployment), only to the two registered payees, at most 900 per payment to one and 150 to the other; and swaps of up to 1,000 tUSD a day, never more than 1 % below the Chainlink price |
+| What should be impossible | paying any other address, adding a payee, raising a limit, withdrawing, forging the owner's signature or a creditor's seal |
+
+Move more than that, or pay anyone else, and LEASH has failed. The agent address holds a little Sepolia ETH for gas. Anyone with the key can take that ETH: the vault does not protect it. If it is gone, send the address some Sepolia ETH. If a bot takes whatever you send, `cast call` shows the same refusal for free.
+
+```bash
+export RPC=https://ethereum-sepolia-rpc.publicnode.com V=0x47ddcf2ce672da586c244c5ed2947e9108aa01c0 KEY=0xb8c55591e5017e34b25912e93142b4ccd9d6a65b3a3eecb24ba06ac6dca5f4c4 ME=<your address>
+cast call $V "pay(address,uint256,bytes32)" $ME 9000000000 $(cast keccak try-1) --from 0x405169736720e7900Dd16e18e943BDb9C62E9B48 --rpc-url $RPC   # shows the refusal, free
+cast send $V "pay(address,uint256,bytes32)" $ME 9000000000 $(cast keccak try-1) --private-key $KEY --rpc-url $RPC --gas-limit 600000   # mines it
+```
+
+Amounts have 6 decimals (9000000000 = 9,000 tUSD). The function list is in [`LeashVault.sol`](contracts/src/LeashVault.sol). Our own tries with this key, using the same `cast` commands, all mined:
+
+| Try | Result | Transaction |
+|---|---|---|
+| Pay 9,000 tUSD to our own address | refused: `PayeeNotAllowed` | [0x217a7f88…fc63](https://eth-sepolia.blockscout.com/tx/0x217a7f88ba9ae915e0a56125abfdbab18275c4ec74b9d0b04d27a03c06c4fc63) |
+| Pay the landlord 5,000 tUSD (its cap is 900) | refused: `AbovePayeeCap` | [0x85f455a2…75fd](https://eth-sepolia.blockscout.com/tx/0x85f455a2194423ba98cebffecf39a19e5295b0ecd7609dd47d71276b68dc75fd) |
+| Add our address as a payee | refused: `NotOwner` | [0x3175e77e…2307](https://eth-sepolia.blockscout.com/tx/0x3175e77e910be21dbd6a525bc547bc93f0533b72de8f70bd7a864fca4fbd2307) |
+| Withdraw the 12,000 tUSD | refused: `NotOwner` | [0xe37fcacd…b00b](https://eth-sepolia.blockscout.com/tx/0xe37fcacdcc4ea9a51064c04005d7dab58db768d321efa43816491bd2656eb00b) |
+| Pay 9,000 tUSD with a forged owner signature | refused: `BadMandateSignature` | [0xd1c6c9ad…ee6e](https://eth-sepolia.blockscout.com/tx/0xd1c6c9adb2c6a9ee62bef2eea00eb1425de8a582ecf43c15632cda2218d5ee6e) |
+| Settle a 9,000 tUSD invoice with a forged seal | refused: `BrokenSeal` | [0x22d8739d…49c0](https://eth-sepolia.blockscout.com/tx/0x22d8739d40c382376ec6595c8df3d864b0f40443835165c0d0ca7a860c3d49c0) |
+| Swap 500 tUSD at any price | refused: `SlippageAboveMandate` | [0x83f72649…6ff8](https://eth-sepolia.blockscout.com/tx/0x83f72649af5907bf6d5db921424ab8e431681a5f04c8f5bef23768ea33fc6ff8) |
+| Pay the 120 tUSD electricity bill | paid: inside the mandate, the part of the worst case a thief can take | [0xd542e6fb…08c8](https://eth-sepolia.blockscout.com/tx/0xd542e6fb4ec45aea55eabcd21b324519eb2020b66e1cea17cca7d605077d08c8) |
+
+Each refusal is read from the mined transaction (the same call replayed on the state just before it) and matches Blockscout's own decoding: `evidence/sepolia-public-key-20261018.jsonl`, `scripts/public-key-tries.ps1`.
 
 ## Three permission tiers
 
@@ -183,8 +219,8 @@ All 36 transactions of this run, and the five earlier runs (three failed, runs 4
 |---|---|
 | Technical documentation: system architecture, core algorithm, security design | [TECHNICAL.md](docs/TECHNICAL.md) §2, §3, §4 |
 | Source code with README, deployment instructions and test cases | this repository: [Run it locally](#run-it-locally), [Run it on Ethereum Sepolia](#run-it-on-ethereum-sepolia), `contracts/test/`, `app/test/` |
-| Security self-assessment: permission tiers and known risks | [SECURITY.md](docs/SECURITY.md) §2 (tiers), §5 (16 attacks), §6 (known risks R1–R18), §7 (compliance controls, and what is not covered: KYC, AML, data protection) |
-| Execution evidence: on-chain transaction hashes | [evidence-sepolia.md](docs/evidence-sepolia.md), `evidence/sepolia-campaign-*.json` |
+| Security self-assessment: permission tiers and known risks | [SECURITY.md](docs/SECURITY.md) §2 (tiers), §5 (16 attacks), §6 (known risks R1–R19), §7 (compliance controls, and what is not covered: KYC, AML, data protection) |
+| Execution evidence: on-chain transaction hashes | [evidence-sepolia.md](docs/evidence-sepolia.md), `evidence/sepolia-campaign-*.json`; the public-key vault's tries: `evidence/sepolia-public-key-20261018.jsonl` |
 | Topic F: asset management, transaction execution, risk control | a weekly tETH purchase under an exposure cap; bill payments; the vault's limits, oracle floor and kill switch |
 
 LEASH is MIT-licensed ([LICENSE](LICENSE)). Third-party code: OpenZeppelin Contracts 5.6.1 and viem 2.57.5 (MIT, installed by `npm ci`), forge-std (MIT or Apache-2.0, vendored in `contracts/lib/` with its license files).
@@ -315,7 +351,9 @@ Nobody arbitrages our pool, so it keeps the deploy-day price while the real feed
 
 ## Honesty notes
 
-- **Not new as a primitive.** Session keys, spend permissions and allowance modules exist (ERC-4337 plugins, Coinbase Spend Permissions, MetaMask delegations, Safe Allowance module). LEASH's contribution is the complete loop: LLM → deterministic policy → contract, with an oracle-bounded portfolio mandate, deterministic mandate rendering and on-chain proof of every refusal.
+- **Not new as a primitive, and not audited.** Session keys, spend permissions and allowance modules exist, and several are audited: ERC-4337 plugins, Coinbase Spend Permissions, MetaMask delegations, Safe's Allowance module. For real money, start from one of them. LEASH's contribution is the complete loop: LLM → deterministic policy → contract, with an oracle-bounded portfolio mandate, deterministic mandate rendering and on-chain proof of every refusal. Two lessons hold whatever the module:
+  - A cap per period, as in Coinbase Spend Permissions or Safe's Allowance module, bounds a rate. Over a key's life, a rate can add up to the whole balance; our meter caught this in our own contract. Bound the total too.
+  - The limits are only as safe as the owner key. The console's demo server holds the owner key (SECURITY.md, R6); the public-key vault's owner key is on no server.
 - **The model resisted.** In our recorded live runs, both the guarded prompt and a deliberately naive prompt refused the prompt injection. We therefore do not claim "the model was fooled and the vault held". We show the stolen-key case instead (A2–A4, A7), clearly labelled *simulated* compromised model outputs in the tests, and, in the console's chat, a prompt written to obey every message. That prompt is a stand-in for a hijacked model, not a model we tricked.
 - **Our first three Sepolia runs were 17/18, and our own tooling first hid that.** The vault never let anything through; the failures were all in how we sent and labelled the attacks:
   - Run 1 took A8's revert reason from a simulation served by a lagging RPC node.
