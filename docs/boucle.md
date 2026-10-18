@@ -676,3 +676,16 @@ Ce ne sont pas des promesses du prompt : c'est le contrat qui refuse. Chaque ref
     - La voix n'est pas testée sur Sepolia (le panneau n'a pas de micro) : la dictée de Chrome doit être essayée chez lui avant la prise.
     - ~90 s d'attente sur 3:30 : si sa voix ne remplit pas, la vidéo traîne. Pas de coupe prévue.
     - Le chiffre héros baisse à chaque prise (760 après la répétition) : le script interdit de le dire.
+
+- **2026-10-19 00:39 — Vidéo de lancement façon YC (montée, voix à poser).**
+  - **Fait.**
+    - Scénario `docs/VIDEO-LAUNCH.md` : 13 plans, ~1:40. Accroche (la seule image générée, Higgsfield Cinema Studio 2.5, un robot tenu en laisse), le problème en trois lignes, la porte, « le modèle propose, le code vérifie, le contrat décide », le pire cas, l'électricité payée, l'arnaque refusée par le modèle, la même arnaque agent piraté refusée par le contrat, Blockscout, la scolarité signée par l'owner, le kill switch, la clé publique dans le README, la fin.
+    - `scripts/record-launch.mjs` filme le vrai produit sur Sepolia (vault à clé publique) dans un Edge headless ; `scripts/compose-launch.mjs` monte à partir du tableau du scénario : zooms, attentes coupées et signalées, frappe ×2,5, texte cinétique, `.srt` des voix, version guide sous-titrée.
+    - Prise `work/launch-2` (00:34) : les quatre messages lus par le modèle en direct (15, 6, 6, 7 s) ; refus `PayeeNotAllowed` `0x42ad…b28e` décodé par Blockscout pendant la prise.
+    - Piège trouvé : toute réponse live est enregistrée, et les mêmes mots renvoyés plus tard rejouent l'enregistrement (*recorded model answer*). La première prise (`launch-1`) et la prise live de Brieuc auraient montré des rejeux sous « Live model ». `scripts/take-lines.mjs` donne des phrases jamais envoyées ; le monteur refuse une prise dont la facture n'est pas lue en direct ; VIDEO-LIVE.md mis à jour.
+    - Rendu MP4 sans ffmpeg réparé : sans voix, la piste audio restait vide et le muxer ne gardait qu'une seconde d'image (silence continu ajouté, images poussées à la main).
+  - **Critique.**
+    - Le texte de l'app reste petit dans la fenêtre (environ 1:1 sur les réponses larges) : lisible en plein écran 1080p, pas en vignette.
+    - Le chiffre héros a baissé à 520 et le vault n'a plus que deux prises de 5 000 tUSD : la prise live de Brieuc et une reprise, pas plus sans nouveau mint.
+    - Higgsfield (plan gratuit) refuse toute génération vidéo (« Requires basic plan or higher ») : l'accroche est une image animée au montage, pas un clip.
+    - Les voix ne sont pas posées : sans elles la vidéo ne sert à rien.
