@@ -665,3 +665,14 @@ Ce ne sont pas des promesses du prompt : c'est le contrat qui refuse. Chaque ref
     - Le lien sort vers GitHub : hors ligne ou en démo locale, il casse le fil. Dans la vidéo, montrer la section du README plutôt que cliquer en direct.
     - L'app affiche toujours « Local test chain » : la vidéo doit être tournée sur Sepolia (vault à clé publique), sinon le jury voit une chaîne locale.
     - Le deck (artefact Slides) n'est pas repositionné : rien publié sans demande.
+
+- **2026-10-18 16:50 — Répétition de la vidéo en direct (action 3).**
+  - **Fait.**
+    - `server.js --deployment sepolia-public-key` : l'app tourne sur le vault à clé publique (les clés du vault de référence sont perdues).
+    - Répétition sur Sepolia, modèle en direct, tapé au lieu de dit : électricité payée (21 s), arnaque refusée par le modèle sain seul (9 s), même arnaque agent piraté refusée par le contrat `PayeeNotAllowed` (17 s), scolarité 5 000 signée par l'owner puis payée, kill switch (13 s), redémarrage (5 s). Journal `evidence/sepolia-console-*.jsonl`.
+    - L'owner a minté 15 000 tUSD de test dans le vault pour quatre prises (`0x9c58…916d`, noté dans `deployments/sepolia-public-key.json`) ; le README ne fige plus le solde.
+    - `docs/VIDEO-LIVE.md` : une prise unique, sa voix, ~3:30, une phrase à dire pendant chaque attente ; SUBMISSION étape 7 la donne en premier.
+  - **Critique.**
+    - La voix n'est pas testée sur Sepolia (le panneau n'a pas de micro) : la dictée de Chrome doit être essayée chez lui avant la prise.
+    - ~90 s d'attente sur 3:30 : si sa voix ne remplit pas, la vidéo traîne. Pas de coupe prévue.
+    - Le chiffre héros baisse à chaque prise (760 après la répétition) : le script interdit de le dire.

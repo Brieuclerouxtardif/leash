@@ -1,5 +1,6 @@
 // LEASH console: a local web UI over the agent, the vault and the red team.
-// Usage: node app/src/server.js [--network local|sepolia] [--port 8787] [--allow-live]
+// Usage: node app/src/server.js [--network local|sepolia] [--deployment <name in deployments/>] [--port 8787] [--allow-live]
+// --deployment picks another vault on the same network, e.g. sepolia-public-key (the vault whose agent key is public).
 import { createServer } from 'node:http';
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { join, extname } from 'node:path';
@@ -21,7 +22,8 @@ const TOKEN = randomBytes(24).toString('hex');
 const runId = `console-${new Date().toISOString().replace(/[-:]/g, '').slice(0, 15)}`;
 
 const ctx = await connect(NET, { journal: join(ROOT, 'evidence', `${NET}-${runId}.jsonl`) });
-const d = loadDeployment(NET);
+const d = loadDeployment(arg('deployment', NET));
+if (d.network !== NET) throw new Error(`deployments/${arg('deployment', NET)}.json is on ${d.network}, not ${NET}`);
 let lastPaid = null;
 const campaign = makeCampaign(ctx, d, runId, { lastPaid: () => lastPaid });
 let plan = null; // last proposal + verdicts

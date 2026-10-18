@@ -33,7 +33,7 @@ This vault on Ethereum Sepolia answers to an agent key we published on purpose. 
 
 | | |
 |---|---|
-| Vault | [`0x47ddcf2ce672da586c244c5ed2947e9108aa01c0`](https://eth-sepolia.blockscout.com/address/0x47ddcf2ce672da586c244c5ed2947e9108aa01c0?tab=write_contract) (sources verified on Sourcify), holding 12,000 tUSD and 1.2 tETH (test tokens) |
+| Vault | [`0x47ddcf2ce672da586c244c5ed2947e9108aa01c0`](https://eth-sepolia.blockscout.com/address/0x47ddcf2ce672da586c244c5ed2947e9108aa01c0?tab=write_contract) (sources verified on Sourcify), funded with 12,000 tUSD and 1.2 tETH (test tokens). The demo video is filmed on this vault, so its balance moves; the owner topped it up with 15,000 tUSD for the takes |
 | Agent private key | `0xb8c55591e5017e34b25912e93142b4ccd9d6a65b3a3eecb24ba06ac6dca5f4c4` (address `0x405169736720e7900Dd16e18e943BDb9C62E9B48`), active until 2026-11-01 01:13 UTC |
 | What the key can still move | `agentBudget()` in tUSD (1,000 at deployment), only to the two registered payees, at most 900 per payment to one and 150 to the other; and swaps of up to 1,000 tUSD a day, never more than 1 % below the Chainlink price |
 | What should be impossible | paying any other address, adding a payee, raising a limit, withdrawing, forging the owner's signature or a creditor's seal |

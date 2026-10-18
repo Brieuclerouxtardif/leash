@@ -30,7 +30,8 @@
     "gas:agent": "0x6ed440fb90b432968b2ed050a01715e332e2b349f6bb9f78ccd45e8527b89290",
     "gas:guardian": "0xaf04cd4baf93cd0a91a05aef94149dbbe5cc192fb0b0d3319b0df6e909d2de51",
     "gas:attacker": "0x8c2deebf40e28f4c95ec8fa693d9de5d0f179039cfb41608ddb5ca8f47f26f56",
-    "gas:hot": "0x9b67b9a37d5312cb0756606d672c77236e4e5aab9567ac38c620a08fa943adac"
+    "gas:hot": "0x9b67b9a37d5312cb0756606d672c77236e4e5aab9567ac38c620a08fa943adac",
+    "topup:usd-20261018-video": "0x9c58fd2abe642eb38fbc3b008a6f7168d85befeb2a31e16ce40261d83a4d916d"
   },
   "usd": "0x2b52839eeb71480df48ec4a3afee6517c678ecc3",
   "eth": "0xb9af844636f804e151395b722de9417e598742e0",
