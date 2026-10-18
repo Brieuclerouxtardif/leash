@@ -305,7 +305,7 @@ The test wallet is a throwaway owner key the server holds. A client never hands 
 
 ![The front door at phone width: the vault, the leash, and the agent you talk to](docs/screens/home-mobile-door.png)
 
-*How it holds →* opens the console (http://127.0.0.1:8791/console), every layer behind the door:
+*How it holds →* opens the public-key vault above. The console (http://127.0.0.1:8791/console) shows every layer behind the door:
 
 ![The LEASH console: what the vault holds, the most a full hijack can move, what the same hijack takes from a plain wallet, and the agent to hijack](docs/screens/console-top.png)
 

@@ -655,3 +655,13 @@ Ce ne sont pas des promesses du prompt : c'est le contrat qui refuse. Chaque ref
     - Le règlement relu le 17 au soir était l'ancien .docx. J'en ai tiré « vidéo optionnelle » dans ma réponse à Brieuc ; la page officielle (SUBMISSION.md:7) l'exige. Corrigé ici et en mémoire. **Vérifier la date et la source d'un règlement avant de le citer.**
     - Une clé publiée sur GitHub attire les robots : l'ETH de gaz de l'agent (0,002) peut partir vite. `cast call` montre alors les refus sans gaz ; le README le dit.
     - Personne d'autre que nous n'a encore essayé. Le vault prouve ce qu'il refuse à cette clé, pas qu'il n'existe aucune autre attaque.
+
+- **2026-10-18 16:41 — Le pire cas devient le héros (action 2, côté app).**
+  - **Fait.**
+    - Brieuc a validé deux retouches de présentation. Dans la boîte du vault, le grand chiffre est maintenant ce qu'un pirate peut faire sortir (« $880 is the most it can move, even hijacked… », vert) ; le solde passe dessous, sur la ligne de la barre (« of $14,880 in your vault… »). En pause : « $0 can move: the guardian paused the vault ».
+    - *How it holds →* ouvre la section du README sur le vault à clé publique (nouvel onglet) au lieu de la console. La console reste à `/console` ; le README le dit.
+    - Captures de la porte refaites (`scripts/home-screens.mjs`, chaîne locale), avec le journal de leurs transactions. Tests node 42/42.
+  - **Critique.**
+    - Le lien sort vers GitHub : hors ligne ou en démo locale, il casse le fil. Dans la vidéo, montrer la section du README plutôt que cliquer en direct.
+    - L'app affiche toujours « Local test chain » : la vidéo doit être tournée sur Sepolia (vault à clé publique), sinon le jury voit une chaîne locale.
+    - Le deck (artefact Slides) n'est pas repositionné : rien publié sans demande.

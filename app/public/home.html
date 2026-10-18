@@ -18,7 +18,7 @@
       <span class="wallet"><i></i>Test wallet <b id="walletAddr"></b></span>
       <span class="net" id="net"></span>
     </div>
-    <a class="how" href="/console">How it holds <span aria-hidden="true">→</span></a>
+    <a class="how" href="https://github.com/Brieuclerouxtardif/leash#the-agents-key-is-public-try-to-empty-the-vault" target="_blank" rel="noopener">How it holds <span aria-hidden="true">→</span></a>
     <button class="kill" id="kill" hidden>Kill switch</button>
   </header>
 
@@ -35,11 +35,12 @@
           <h1 class="lines"><span class="line"><span>It can spend.</span></span><span class="line"><span>It can’t run away.</span></span></h1>
           <p class="lead">An AI wallet you talk to.<br>A contract holds the leash.</p>
         </div>
+        <!-- The hero is the bound, not the balance: what a hijack can take is the number LEASH exists for. -->
         <div class="purse" id="purse" hidden>
-          <p class="bal"><b id="bal">$0</b><span id="balSub">in your vault</span></p>
+          <p class="cap"><b id="reach">$0</b><span id="reachSub">is the most it can move, even hijacked</span></p>
           <div class="reach">
             <div class="track"><i id="reachBar"></i></div>
-            <p><b id="reach">$0</b> <span id="reachSub">is the most it can move, even hijacked</span></p>
+            <p class="bal">of <b id="bal">$0</b> <span id="balSub">in your vault</span></p>
           </div>
         </div>
       </section>
