@@ -126,7 +126,7 @@ const subs = shots.filter((x) => x.vo).map((x) => ({ o0: x.o0 + 0.25, o1: Math.m
 const srt = (x) => { const ms = Math.round(x * 1000); const p = (v, n = 2) => String(v).padStart(n, '0'); return `${p(Math.floor(ms / 3600000))}:${p(Math.floor(ms / 60000) % 60)}:${p(Math.floor(ms / 1000) % 60)},${p(ms % 1000, 3)}`; };
 writeFileSync(`${OUT}.srt`, subs.map((x, i) => `${i + 1}\n${srt(x.o0)} --> ${srt(x.o1)}\n${x.text}\n`).join('\n'));
 const UNTIL = opt('--until') ? Number(opt('--until')) : total;
-writeFileSync(join(DIR, 'launch-plan.json'), JSON.stringify({ W: tl.width, H: tl.height, frames, shots, subs, total, until: Math.min(UNTIL, total), guide: GUIDE, repo: REPO }));
+writeFileSync(join(DIR, 'launch-plan.json'), JSON.stringify({ W: tl.width, H: tl.height, frames, shots, subs, total, until: Math.min(UNTIL, total), guide: GUIDE, repo: REPO, mbps: Number(opt('--mbps') ?? 8) }));
 
 const fmt = (x) => `${Math.floor(x / 60)}:${(x % 60).toFixed(1).padStart(4, '0')}`;
 for (const x of shots) console.log(`${fmt(x.o0)}  ${x.id.padEnd(10)} ${(x.o1 - x.o0).toFixed(1).padStart(5)} s${x.hold ? `  (holds ${(x.o1 - x.hold.o0).toFixed(1)} s for the voice)` : ''}${x.badges?.length ? `  ${x.badges.map((b) => b.text).join(', ')}` : ''}`);
@@ -348,7 +348,7 @@ await fetch('start', { method: 'POST', body: mime });
 const vt = cv.captureStream(0).getVideoTracks()[0];
 const stream = new MediaStream([vt, ...dest.stream.getAudioTracks()]);
 window.__track = vt;
-const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 8e6, audioBitsPerSecond: 160e3 });
+const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: P.mbps * 1e6, audioBitsPerSecond: 160e3 });
 let chain = Promise.resolve();
 window.__chunks = [];
 rec.ondataavailable = (e) => { window.__chunks.push(e.data.size); if (e.data.size) { const b = e.data; chain = chain.then(() => fetch('chunk', { method: 'POST', body: b })); } };

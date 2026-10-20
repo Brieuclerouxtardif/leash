@@ -7,7 +7,7 @@ import { createServer } from 'node:http';
 import { spawn } from 'node:child_process';
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { script, lines, clipName, wavSeconds } from './video-script.mjs';
+import { script, lines, clipName, wavSeconds, LAUNCH } from './video-script.mjs';
 
 const args = process.argv.slice(2);
 const opt = (name) => { const i = args.indexOf(name); return i < 0 ? undefined : args[i + 1]; };
@@ -59,7 +59,7 @@ const server = createServer((req, res) => {
   }
   if (path === '/') { res.setHeader('content-type', 'text/html; charset=utf-8'); return res.end(page()); }
   if (path === '/state') return json(res, state());
-  const clip = path.match(/^\/clip\/(s\d\d\.wav)$/)?.[1];
+  const clip = path.match(/^\/clip\/([sv]\d\d\.wav)$/)?.[1];
   if (clip && existsSync(join(OUT, clip))) { res.setHeader('content-type', 'audio/wav'); res.setHeader('cache-control', 'no-store'); return res.end(readFileSync(join(OUT, clip))); }
   json(res, { error: 'not found' }, 404);
 });
@@ -71,7 +71,8 @@ server.listen(PORT, '127.0.0.1', () => {
 });
 
 function page() {
-  const next = `node scripts/compose-video.mjs work/demo-sepolia5 --voice-dir ${args[0].replace(/\\/g, '/')} --plan`;
+  const next = LAUNCH ? `node scripts/compose-launch.mjs work/launch-2 --voice-dir ${args[0].replace(/\\/g, '/')} --plan`
+    : `node scripts/compose-video.mjs work/demo-sepolia5 --voice-dir ${args[0].replace(/\\/g, '/')} --plan`;
   return `<!doctype html><meta charset="utf-8"><title>LEASH voice-over</title>
 <style>
 :root{--bg:#0b0d10;--panel:#12161b;--line:#232b35;--text:#e7ecf2;--muted:#8a96a3;--accent:#f5a524;--ok:#3ecf8e;--bad:#ff6b6b}
