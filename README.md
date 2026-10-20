@@ -221,6 +221,8 @@ All 36 transactions of this run, and the five earlier runs (three failed, runs 4
 | Source code with README, deployment instructions and test cases | this repository: [Run it locally](#run-it-locally), [Run it on Ethereum Sepolia](#run-it-on-ethereum-sepolia), `contracts/test/`, `app/test/` |
 | Security self-assessment: permission tiers and known risks | [SECURITY.md](docs/SECURITY.md) §2 (tiers), §5 (16 attacks), §6 (known risks R1–R19), §7 (compliance controls, and what is not covered: KYC, AML, data protection) |
 | Execution evidence: on-chain transaction hashes | [evidence-sepolia.md](docs/evidence-sepolia.md), `evidence/sepolia-campaign-*.json`; the public-key vault's tries: `evidence/sepolia-public-key-20261018.jsonl` |
+| Demo video, 5 min max | [LEASH-video.mp4](docs/LEASH-video.mp4) (1:40, subtitled, no voice-over): filmed on Ethereum Sepolia on the public-key vault, with the live model; transaction waits cut and labelled. Script: [VIDEO-LAUNCH.md](docs/VIDEO-LAUNCH.md) |
+| Presentation deck, 10 min max | [LEASH-deck.pdf](docs/LEASH-deck.pdf), 15 slides |
 | Topic F: asset management, transaction execution, risk control | a weekly tETH purchase under an exposure cap; bill payments; the vault's limits, oracle floor and kill switch |
 
 LEASH is MIT-licensed ([LICENSE](LICENSE)). Third-party code: OpenZeppelin Contracts 5.6.1 and viem 2.57.5 (MIT, installed by `npm ci`), forge-std (MIT or Apache-2.0, vendored in `contracts/lib/` with its license files).
